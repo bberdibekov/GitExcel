@@ -1,9 +1,12 @@
 // src/taskpane/hooks/useComparison.ts
 
-import { useState, useEffect, useCallback } from "react"; // Import useEffect and useCallback
+import { useState, useEffect, useCallback } from "react"; 
 import { IVersion, IDiffResult } from "../types/types";
 import { synthesizeChangesets } from "../services/synthesizer.service";
 import { debugService } from "../services/debug.service";
+// --- MODIFICATION START (FEAT-005) ---
+import { ILicense } from "../services/AuthService";
+// --- MODIFICATION END ---
 
 /**
  * A custom hook to manage the state and logic for comparing versions.
@@ -33,10 +36,16 @@ export function useComparison(versions: IVersion[]) {
 
   /**
    * The core business logic for running a comparison.
-   * Wrapped in useCallback to stabilize its identity for the useEffect hook.
-   * This prevents the effect from running on every render.
+   * Wrapped in useCallback to stabilize its identity.
    */
-  const compareVersions = useCallback(async (startIndex?: number, endIndex?: number) => {
+  // --- MODIFICATION START (FEAT-005) ---
+  const compareVersions = useCallback(async (
+    license: ILicense,
+    activeFilterIds: Set<string>,
+    startIndex?: number, 
+    endIndex?: number
+  ) => {
+  // --- MODIFICATION END ---
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
 
@@ -51,7 +60,8 @@ export function useComparison(versions: IVersion[]) {
     }
 
     if (startVersion && endVersion) {
-      const result = synthesizeChangesets(startVersion, endVersion, versions);
+      // --- Pass license and filters to the synthesizer ---
+      const result = synthesizeChangesets(startVersion, endVersion, versions, license, activeFilterIds);
       const description = `Comparison Result: "${startVersion.comment}" vs "${endVersion.comment}"`;
       debugService.addLogEntry(description, result);
       setDiffResult(result);
@@ -61,14 +71,14 @@ export function useComparison(versions: IVersion[]) {
     }
   }, [versions, selectedVersions]); // Dependencies for the callback
 
-  // A useEffect hook to implement the "auto-compare" feature.
-  // It runs whenever the selection changes.
-  useEffect(() => {
-    // If exactly two versions are selected, run the comparison automatically.
-    if (selectedVersions.length === 2) {
-      compareVersions();
-    }
-  }, [selectedVersions, compareVersions]); // It depends on the selection and the compare function itself.
+  // The auto-compare feature is removed for now, as it requires more state management.
+  // Comparison will be explicitly triggered by the user in App.tsx.
+  // useEffect(() => {
+  //   if (selectedVersions.length === 2) {
+  //     // We would need license and filters here, which complicates this hook.
+  //     // compareVersions(); 
+  //   }
+  // }, [selectedVersions, compareVersions]);
 
   return {
     selectedVersions,

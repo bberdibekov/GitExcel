@@ -6,11 +6,14 @@ import { Button } from "@fluentui/react-components";
 import { debugService } from "../services/debug.service";
 import { useSharedStyles } from "./sharedStyles";
 
+// --- MODIFICATION START (FEAT-005) ---
+// Update the onCompare prop to be a synchronous function.
 interface DevToolsProps {
   onSaveVersion: (comment: string) => Promise<void>;
   onClearHistory: () => void;
-  onCompare: (startIndex: number, endIndex: number) => Promise<void>;
+  onCompare: (startIndex: number, endIndex: number) => void;
 }
+// --- MODIFICATION END ---
 
 interface TestStep {
   description: string;
@@ -18,6 +21,7 @@ interface TestStep {
   action: () => Promise<void>;
 }
 
+// ... (testSteps array is unchanged) ...
 const testSteps: TestStep[] = [ 
     { description: "Setting up v1: Empty Sheet", comment: "v1: Initial State", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange().clear(); await context.sync(); }); }, }, 
     { description: "Setting up v2: A2 = 1", comment: "v2: A2 = 1", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A2").values = [[1]]; await context.sync(); }); }, }, 
@@ -76,7 +80,10 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
       for (let i = 0; i < pairs.length; i++) {
         const [startIndex, endIndex] = pairs[i];
         setStatus(`Comparing v${startIndex + 1} vs v${endIndex + 1} (${i + 1}/${pairs.length})`);
-        await onCompare(startIndex, endIndex);
+        // --- MODIFICATION START (FEAT-005) ---
+        // Remove the `await` as onCompare is no longer an async function.
+        onCompare(startIndex, endIndex);
+        // --- MODIFICATION END ---
         await delay(200);
       }
       
@@ -92,7 +99,8 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
       debugService.saveLogSession('focused_test_run_log.json');
     }
   };
-
+  
+  // ... (JSX is unchanged) ...
   return (
     <div className={styles.card_warning}>
       <h4>Developer Tools</h4>

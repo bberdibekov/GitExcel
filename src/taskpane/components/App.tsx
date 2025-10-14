@@ -1,6 +1,10 @@
 // src/taskpane/components/App.tsx
 
 import * as React from "react";
+// --- MODIFICATION START (FEAT-005) ---
+import { useState, useEffect } from "react";
+import { useUser } from "../context/UserContext"; // Import the useUser hook
+// --- MODIFICATION END ---
 import { Button } from "@fluentui/react-components";
 import { useVersions } from "../hooks/useVersions";
 import { useComparison } from "../hooks/useComparison";
@@ -10,12 +14,6 @@ import VersionHistory from "./VersionHistory";
 import ComparisonView from "./ComparisonView";
 import DeveloperTools from "./DeveloperTools";
 
-// --- PAYWALL-001 DEMO START ---
-// 1. Import the new paywall components for demonstration.
-import FeatureBadge from "./paywall/FeatureBadge";
-import LockOverlay from "./paywall/LockOverlay";
-// --- PAYWALL-001 DEMO END ---
-
 const App = () => {
   const { versions, addVersion, clearVersions } = useVersions();
   const { 
@@ -24,18 +22,46 @@ const App = () => {
     handleVersionSelect, 
     compareVersions 
   } = useComparison(versions);
+  
+  // --- MODIFICATION START (FEAT-005) ---
+  const { license, isLoading: isLicenseLoading } = useUser(); // Get license from context
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
 
-  // NEW: Handler for the "Compare to Previous" action emitted by VersionHistory.
+  // Handler to toggle a filter's state
+  const handleFilterChange = (filterId: string) => {
+    setActiveFilters(prevFilters => {
+      const newFilters = new Set(prevFilters);
+      if (newFilters.has(filterId)) {
+        newFilters.delete(filterId);
+      } else {
+        newFilters.add(filterId);
+      }
+      return newFilters;
+    });
+  };
+
+  // Centralized function to trigger a comparison
+  const runComparison = (startIndex?: number, endIndex?: number) => {
+    // A comparison can only run if the license is loaded and valid.
+    if (!license) return;
+    compareVersions(license, activeFilters, startIndex, endIndex);
+  };
+
+  // Re-run the comparison automatically whenever filters change, if two versions are selected.
+  useEffect(() => {
+    if (selectedVersions.length === 2) {
+      runComparison();
+    }
+  }, [activeFilters, selectedVersions, license]); // Rerun if filters, selection, or license change
+  // --- MODIFICATION END ---
+
   const handleCompareToPrevious = (versionId: number) => {
-    // Find the index of the selected version in the original, un-reversed array.
     const currentIndex = versions.findIndex(v => v.id === versionId);
-    // The previous version is simply the one at the prior index.
     const previousIndex = currentIndex - 1;
     
-    // Ensure both indices are valid before triggering the comparison.
     if (currentIndex > 0 && previousIndex >= 0) {
-      // Call the core logic function with specific start and end indices.
-      compareVersions(previousIndex, currentIndex);
+      // --- Use the new centralized runComparison function ---
+      runComparison(previousIndex, currentIndex);
     }
   };
 
@@ -45,49 +71,39 @@ const App = () => {
       
       <SaveVersionForm onSave={addVersion} />
 
-      {/* --- PAYWALL-001 DEMO START --- */}
-      {/* 2. Demonstrate the FeatureBadge by placing it next to a title. */}
-      <h3>Version History <FeatureBadge tier="pro" /></h3>
-      {/* --- PAYWALL-001 DEMO END --- */}
-
+      <h3>Version History</h3>
       <Button 
         appearance="primary" 
-        disabled={selectedVersions.length !== 2} 
-        onClick={() => compareVersions()}
+        disabled={selectedVersions.length !== 2 || isLicenseLoading} // Disable while license loads
+        onClick={() => runComparison()} // Use the new centralized function
         style={{ marginBottom: "10px" }}
       >
-        Compare Selected ({selectedVersions.length}/2)
+        {isLicenseLoading ? "Loading..." : `Compare Selected (${selectedVersions.length}/2)`}
       </Button>
+
+      <VersionHistory 
+        versions={versions} 
+        selectedVersions={selectedVersions} 
+        onVersionSelect={handleVersionSelect}
+        onCompareToPrevious={handleCompareToPrevious}
+      />
       
-      {/* --- PAYWALL-001 DEMO START --- */}
-      {/* 3. Demonstrate the LockOverlay. */}
-      {/* The parent div needs `position: 'relative'` for the overlay to work. */}
-      <div style={{ position: 'relative' }}>
-
-        <LockOverlay 
-          title="Unlock Full History View"
-          message="Gain access to the complete version history and advanced comparison tools by upgrading your plan."
-          onUpgradeClick={() => console.log('[Paywall Demo] Upgrade button was clicked!')}
+      {/* --- MODIFICATION START (FEAT-005) --- */}
+      {/* Pass the new state and handler down to the ComparisonView */}
+      {diffResult && (
+        <ComparisonView 
+          result={diffResult} 
+          activeFilters={activeFilters}
+          onFilterChange={handleFilterChange}
         />
-
-        <VersionHistory 
-          versions={versions} 
-          selectedVersions={selectedVersions} 
-          onVersionSelect={handleVersionSelect}
-          // Wire up the new event handler to its corresponding prop.
-          onCompareToPrevious={handleCompareToPrevious}
-        />
-
-      </div>
-      {/* --- PAYWALL-001 DEMO END --- */}
-      
-      {diffResult && <ComparisonView result={diffResult} />}
+      )}
+      {/* --- MODIFICATION END --- */}
 
       {process.env.NODE_ENV === 'development' && (
         <DeveloperTools 
           onSaveVersion={addVersion} 
           onClearHistory={clearVersions} 
-          onCompare={compareVersions}
+          onCompare={(startIndex, endIndex) => runComparison(startIndex, endIndex)} // Use the new centralized function
         />
       )}
     </div>

@@ -3,7 +3,10 @@
 import { useState, useEffect } from "react";
 import { IVersion } from "../types/types";
 import { createWorkbookSnapshot } from "../services/excel.service";
-import { diffSnapshots } from "../services/diff.service";
+// --- MODIFICATION START (FEAT-005) ---
+// The diff.service is no longer needed here as we are not pre-computing changesets.
+// import { diffSnapshots } from "../services/diff.service"; 
+// --- MODIFICATION END ---
 
 export function useVersions() {
   const [versions, setVersions] = useState<IVersion[]>([]);
@@ -13,7 +16,16 @@ export function useVersions() {
     const savedVersions = localStorage.getItem("excelVersions");
     if (savedVersions) {
       try {
-        setVersions(JSON.parse(savedVersions));
+        const parsedVersions = JSON.parse(savedVersions);
+        // --- MIGRATION LOGIC (FEAT-005) ---
+        // Simple migration: if old versions have a 'changeset', remove it.
+        // This ensures data consistency moving forward.
+        const migratedVersions = parsedVersions.map(v => {
+          delete v.changeset;
+          return v;
+        });
+        setVersions(migratedVersions);
+        // --- END MIGRATION LOGIC ---
       } catch (error) {
         console.error("Failed to parse versions from localStorage. The data may be corrupt or from an older version of the add-in. Clearing stored data.", error);
         // If parsing fails, clear the bad data and start fresh.
@@ -39,16 +51,17 @@ export function useVersions() {
       setVersions(currentVersions => {
         console.log(`[useVersions] Saving "${comment}". Previous version count: ${currentVersions.length}`);
 
-        // Get the most recent version from the guaranteed-fresh state.
-        const lastVersion = currentVersions.length > 0 ? currentVersions[currentVersions.length - 1] : null;
-
+        // --- MODIFICATION START (FEAT-005) ---
+        // We no longer pre-compute the changeset. It will be computed on-demand
+        // by the synthesizer service when a comparison is requested.
         const newVersion: IVersion = {
           id: Date.now(),
           timestamp: new Date().toLocaleString(),
           comment: comment,
           snapshot: newSnapshot,
-          changeset: lastVersion ? diffSnapshots(lastVersion.snapshot, newSnapshot) : undefined,
+          // changeset property is now removed from the IVersion object.
         };
+        // --- MODIFICATION END ---
 
         const updatedVersions = [...currentVersions, newVersion];
         

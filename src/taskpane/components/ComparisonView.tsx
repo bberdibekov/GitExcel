@@ -15,11 +15,13 @@ import { generateSummary } from "../services/summary.service";
 import SelectionDetailViewer from "./SelectionDetailViewer";
 import DiffViewer from "./DiffViewer";
 import { useSharedStyles } from "./sharedStyles";
+import DiffFilterOptions from "./DiffFilterOptions";
+// --- MODIFICATION START (FEAT-005 / Task 5) ---
+// 1. Import the LockOverlay component.
+import LockOverlay from './paywall/LockOverlay';
+// --- MODIFICATION END ---
 
-/**
- * Helper function to transform the rich ICombinedChange back into the simple IChange
- * that the excel.interaction.service and SelectionDetailViewer expect.
- */
+// ... (helper function toSimpleChange is unchanged) ...
 function toSimpleChange(combinedChange: ICombinedChange): IChange {
   return {
     sheet: combinedChange.sheet,
@@ -34,21 +36,17 @@ function toSimpleChange(combinedChange: ICombinedChange): IChange {
 
 interface ComparisonViewProps {
   result: IDiffResult;
+  activeFilters: Set<string>;
+  onFilterChange: (filterId: string) => void;
 }
 
-/**
- * The main view for displaying a comparison result. It orchestrates
- * on-sheet highlighting, selection listening, and navigation, and
- * renders the detailed diff report.
- */
-const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
-  // Call the shared style hook to get the generated class names.
+const ComparisonView: React.FC<ComparisonViewProps> = ({ result, activeFilters, onFilterChange }) => {
   const styles = useSharedStyles();
   const [showOnSheet, setShowOnSheet] = useState(false);
   const [selectedChange, setSelectedChange] = useState<IChange | null>(null);
   const [summary, setSummary] = useState<ISummaryResult | null>(null);
 
-  // Effect to generate a human-readable summary whenever a new diff result is provided.
+  // ... (useEffect hooks are unchanged) ...
   useEffect(() => {
     if (result) {
       const generatedSummary = generateSummary(result);
@@ -56,7 +54,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
     }
   }, [result]);
 
-  // Effect to manage the Excel grid selection listener.
   useEffect(() => {
     if (showOnSheet && summary) {
       const simpleChanges = summary.modifiedCells.map(toSimpleChange);
@@ -67,10 +64,9 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
     };
   }, [showOnSheet, summary]);
 
-  /**
-   * Handles the "Show on Sheet" button click, highlighting all changes.
-   */
-  const handleShowOnSheet = () => {
+
+  // ... (handleShowOnSheet, handleClearFromSheet, handleNavigate are unchanged) ...
+    const handleShowOnSheet = () => {
     if (summary) {
       const simpleChanges = summary.modifiedCells.map(toSimpleChange);
       showChangesOnSheet(simpleChanges);
@@ -78,9 +74,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
     }
   };
 
-  /**
-   * Handles the "Clear from Sheet" button click, removing all highlights.
-   */
   const handleClearFromSheet = () => {
     if (summary) {
       removeSelectionListener();
@@ -91,9 +84,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
     }
   };
 
-  /**
-   * Handles the navigation event when a user clicks a cell in the diff report.
-   */
   const handleNavigate = (sheet: string, address: string) => {
     try {
       navigateToCell(sheet, address);
@@ -102,8 +92,20 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
     }
   };
 
+  // --- MODIFICATION START (FEAT-005 / Task 5) ---
+  // 2. Prepare dynamic props for the LockOverlay.
+  const isPartialResult = result.isPartialResult ?? false;
+  const hiddenChangeCount = result.hiddenChangeCount ?? 0;
+  const visibleChangeCount = result.modifiedCells.length;
+  // --- MODIFICATION END ---
+
   return (
     <div style={{ marginTop: "20px" }}>
+      <DiffFilterOptions 
+        activeFilters={activeFilters}
+        onFilterChange={onFilterChange}
+      />
+      
       <div className={styles.buttonGroup}>
         <Button onClick={handleShowOnSheet} disabled={showOnSheet}>Show on Sheet</Button>
         <Button onClick={handleClearFromSheet} disabled={!showOnSheet}>Clear from Sheet</Button>
@@ -111,7 +113,23 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
       
       {showOnSheet && <SelectionDetailViewer change={selectedChange} />}
       
-      {summary && <DiffViewer summary={summary} onNavigate={handleNavigate} />}
+      {/* --- MODIFICATION START (FEAT-005 / Task 5) --- */}
+      {/* 3. Wrap the results viewer in a relative container and conditionally render the LockOverlay. */}
+      <div style={{ position: 'relative' }}>
+        {summary && <DiffViewer summary={summary} onNavigate={handleNavigate} />}
+
+        {isPartialResult && (
+          <LockOverlay 
+            title="Unlock Full Comparison"
+            message={`Showing ${visibleChangeCount} of ${visibleChangeCount + hiddenChangeCount} changes. Upgrade to Pro to see all results.`}
+            onUpgradeClick={() => {
+              // In a real app, this would open a subscription page.
+              console.log("Upgrade action triggered!"); 
+            }}
+          />
+        )}
+      </div>
+      {/* --- MODIFICATION END --- */}
     </div>
   );
 };

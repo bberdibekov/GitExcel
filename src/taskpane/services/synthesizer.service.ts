@@ -3,6 +3,11 @@ import { IDiffResult, IVersion, IChangeset } from "../types/types";
 import { debugService } from "./debug.service";
 import { resolveTimeline } from "./timeline.resolver.service";
 import { consolidateReport } from "./report.consolidator.service";
+// --- MODIFICATION START (FEAT-005) ---
+import { diffSnapshots } from "./diff.service";
+import { ILicense } from "./AuthService";
+// --- MODIFICATION END ---
+
 
 /**
  * The high-level "Orchestrator" for creating a diff between any two non-adjacent versions.
@@ -11,21 +16,38 @@ export function synthesizeChangesets(
   startVersion: IVersion,
   endVersion: IVersion,
   allVersions: IVersion[],
+  // --- MODIFICATION START (FEAT-005) ---
+  license: ILicense,
+  activeFilterIds: Set<string>
+  // --- MODIFICATION END ---
 ): IDiffResult {
   const relevantVersions = allVersions.filter((v) =>
-    v.id > startVersion.id && v.id <= endVersion.id
+    v.id >= startVersion.id && v.id <= endVersion.id
   );
 
-  const changesetSequence = relevantVersions
-    .map((v) => v.changeset)
-    .filter((c) => c)
-    .map((c) => JSON.parse(JSON.stringify(c))) as IChangeset[];
+  // --- MODIFICATION START (FEAT-005) ---
+  // Generate changesets on the fly using the provided filters and license.
+  const changesetSequence: IChangeset[] = [];
+  for (let i = 0; i < relevantVersions.length - 1; i++) {
+    const fromVersion = relevantVersions[i];
+    const toVersion = relevantVersions[i + 1];
+    const changeset = diffSnapshots(
+      fromVersion.snapshot, 
+      toVersion.snapshot, 
+      license, 
+      activeFilterIds
+    );
+    changesetSequence.push(changeset);
+  }
+  // --- MODIFICATION END ---
+  
   const description =
     `Synthesizing v"${startVersion.id}" vs v"${endVersion.id}"`;
   debugService.addLogEntry(description, {
     startVersion: startVersion.comment,
     endVersion: endVersion.comment,
     changesetCount: changesetSequence.length,
+    activeFilterIds: Array.from(activeFilterIds), // Log active filters
   });
 
   if (changesetSequence.length === 0) {
@@ -36,6 +58,13 @@ export function synthesizeChangesets(
       structuralChanges: [],
     };
   }
+  
+  // --- PAYWALL LOGIC (FEAT-005) ---
+  // Check if the final changeset in the sequence is a partial result.
+  const lastChangeset = changesetSequence[changesetSequence.length - 1];
+  const isPartial = lastChangeset.isPartialResult;
+  const hiddenCount = lastChangeset.hiddenChangeCount;
+  // --- END PAYWALL LOGIC ---
 
   const resolvedTimeline = resolveTimeline(changesetSequence);
   debugService.addLogEntry(
@@ -54,6 +83,12 @@ export function synthesizeChangesets(
     "Synthesizer Stage 3 (Report Consolidation) Complete",
     finalResult,
   );
+
+  // --- PAYWALL LOGIC (FEAT-005) ---
+  // Attach the paywall flags to the final result object for the UI.
+  finalResult.isPartialResult = isPartial;
+  finalResult.hiddenChangeCount = hiddenCount;
+  // --- END PAYWALL LOGIC ---
 
   return finalResult;
 }

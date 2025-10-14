@@ -72,6 +72,8 @@ export interface IChangeset {
   addedRows: IRowChange[];
   deletedRows: IRowChange[];
   structuralChanges: IStructuralChange[];
+  isPartialResult?: boolean;
+  hiddenChangeCount?: number;
 }
 
 // This type represents the FINAL, user-facing result from the synthesizer.
@@ -80,6 +82,8 @@ export interface IDiffResult {
   addedRows: IRowChange[];
   deletedRows: IRowChange[];
   structuralChanges: IStructuralChange[];
+  isPartialResult?: boolean;
+  hiddenChangeCount?: number;
 }
 
 

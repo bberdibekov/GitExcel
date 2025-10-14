@@ -12,6 +12,14 @@ import {
 } from "../types/types";
 import { toA1 } from "./address.converter";
 import { generateRowHash } from "./hashing.service";
+// --- MODIFICATION START (FEAT-005) ---
+import { ILicense } from "./AuthService";
+import { valueFilters, formulaFilters, IComparisonFilter } from "./comparison.filters";
+
+// A constant defining the number of changes to show to a free user on a partial result.
+const PARTIAL_RESULT_COUNT = 2;
+// --- MODIFICATION END ---
+
 
 /**
 Determines if a cell's formula property represents a true, user-entered formula.
@@ -19,6 +27,42 @@ Determines if a cell's formula property represents a true, user-entered formula.
 function isRealFormula(formula: any): boolean {
   return typeof formula === "string" && formula.startsWith("=");
 }
+
+// --- MODIFICATION START (FEAT-005) ---
+/**
+ * The core filter pipeline processor. It applies a set of active filters
+ * to determine if two values should be considered semantically equal.
+ * @returns `true` if an active filter considers the values equal, otherwise `false`.
+ */
+function applyFilters(
+  oldValue: any,
+  newValue: any,
+  activeFilterIds: Set<string>,
+  filterRegistry: IComparisonFilter[]
+): boolean {
+  // Find the first active filter in the registry that considers the values equal.
+  const isEqual = filterRegistry.some(filter => 
+    activeFilterIds.has(filter.id) && filter.apply(oldValue, newValue)
+  );
+  return isEqual;
+}
+
+/**
+ * A helper to get a set of all premium filter IDs from the registries.
+ * This is memoized to avoid re-computing on every call.
+ */
+let proFilterIds: Set<string> | null = null;
+function getProFilterIds(): Set<string> {
+    if (proFilterIds === null) {
+        const allFilters = [...valueFilters, ...formulaFilters];
+        proFilterIds = new Set(
+            allFilters.filter(f => f.tier === 'pro').map(f => f.id)
+        );
+    }
+    return proFilterIds;
+}
+// --- MODIFICATION END ---
+
 
 function coalesceRowChanges(
   sheetName: string,
@@ -57,22 +101,33 @@ function normalizeSheetData(data: IRowData[] | ICellData[][]): IRowData[] {
   return data as IRowData[];
 }
 
+// --- MODIFICATION START: Refactored function (FEAT-005) ---
 function compareCells(
   sheetName: string,
   rowIndex: number,
   oldRow: IRowData,
   newRow: IRowData,
-  result: IChangeset, // Expects the raw changeset type
+  result: IChangeset,
+  activeFilterIds: Set<string> // Now accepts active filters
 ) {
+// --- MODIFICATION END ---
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
   for (let c = 0; c < maxCols; c++) {
     const oldCell = oldRow.cells[c] || { value: "", formula: "" };
     const newCell = newRow.cells[c] || { value: "", formula: "" };
 
-    const valueChanged = String(oldCell.value) !== String(newCell.value);
+    // --- MODIFICATION START: Use filter engine instead of direct comparison (FEAT-005) ---
+    // A value has changed if the filter engine does NOT find them equal, AND they are textually different.
+    const valueChanged = 
+      !applyFilters(oldCell.value, newCell.value, activeFilterIds, valueFilters) 
+      && String(oldCell.value) !== String(newCell.value);
+      
+    // A formula has changed if it's a real formula and the filter engine does NOT find them equal.
     const formulaChanged =
       (isRealFormula(oldCell.formula) || isRealFormula(newCell.formula)) &&
-      (String(oldCell.formula) !== String(newCell.formula));
+      !applyFilters(oldCell.formula, newCell.formula, activeFilterIds, formulaFilters)
+      && (String(oldCell.formula) !== String(newCell.formula));
+    // --- MODIFICATION END ---
 
     if (valueChanged || formulaChanged) {
       let changeType: IChange["changeType"] = "value";
@@ -93,11 +148,14 @@ function compareCells(
   }
 }
 
+// --- MODIFICATION START: Refactored function (FEAT-005) ---
 function diffSheetData(
   sheetName: string,
   oldData: IRowData[],
   newData: IRowData[],
+  activeFilterIds: Set<string>
 ): IChangeset {
+// --- MODIFICATION END ---
   const result: IChangeset = {
     modifiedCells: [],
     addedRows: [],
@@ -127,6 +185,7 @@ function diffSheetData(
           oldData[oldIdx],
           newData[newIdx],
           result,
+          activeFilterIds // Pass filters down
         );
         oldIdx++;
         newIdx++;
@@ -176,6 +235,7 @@ function diffSheetData(
           oldData[oldIdx],
           newData[newIdx],
           result,
+          activeFilterIds // Pass filters down
         );
         oldIdx++;
         newIdx++;
@@ -191,10 +251,15 @@ function diffSheetData(
   return result;
 }
 
+// --- MODIFICATION START: Refactored function with paywall logic (FEAT-005) ---
 export function diffSnapshots(
   oldSnapshot: IWorkbookSnapshot,
   newSnapshot: IWorkbookSnapshot,
+  // Now accepts license and filter state
+  license: ILicense,
+  activeFilterIds: Set<string>
 ): IChangeset {
+// --- MODIFICATION END ---
   const result: IChangeset = {
     modifiedCells: [],
     addedRows: [],
@@ -209,11 +274,37 @@ export function diffSnapshots(
     if (!oldSnapshot[sheetName] || !newSnapshot[sheetName]) continue;
     const oldSheetData = normalizeSheetData(oldSnapshot[sheetName].data);
     const newSheetData = normalizeSheetData(newSnapshot[sheetName].data);
-    const sheetResult = diffSheetData(sheetName, oldSheetData, newSheetData);
+    // --- Pass filters down to sheet-level diff ---
+    const sheetResult = diffSheetData(sheetName, oldSheetData, newSheetData, activeFilterIds);
     result.modifiedCells.push(...sheetResult.modifiedCells);
     result.addedRows.push(...sheetResult.addedRows);
     result.deletedRows.push(...sheetResult.deletedRows);
     result.structuralChanges.push(...sheetResult.structuralChanges);
   }
+
+  // --- SERVICE-LAYER PAYWALL ENFORCEMENT ---
+  const proFilters = getProFilterIds();
+  
+  // --- START OF COMPATIBILITY FIX ---
+  // The original code `[...activeFilterIds].some(...)` caused a TS2802 error.
+  // This version is compatible with all TypeScript targets by using forEach.
+  let isProFilterActive = false;
+  activeFilterIds.forEach(id => {
+    if (proFilters.has(id)) {
+      isProFilterActive = true;
+    }
+  });
+  // --- END OF COMPATIBILITY FIX ---
+
+  if (license?.tier === 'free' && isProFilterActive && result.modifiedCells.length > PARTIAL_RESULT_COUNT) {
+    const originalCount = result.modifiedCells.length;
+    // Slice the results to show only a limited number.
+    result.modifiedCells = result.modifiedCells.slice(0, PARTIAL_RESULT_COUNT);
+    // Add the flags for the UI to consume.
+    result.isPartialResult = true;
+    result.hiddenChangeCount = originalCount - PARTIAL_RESULT_COUNT;
+  }
+  // --- END PAYWALL ENFORCEMENT ---
+
   return result;
 }

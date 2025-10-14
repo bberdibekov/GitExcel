@@ -21,7 +21,10 @@
     "pretty": true,
     "typeRoots": [
       "node_modules/@types"
-    ]
+    ],
+        
+    "downlevelIteration": true,
+
   },
   "exclude": [
     "node_modules"
