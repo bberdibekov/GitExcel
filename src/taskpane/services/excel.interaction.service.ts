@@ -10,7 +10,6 @@ let selectionChangedHandler: any = null;
  * Applies both highlights and comments to the changed cells.
  */
 export async function showChangesOnSheet(changes: IChange[]) {
-  // This function is correct and remains unchanged.
   await Excel.run(async (context) => {
     const changesBySheet = groupChangesBySheet(changes);
     for (const sheetName in changesBySheet) {
@@ -30,7 +29,6 @@ export async function showChangesOnSheet(changes: IChange[]) {
  * Clears both highlights and comments from the changed cells.
  */
 export async function clearChangesFromSheet(changes: IChange[]) {
-  // This function is correct and remains unchanged.
   await Excel.run(async (context) => {
     const changesBySheet = groupChangesBySheet(changes);
     for (const sheetName in changesBySheet) {

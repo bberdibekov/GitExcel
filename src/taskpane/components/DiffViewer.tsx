@@ -3,39 +3,56 @@
 import * as React from "react";
 import { IChange, ISummaryResult } from "../types/types";
 import CellChangeView from "./CellChangeView";
+import { Calculator16Filled, NumberSymbol16Filled } from "@fluentui/react-icons";
+import { useSharedStyles } from "./sharedStyles";
 
 interface DiffViewerProps {
   summary: ISummaryResult;
 }
 
-// UPDATED: This helper gets the same intelligent rendering logic for consistency.
-const renderLegacyChangeDetails = (change: IChange) => {
-  const showValue = change.changeType === 'value' || change.changeType === 'both';
-  const showFormula = change.changeType === 'formula' || change.changeType === 'both';
-
-  const valueExists = (val: any) => val !== "" && val !== undefined && val !== null;
-
-  return (
-    <>
-      {showValue && (
-        <div>
-          <strong>Value:</strong><br />
-          {valueExists(change.oldValue) && <><span style={{ color: "red" }}>- {String(change.oldValue)}</span><br /></>}
-          {valueExists(change.newValue) && <span style={{ color: "green" }}>+ {String(change.newValue)}</span>}
-        </div>
-      )}
-      {showFormula && (
-        <div style={{ marginTop: showValue ? '5px' : '0' }}>
-          <strong>Formula:</strong><br />
-          {valueExists(change.oldFormula) && <><span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br /></>}
-          {valueExists(change.newFormula) && <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>}
-        </div>
-      )}
-    </>
-  );
-};
-
+/**
+ * The main component responsible for rendering the entire diff report,
+ * broken down into sections for high-level summaries, modified cells,
+ * added rows, and deleted rows. It uses a shared style hook for a
+ * consistent and maintainable look and feel.
+ */
 const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
+  // Call the shared style hook to get the generated class names.
+  const styles = useSharedStyles();
+
+  /**
+   * Renders details for a simple IChange object. This is now defined inside
+   * the component so it has access to the `styles` object from the hook's closure.
+   */
+  const renderLegacyChangeDetails = (change: IChange) => {
+    const showValue = change.changeType === 'value' || change.changeType === 'both';
+    const showFormula = change.changeType === 'formula' || change.changeType === 'both';
+    const valueExists = (val: any) => val !== "" && val !== undefined && val !== null;
+
+    return (
+      <>
+        {showValue && (
+          <div style={{ display: "flex", alignItems: "flex-start", marginTop: "4px" }}>
+            <NumberSymbol16Filled className={styles.icon} />
+            <div>
+              {valueExists(change.oldValue) && <><span style={{ color: "red" }}>- {String(change.oldValue)}</span><br /></>}
+              {valueExists(change.newValue) && <span style={{ color: "green" }}>+ {String(change.newValue)}</span>}
+            </div>
+          </div>
+        )}
+        {showFormula && (
+          <div style={{ display: "flex", alignItems: "flex-start", marginTop: "4px" }}>
+            <Calculator16Filled className={styles.icon} />
+            <div>
+              {valueExists(change.oldFormula) && <><span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br /></>}
+              {valueExists(change.newFormula) && <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
   const totalChanges = summary.highLevelChanges.length + summary.modifiedCells.length + summary.addedRows.length + summary.deletedRows.length;
 
   return (
@@ -44,6 +61,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
       
       {totalChanges === 0 ? <p>No differences found.</p> :
         <div>
+          {/* Section for High-Level Summary */}
           {summary.highLevelChanges.length > 0 && (
             <>
               <h5>Summary</h5>
@@ -51,7 +69,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
                 {summary.highLevelChanges.map((change, index) => (
                   <li
                     key={`summary-${index}`}
-                    style={{ background: "#e5f1fb", padding: "8px", marginBottom: "5px", borderLeft: "3px solid #0078d4" }}
+                    className={`${styles.listItem} ${styles.listItem_summary}`}
                   >
                     <strong>{change.sheet}!</strong> {change.description}
                   </li>
@@ -60,6 +78,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
             </>
           )}
 
+          {/* Section for Modified Cells (Delegates to CellChangeView) */}
           {summary.modifiedCells.length > 0 && (
             <>
               <h5>Modified Cells ({summary.modifiedCells.length})</h5>
@@ -71,6 +90,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
             </>
           )}
 
+          {/* Section for Added Rows */}
           {summary.addedRows.length > 0 && (
             <>
               <h5>Added Rows ({summary.addedRows.length})</h5>
@@ -78,7 +98,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
                 {summary.addedRows.map((rowChange, index) => (
                   <li
                     key={`add-${index}`}
-                    style={{ background: "#dff0d8", padding: "8px", marginBottom: "5px", borderLeft: "3px solid #5cb85c" }}
+                    className={`${styles.listItem} ${styles.listItem_added}`}
                   >
                     <strong>{rowChange.sheet}!{rowChange.rowIndex + 1}</strong>
                   </li>
@@ -87,6 +107,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
             </>
           )}
 
+          {/* Section for Deleted Rows */}
           {summary.deletedRows.length > 0 && (
             <>
               <h5>Deleted Rows ({summary.deletedRows.length})</h5>
@@ -94,13 +115,13 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
                 {summary.deletedRows.map((rowChange, index) => (
                   <li
                     key={`del-${index}`}
-                    style={{ background: "#f2dede", padding: "8px", marginBottom: "5px", borderLeft: "3px solid #d9534f" }}
+                    className={`${styles.listItem} ${styles.listItem_deleted}`}
                   >
                     <strong>{rowChange.sheet}!{rowChange.rowIndex + 1}</strong>
                     
                     {rowChange.containedChanges && rowChange.containedChanges.length > 0 && (
-                      <div style={{ marginTop: '8px', paddingLeft: '15px', borderLeft: '2px solid #b92c28', marginLeft: '5px' }}>
-                        <strong style={{fontSize: '12px', color: '#a94442'}}>Changes within this row before deletion:</strong>
+                      <div className={`${styles.detailBlock} ${styles.detailBlock_deleted}`}>
+                        <strong className={styles.detailBlock_title}>Changes within this row before deletion:</strong>
                         {rowChange.containedChanges.map((change, cIndex) => (
                           <div key={`contained-${cIndex}`} style={{paddingTop: '5px'}}>
                             <strong>{change.address}:</strong>

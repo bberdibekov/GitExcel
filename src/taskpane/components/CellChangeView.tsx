@@ -3,54 +3,68 @@
 import * as React from "react";
 import { useState } from "react";
 import { ICombinedChange, IChange } from "../types/types";
-
-// This helper function remains unchanged.
-const renderChangeDetails = (change: {
-  changeType: 'value' | 'formula' | 'both',
-  oldValue: any, newValue: any,
-  oldFormula: any, newFormula: any
-}) => {
-  const showValue = change.changeType === 'value' || change.changeType === 'both';
-  const showFormula = change.changeType === 'formula' || change.changeType === 'both';
-  const valueExists = (val: any) => val !== "" && val !== undefined && val !== null;
-
-  return (
-    <>
-      {showValue && (
-        <div>
-          <strong>Value:</strong><br />
-          {valueExists(change.oldValue) && <><span style={{ color: "red" }}>- {String(change.oldValue)}</span><br /></>}
-          {valueExists(change.newValue) && <span style={{ color: "green" }}>+ {String(change.newValue)}</span>}
-        </div>
-      )}
-      {showFormula && (
-        <div style={{ marginTop: showValue ? '5px' : '0' }}>
-          <strong>Formula:</strong><br />
-          {valueExists(change.oldFormula) && <><span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br /></>}
-          {valueExists(change.newFormula) && <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>}
-        </div>
-      )}
-    </>
-  );
-};
+import { Calculator16Filled, NumberSymbol16Filled } from "@fluentui/react-icons";
+import { useSharedStyles } from "./sharedStyles";
 
 interface CellChangeViewProps {
   change: ICombinedChange;
 }
 
+/**
+ * A self-contained component to display a single cell's modification.
+ * It manages its own expanded/collapsed state to show a summary view by default
+ * and a detailed step-by-step history on demand.
+ */
 const CellChangeView: React.FC<CellChangeViewProps> = ({ change }) => {
+  // Call the shared style hook to get the generated class names.
+  const styles = useSharedStyles();
   const [isExpanded, setIsExpanded] = useState(false);
 
   // An item is only expandable if there is an intermediate history.
-  // If history has 1 or 0 items, the summary view already shows all available information.
   const isExpandable = change.history.length > 1;
 
+  /**
+   * Renders the details of a change (old vs. new) in a compact, icon-driven format.
+   * Defined inside the component to have access to the `styles` hook's closure.
+   */
+  const renderChangeDetails = (details: {
+    changeType: 'value' | 'formula' | 'both',
+    oldValue: any, newValue: any,
+    oldFormula: any, newFormula: any
+  }) => {
+    const showValue = details.changeType === 'value' || details.changeType === 'both';
+    const showFormula = details.changeType === 'formula' || details.changeType === 'both';
+    const valueExists = (val: any) => val !== "" && val !== undefined && val !== null;
+
+    return (
+      <>
+        {showValue && (
+          <div style={{ display: "flex", alignItems: "flex-start", marginTop: "4px" }}>
+            <NumberSymbol16Filled className={styles.icon} />
+            <div>
+              {valueExists(details.oldValue) && <><span style={{ color: "red" }}>- {String(details.oldValue)}</span><br /></>}
+              {valueExists(details.newValue) && <span style={{ color: "green" }}>+ {String(details.newValue)}</span>}
+            </div>
+          </div>
+        )}
+        {showFormula && (
+          <div style={{ display: "flex", alignItems: "flex-start", marginTop: "4px" }}>
+            <Calculator16Filled className={styles.icon} />
+            <div>
+              {valueExists(details.oldFormula) && <><span style={{ color: "red", fontFamily: "monospace" }}>- {String(details.oldFormula)}</span><br /></>}
+              {valueExists(details.newFormula) && <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(details.newFormula)}</span>}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
   return (
-    <li style={{ background: "#f5f5f5", padding: "8px", marginBottom: "5px", borderLeft: "3px solid #f0ad4e" }}>
-      {/* --- Header & Summary View --- */}
+    // Use the shared styles for the list item container
+    <li className={`${styles.listItem} ${styles.listItem_modified}`}>
       <div 
         style={{ display: "flex", alignItems: "center", cursor: isExpandable ? "pointer" : "default" }} 
-        // Only attach the click handler if it's expandable
         onClick={isExpandable ? () => setIsExpanded(!isExpanded) : undefined}
       >
         <span style={{ 
@@ -58,8 +72,6 @@ const CellChangeView: React.FC<CellChangeViewProps> = ({ change }) => {
           fontFamily: "monospace", 
           color: "#0078d4", 
           userSelect: "none",
-          // The expand icon is a fixed width but invisible if not expandable,
-          // which keeps all cell titles perfectly aligned.
           visibility: isExpandable ? "visible" : "hidden"
         }}>
           {isExpanded ? "[-]" : "[+]"}
@@ -77,12 +89,9 @@ const CellChangeView: React.FC<CellChangeViewProps> = ({ change }) => {
         })}
       </div>
 
-      {/* --- Expanded History View --- */}
-      {/* This logic remains the same. It will only render if isExpanded can be set to true, 
-          which only happens for expandable items. */}
       {isExpanded && (
-        <div style={{ marginTop: '10px', marginLeft: '15px', paddingLeft: '15px', borderLeft: '2px solid #ccc' }}>
-          <strong style={{ fontSize: '12px', color: '#666' }}>Change History:</strong>
+        <div className={styles.detailBlock}>
+          <strong className={styles.detailBlock_title}>Change History:</strong>
           {change.history.map((step, index) => (
             <div key={index} style={{ paddingTop: '8px', borderTop: index > 0 ? '1px dashed #ddd' : 'none', marginTop: '5px' }}>
               {renderChangeDetails(step)}

@@ -71,7 +71,6 @@ for display in the UI.
 export function generateSummary(result: IDiffResult): ISummaryResult {
   const creationRowKeys = new Set<string>();
   for (const cell of result.modifiedCells) {
-    // UPDATED: Use the correct properties from ICombinedChange
     const isCreation = cell.startValue === "" && cell.startFormula === "";
     if (isCreation) {
       const coords = fromA1(`${cell.sheet}!${cell.address}`);

@@ -10,7 +10,7 @@ import { fromA1 } from "./address.converter";
  * @param changesetSequence An ordered array of diffs between versions.
  * @returns An IResolvedTimeline object containing the fully mapped history.
  */
-export function resolveTimeline(changesetSequence: IChangeset[]): IResolvedTimeline { // Accepts IChangeset[]
+export function resolveTimeline(changesetSequence: IChangeset[]): IResolvedTimeline {
   // --- STAGE 1: GATHER ALL RAW EVENTS ---
   const allModificationEvents: IChange[] = [];
   const rawAddedRows = new Map<string, IRowChange>();

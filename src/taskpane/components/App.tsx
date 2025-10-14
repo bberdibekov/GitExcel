@@ -40,7 +40,6 @@ const App = () => {
       <SaveVersionForm onSave={addVersion} />
 
       <h3>Version History</h3>
-      {/* The main button is now less important but still useful for manual control. */}
       <Button 
         appearance="primary" 
         disabled={selectedVersions.length !== 2} 
