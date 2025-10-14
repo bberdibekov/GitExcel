@@ -44,7 +44,7 @@ export function useComparison(versions: IVersion[]) {
     startIndex?: number, 
     endIndex?: number
   ) => {
-  // --- MODIFICATION END ---
+  
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
 

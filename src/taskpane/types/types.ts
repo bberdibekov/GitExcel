@@ -1,8 +1,33 @@
 // src/taskpane/types/types.ts
 
+// --- NEW (FEAT-004) ---
+/** Represents the formatting of a single cell. */
+export interface IFormat {
+  font?: {
+    bold?: boolean;
+    color?: string;
+    name?: string;
+    size?: number;
+  };
+  fill?: {
+    color?: string;
+  };
+  borders?: {
+    /* TBD: Border implementation is complex */
+  };
+  alignment?: {
+    horizontal?: 'General' | 'Left' | 'Center' | 'Right' | 'Fill' | 'Justify' | 'CenterAcrossSelection' | 'Distributed';
+    vertical?: 'Top' | 'Center' | 'Bottom' | 'Justify' | 'Distributed';
+  };
+  numberFormat?: string;
+}
+// --- END NEW ---
+
+
 export interface ICellData {
   value: string | number | boolean;
   formula: string | number | boolean;
+  format?: IFormat; // MODIFIED (FEAT-004)
 }
 
 export interface IRowData {
@@ -13,6 +38,11 @@ export interface IRowData {
 export interface ISheetSnapshot {
   address: string;
   data: IRowData[];
+  // --- NEW (FEAT-004) ---
+  rowHeights?: { [key: number]: number };
+  columnWidths?: { [key: number]: number };
+  mergedCells?: string[];
+  // --- END NEW ---
 }
 
 export interface IWorkbookSnapshot {

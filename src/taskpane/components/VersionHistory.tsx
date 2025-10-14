@@ -3,30 +3,71 @@
 import * as React from "react";
 import { IVersion } from "../types/types";
 import { Checkbox, Button, Tooltip } from "@fluentui/react-components";
-import { BranchCompare20Filled } from "@fluentui/react-icons";
+import { BranchCompare20Filled, ArrowClockwise20Filled } from "@fluentui/react-icons";
 import { useSharedStyles } from "./sharedStyles";
+import { useUser } from "../context/UserContext";
+import FeatureBadge from "./paywall/FeatureBadge";
 
 interface VersionHistoryProps {
   versions: IVersion[];
   selectedVersions: number[];
+  isRestoring: boolean;
   onVersionSelect: (versionId: number) => void;
   onCompareToPrevious: (versionId: number) => void;
+  onRestore: (versionId: number) => void;
 }
 
-/**
- * Renders the list of all saved versions. It provides checkboxes for selection,
- * a quick-action button to compare a version to its predecessor, and handles the
- * empty state when no versions have been saved.
- */
-const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, selectedVersions, onVersionSelect, onCompareToPrevious }) => {
-  // Call the shared style hook to get the generated class names.
+const VersionHistory: React.FC<VersionHistoryProps> = ({ 
+  versions, 
+  selectedVersions, 
+  isRestoring,
+  onVersionSelect, 
+  onCompareToPrevious,
+  onRestore
+}) => {
   const styles = useSharedStyles();
+  const { license } = useUser();
 
   if (versions.length === 0) {
     return <p>No versions saved yet.</p>;
   }
 
   const reversedVersions = [...versions].reverse();
+
+  const renderRestoreButton = (version: IVersion) => {
+    if (license?.tier === 'pro') {
+      return (
+        <Tooltip content="Restore sheets from this version" relationship="label">
+          <Button 
+            size="small"
+            appearance="subtle" 
+            icon={<ArrowClockwise20Filled />}
+            onClick={() => {
+              // --- DIAGNOSTIC LOG 1 ---
+              // Log the specific version info at the moment of the click.
+              console.log(`[VersionHistory] Restore button clicked for: ID=${version.id}, Comment="${version.comment}"`);
+              onRestore(version.id);
+            }}
+            disabled={isRestoring} 
+          />
+        </Tooltip>
+      );
+    } else {
+      return (
+        <Tooltip content="Upgrade to Pro to restore previous versions" relationship="label">
+          <div>
+            <Button 
+              size="small"
+              appearance="subtle" 
+              icon={<ArrowClockwise20Filled />}
+              disabled={true}
+            />
+            <FeatureBadge tier="pro" />
+          </div>
+        </Tooltip>
+      );
+    }
+  };
 
   return (
     <div>
@@ -42,6 +83,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, selectedVersi
               <Checkbox
                 checked={selectedVersions.includes(version.id)}
                 onChange={() => onVersionSelect(version.id)}
+                disabled={isRestoring}
               />
               <div style={{ marginLeft: "10px" }}>
                 <strong>{version.comment}</strong>
@@ -49,16 +91,21 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, selectedVersi
               </div>
             </div>
             
-            {!isFirstVersion && (
-              <Tooltip content="Compare to Previous" relationship="label">
-                <Button 
-                  size="small"
-                  appearance="subtle" 
-                  icon={<BranchCompare20Filled />}
-                  onClick={() => onCompareToPrevious(version.id)}
-                />
-              </Tooltip>
-            )}
+            <div className={styles.flexRow} style={{ gap: '8px' }}>
+              {renderRestoreButton(version)}
+
+              {!isFirstVersion && (
+                <Tooltip content="Compare to Previous" relationship="label">
+                  <Button 
+                    size="small"
+                    appearance="subtle" 
+                    icon={<BranchCompare20Filled />}
+                    onClick={() => onCompareToPrevious(version.id)}
+                    disabled={isRestoring}
+                  />
+                </Tooltip>
+              )}
+            </div>
           </div>
         );
       })}

@@ -13,9 +13,11 @@ export function useVersions() {
   // Load initial data from local storage
   useEffect(() => {
     const savedVersions = localStorage.getItem("excelVersions");
+    console.log("[useVersions Hook] Raw data from localStorage:", savedVersions);
     if (savedVersions) {
       try {
         const parsedVersions = JSON.parse(savedVersions);
+        console.log("[useVersions Hook] Parsed versions from localStorage:", parsedVersions);
         // --- MIGRATION LOGIC (FEAT-005) ---
         // Simple migration: if old versions have a 'changeset', remove it.
         // This ensures data consistency moving forward.

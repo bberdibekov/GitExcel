@@ -16,12 +16,8 @@ import SelectionDetailViewer from "./SelectionDetailViewer";
 import DiffViewer from "./DiffViewer";
 import { useSharedStyles } from "./sharedStyles";
 import DiffFilterOptions from "./DiffFilterOptions";
-// --- MODIFICATION START (FEAT-005 / Task 5) ---
-// 1. Import the LockOverlay component.
 import LockOverlay from './paywall/LockOverlay';
-// --- MODIFICATION END ---
 
-// ... (helper function toSimpleChange is unchanged) ...
 function toSimpleChange(combinedChange: ICombinedChange): IChange {
   return {
     sheet: combinedChange.sheet,
@@ -46,7 +42,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result, activeFilters, 
   const [selectedChange, setSelectedChange] = useState<IChange | null>(null);
   const [summary, setSummary] = useState<ISummaryResult | null>(null);
 
-  // ... (useEffect hooks are unchanged) ...
   useEffect(() => {
     if (result) {
       const generatedSummary = generateSummary(result);
@@ -92,12 +87,10 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result, activeFilters, 
     }
   };
 
-  // --- MODIFICATION START (FEAT-005 / Task 5) ---
   // 2. Prepare dynamic props for the LockOverlay.
   const isPartialResult = result.isPartialResult ?? false;
   const hiddenChangeCount = result.hiddenChangeCount ?? 0;
   const visibleChangeCount = result.modifiedCells.length;
-  // --- MODIFICATION END ---
 
   return (
     <div style={{ marginTop: "20px" }}>
@@ -113,7 +106,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result, activeFilters, 
       
       {showOnSheet && <SelectionDetailViewer change={selectedChange} />}
       
-      {/* --- MODIFICATION START (FEAT-005 / Task 5) --- */}
       {/* 3. Wrap the results viewer in a relative container and conditionally render the LockOverlay. */}
       <div style={{ position: 'relative' }}>
         {summary && <DiffViewer summary={summary} onNavigate={handleNavigate} />}
@@ -129,7 +121,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result, activeFilters, 
           />
         )}
       </div>
-      {/* --- MODIFICATION END --- */}
     </div>
   );
 };

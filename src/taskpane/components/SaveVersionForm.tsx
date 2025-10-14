@@ -6,9 +6,10 @@ import { Button, Input } from "@fluentui/react-components";
 
 interface SaveVersionFormProps {
   onSave: (comment: string) => void;
+  disabled?: boolean;
 }
 
-const SaveVersionForm: React.FC<SaveVersionFormProps> = ({ onSave }) => {
+const SaveVersionForm: React.FC<SaveVersionFormProps> = ({ onSave, disabled }) => {
   const [comment, setComment] = useState("");
 
   const handleSave = () => {
@@ -23,8 +24,9 @@ const SaveVersionForm: React.FC<SaveVersionFormProps> = ({ onSave }) => {
         value={comment}
         onChange={(_e, data) => setComment(data.value)}
         style={{ width: "100%", marginBottom: "5px" }}
+        disabled={disabled} // Apply disabled state
       />
-      <Button appearance="primary" onClick={handleSave}>
+      <Button appearance="primary" onClick={handleSave} disabled={disabled}> {/* Apply disabled state */}
         Save New Version
       </Button>
     </div>
