@@ -8,6 +8,8 @@ import { useSharedStyles } from "./sharedStyles";
 
 interface DiffViewerProps {
   summary: ISummaryResult;
+  // A prop to handle the navigation event, passed down from the parent.
+  onNavigate: (sheet: string, address: string) => void;
 }
 
 /**
@@ -16,13 +18,14 @@ interface DiffViewerProps {
  * added rows, and deleted rows. It uses a shared style hook for a
  * consistent and maintainable look and feel.
  */
-const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
+const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
   // Call the shared style hook to get the generated class names.
   const styles = useSharedStyles();
 
   /**
-   * Renders details for a simple IChange object. This is now defined inside
-   * the component so it has access to the `styles` object from the hook's closure.
+   * Renders details for a simple IChange object. This is used specifically
+   * for displaying the history of cells that existed within rows that were
+   * ultimately deleted. It maintains a consistent icon-driven UI.
    */
   const renderLegacyChangeDetails = (change: IChange) => {
     const showValue = change.changeType === 'value' || change.changeType === 'both';
@@ -84,7 +87,11 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
               <h5>Modified Cells ({summary.modifiedCells.length})</h5>
               <ul style={{ listStyleType: "none", padding: 0 }}>
                 {summary.modifiedCells.map((change, index) => (
-                  <CellChangeView key={index} change={change} />
+                  <CellChangeView 
+                    key={index} 
+                    change={change} 
+                    onNavigate={onNavigate} 
+                  />
                 ))}
               </ul>
             </>

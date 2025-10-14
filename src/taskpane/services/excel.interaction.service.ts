@@ -6,6 +6,23 @@ const HIGHLIGHT_COLOR = "#FFC7CE"; // A bleak red
 
 let selectionChangedHandler: any = null;
 
+
+/**
+ * Navigates the user's selection to a specific cell in the workbook.
+ * @param sheetName The name of the worksheet to activate.
+ * @param address The A1-style address of the cell to select.
+ */
+export async function navigateToCell(sheetName: string, address: string) {
+  await Excel.run(async (context) => {
+    const sheet = context.workbook.worksheets.getItem(sheetName);
+    const range = sheet.getRange(address);
+    // This command activates the sheet and selects the specified range.
+    range.select();
+    await context.sync();
+  });
+}
+
+
 /**
  * Applies both highlights and comments to the changed cells.
  */

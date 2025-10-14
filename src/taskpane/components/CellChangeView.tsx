@@ -8,24 +8,22 @@ import { useSharedStyles } from "./sharedStyles";
 
 interface CellChangeViewProps {
   change: ICombinedChange;
+  // A prop to handle the navigation event, passed down from the parent.
+  onNavigate: (sheet: string, address: string) => void;
 }
 
 /**
  * A self-contained component to display a single cell's modification.
- * It manages its own expanded/collapsed state to show a summary view by default
- * and a detailed step-by-step history on demand.
+ * It manages its own expanded/collapsed state and handles both navigation
+ * and history expansion clicks.
  */
-const CellChangeView: React.FC<CellChangeViewProps> = ({ change }) => {
-  // Call the shared style hook to get the generated class names.
+const CellChangeView: React.FC<CellChangeViewProps> = ({ change, onNavigate }) => {
   const styles = useSharedStyles();
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // An item is only expandable if there is an intermediate history.
   const isExpandable = change.history.length > 1;
 
   /**
    * Renders the details of a change (old vs. new) in a compact, icon-driven format.
-   * Defined inside the component to have access to the `styles` hook's closure.
    */
   const renderChangeDetails = (details: {
     changeType: 'value' | 'formula' | 'both',
@@ -61,18 +59,32 @@ const CellChangeView: React.FC<CellChangeViewProps> = ({ change }) => {
   };
 
   return (
-    // Use the shared styles for the list item container
-    <li className={`${styles.listItem} ${styles.listItem_modified}`}>
+    <li
+      className={`${styles.listItem} ${styles.listItem_modified}`}
+      // The entire list item is clickable for navigation.
+      onClick={() => onNavigate(change.sheet, change.address)}
+      style={{ cursor: 'pointer' }}
+    >
       <div 
-        style={{ display: "flex", alignItems: "center", cursor: isExpandable ? "pointer" : "default" }} 
-        onClick={isExpandable ? () => setIsExpanded(!isExpanded) : undefined}
+        style={{ display: "flex", alignItems: "center" }}
+        // If the item is expandable, we attach a separate onClick here.
+        onClick={(e) => {
+          if (isExpandable) {
+            // This is critical: it prevents the parent li's onClick (navigation)
+            // from firing when the user only intended to expand/collapse.
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }
+        }}
       >
         <span style={{ 
           marginRight: "8px", 
           fontFamily: "monospace", 
           color: "#0078d4", 
           userSelect: "none",
-          visibility: isExpandable ? "visible" : "hidden"
+          visibility: isExpandable ? "visible" : "hidden",
+          // The cursor on the expander should also be a pointer if it's clickable.
+          cursor: isExpandable ? "pointer" : "default"
         }}>
           {isExpanded ? "[-]" : "[+]"}
         </span>

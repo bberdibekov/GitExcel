@@ -4,6 +4,7 @@ import * as React from "react";
 import { useState } from "react";
 import { Button } from "@fluentui/react-components";
 import { debugService } from "../services/debug.service";
+import { useSharedStyles } from "./sharedStyles";
 
 interface DevToolsProps {
   onSaveVersion: (comment: string) => Promise<void>;
@@ -29,6 +30,8 @@ const testSteps: TestStep[] = [
 ];
 
 const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory, onCompare }) => {
+  // Call the shared style hook to get the generated class names.
+  const styles = useSharedStyles();
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
 
@@ -91,9 +94,9 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
   };
 
   return (
-    <div style={{ border: "2px dashed #ff0000", padding: "10px", marginTop: "20px", backgroundColor: "#fff0f0" }}>
+    <div className={styles.card_warning}>
       <h4>Developer Tools</h4>
-      <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+      <p className={styles.textSubtle} style={{ margin: 0 }}>
         This panel is only visible in development mode.
       </p>
       <Button 
@@ -104,7 +107,7 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
       >
         {isRunning ? "Running..." : "Run Focused v1-v8 Test Case"}
       </Button>
-      <p style={{ marginTop: '10px', fontSize: '12px', fontStyle: 'italic' }}>Status: {status}</p>
+      <p className={styles.textSubtle} style={{ marginTop: '10px', fontStyle: 'italic' }}>Status: {status}</p>
     </div>
   );
 };

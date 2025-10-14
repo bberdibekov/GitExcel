@@ -7,6 +7,34 @@ import { makeStyles, tokens } from "@fluentui/react-components";
  * This follows the DRY principle and ensures visual consistency.
  */
 export const useSharedStyles = makeStyles({
+  // --- LAYOUT ---
+  flexRow: {
+    display: "flex",
+    alignItems: "center",
+  },
+  flexRowSpaceBetween: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  buttonGroup: {
+    display: "flex",
+    gap: tokens.spacingHorizontalM,
+    marginBottom: tokens.spacingVerticalM,
+  },
+  
+  // --- TEXT ---
+  textSubtle: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  expander: {
+    fontFamily: "monospace",
+    color: tokens.colorBrandForeground1,
+    userSelect: "none",
+    marginRight: tokens.spacingHorizontalS,
+  },
+
   // --- ICON STYLES ---
   icon: {
     color: tokens.colorNeutralForegroundDisabled,

@@ -34,23 +34,18 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, selectedVersi
         const isFirstVersion = index === reversedVersions.length - 1;
 
         return (
-          // The main container uses the shared 'card' style for consistency.
-          // The flexbox styles remain inline as they are specific to this component's layout.
           <div
             key={version.id}
-            className={styles.card}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+            className={`${styles.card} ${styles.flexRowSpaceBetween}`}
           >
-            <div style={{ display: "flex", alignItems: "center" }}>
+            <div className={styles.flexRow}>
               <Checkbox
                 checked={selectedVersions.includes(version.id)}
                 onChange={() => onVersionSelect(version.id)}
               />
               <div style={{ marginLeft: "10px" }}>
                 <strong>{version.comment}</strong>
-                {/* This subtle text style is still defined inline for simplicity,
-                    but could be moved to sharedStyles if it were used more widely. */}
-                <div style={{ fontSize: "12px", color: "#666" }}>{version.timestamp}</div>
+                <div className={styles.textSubtle}>{version.timestamp}</div>
               </div>
             </div>
             
