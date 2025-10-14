@@ -1,46 +1,46 @@
 // src/taskpane/services/report.consolidator.service.ts
 
-import { IChange, IDiffResult, IResolvedTimeline } from "../types/types";
+import { IChange, IDiffResult, IResolvedTimeline, IWorkbookSnapshot, ICombinedChange } from "../types/types";
 import { fromA1, toA1 } from "./address.converter";
 import { transformAddress } from "./coordinate.transform.service";
+
+/**
+ * A helper to safely get a cell's data from a snapshot.
+ * Returns a default empty cell if the sheet, row, or cell doesn't exist.
+ */
+function getCellFromSnapshot(snapshot: IWorkbookSnapshot, sheet: string, row: number, col: number): { value: any, formula: any } {
+  const emptyCell = { value: "", formula: "" };
+  const sheetData = snapshot[sheet];
+  if (!sheetData) return emptyCell;
+  const rowData = sheetData.data[row];
+  if (!rowData) return emptyCell;
+  const cellData = rowData.cells[col];
+  return cellData || emptyCell;
+}
+
 
 /**
 
 The "Formatter" of the synthesizer. Takes a clean, resolved timeline and
 consolidates it into the final, user-facing diff report.
 @param timeline The IResolvedTimeline object from the resolver service.
+@param startVersionSnapshot The complete snapshot of the starting version for the comparison.
 @returns The final, consolidated IDiffResult for the UI.
 */
-export function consolidateReport(timeline: IResolvedTimeline): IDiffResult {
-    const finalResult: IDiffResult = {
-        modifiedCells: [],
-        // --- Pass through the net added rows for the UI summary ---
-        // The UI uses this array to display a high-level list of added rows.
-        // This is separate from the "creation" events handled in modifiedCells.
-        addedRows: Array.from(timeline.netAddedRows.values()),
-        deletedRows: Array.from(timeline.netDeletedRows.values()),
-        structuralChanges: timeline.chronologicalStructuralChanges,
-    };
+export function consolidateReport(timeline: IResolvedTimeline, startVersionSnapshot: IWorkbookSnapshot): IDiffResult {
+    const finalModifiedCells: ICombinedChange[] = [];
 
     // 1. Consolidate the history of all cells that survived and were modified at any point.
     timeline.finalChangeHistory.forEach((history, finalAddressKey) => {
         const coords = fromA1(finalAddressKey)!;
-        const firstEvent = history[0];
         const lastEvent = history[history.length - 1];
 
-        const originalRowKey = `${firstEvent.sheet}!${
-            fromA1(firstEvent.address)!.row
-        }`;
-        const wasCreatedDuringTimeline = timeline.netAddedRows.has(
-            originalRowKey,
-        );
+        // Get the true start state by looking it up in the start version's snapshot.
+        const startState = getCellFromSnapshot(startVersionSnapshot, coords.sheet!, coords.row, coords.col);
 
-        const hasValueChange = history.some((c) =>
-            c.changeType === "value" || c.changeType === "both"
-        );
-        const hasFormulaChange = history.some((c) =>
-            c.changeType === "formula" || c.changeType === "both"
-        );
+        const hasValueChange = startState.value !== lastEvent.newValue;
+        const hasFormulaChange = isRealFormula(startState.formula) || isRealFormula(lastEvent.newFormula) 
+          && startState.formula !== lastEvent.newFormula;
 
         let finalChangeType: IChange["changeType"] = "value";
         if (hasValueChange && hasFormulaChange) {
@@ -49,50 +49,61 @@ export function consolidateReport(timeline: IResolvedTimeline): IDiffResult {
             finalChangeType = "formula";
         }
 
-        finalResult.modifiedCells.push({
+        finalModifiedCells.push({
             sheet: coords.sheet!,
             address: toA1(coords.row, coords.col),
-            oldValue: wasCreatedDuringTimeline ? "" : firstEvent.oldValue,
-            oldFormula: wasCreatedDuringTimeline ? "" : firstEvent.oldFormula,
-            newValue: lastEvent.newValue,
-            newFormula: lastEvent.newFormula,
+            startValue: startState.value,
+            startFormula: startState.formula,
+            endValue: lastEvent.newValue,
+            endFormula: lastEvent.newFormula,
             changeType: finalChangeType,
+            history: history, // Pass the full history through
         });
     });
 
-    // 2. Process net added rows to find "pure creations".
-    // This logic is still essential for showing the content of new rows.
+    // 2. Process net added rows to find "pure creations" not captured above.
     timeline.netAddedRows.forEach((addedRow) => {
         addedRow.rowData.cells.forEach((cell, colIndex) => {
             if (cell.value === "" && cell.formula === "") return;
 
-            const originalAddress = `${addedRow.sheet}!${
-                toA1(addedRow.rowIndex, colIndex)
-            }`;
+            const originalAddress = `${addedRow.sheet}!${toA1(addedRow.rowIndex, colIndex)}`;
             const finalAddressStr = transformAddress(
                 originalAddress,
                 (addedRow as any).futureStructuralChanges,
             );
 
-            if (
-                finalAddressStr &&
-                !timeline.finalChangeHistory.has(finalAddressStr)
-            ) {
+            // If this cell was created but never modified again, it won't be in finalChangeHistory.
+            // We must add it to the report here.
+            if (finalAddressStr && !timeline.finalChangeHistory.has(finalAddressStr)) {
                 const finalCoords = fromA1(finalAddressStr)!;
-                finalResult.modifiedCells.push({
-                    sheet: finalCoords.sheet!,
-                    address: toA1(finalCoords.row, finalCoords.col),
-                    changeType: isRealFormula(cell.formula) ? "both" : "value",
-                    oldValue: "",
-                    newValue: cell.value,
-                    oldFormula: "",
-                    newFormula: cell.formula,
+                const creationEvent: IChange = {
+                  sheet: finalCoords.sheet!,
+                  address: toA1(finalCoords.row, finalCoords.col),
+                  changeType: isRealFormula(cell.formula) ? 'both' : 'value',
+                  oldValue: "", newValue: cell.value,
+                  oldFormula: "", newFormula: cell.formula,
+                };
+
+                finalModifiedCells.push({
+                  sheet: finalCoords.sheet!,
+                  address: toA1(finalCoords.row, finalCoords.col),
+                  startValue: "",
+                  startFormula: "",
+                  endValue: cell.value,
+                  endFormula: cell.formula,
+                  changeType: creationEvent.changeType,
+                  history: [creationEvent], // History is just the creation event
                 });
             }
         });
     });
 
-    return finalResult;
+    return {
+      modifiedCells: finalModifiedCells,
+      addedRows: Array.from(timeline.netAddedRows.values()),
+      deletedRows: Array.from(timeline.netDeletedRows.values()),
+      structuralChanges: timeline.chronologicalStructuralChanges,
+    };
 }
 
 // Helper function to be used in step 2.

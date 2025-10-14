@@ -2,12 +2,30 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { IChange, IDiffResult, ISummaryResult } from "../types/types";
+import { IChange, IDiffResult, ISummaryResult, ICombinedChange } from "../types/types";
 import { Button } from "@fluentui/react-components";
 import { showChangesOnSheet, clearChangesFromSheet, setupSelectionListener, removeSelectionListener } from "../services/excel.interaction.service";
 import { generateSummary } from "../services/summary.service";
 import SelectionDetailViewer from "./SelectionDetailViewer";
 import DiffViewer from "./DiffViewer";
+
+/**
+ * Helper function to transform the rich ICombinedChange back into the simple IChange
+ * that the excel.interaction.service and SelectionDetailViewer expect.
+ */
+function toSimpleChange(combinedChange: ICombinedChange): IChange {
+  return {
+    sheet: combinedChange.sheet,
+    address: combinedChange.address,
+    changeType: combinedChange.changeType,
+    // We use the start/end state for the on-sheet comments and selection viewer
+    oldValue: combinedChange.startValue,
+    newValue: combinedChange.endValue,
+    oldFormula: combinedChange.startFormula,
+    newFormula: combinedChange.endFormula,
+  };
+}
+
 
 interface ComparisonViewProps {
   result: IDiffResult;
@@ -25,30 +43,32 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({ result }) => {
     }
   }, [result]);
 
-  // This effect hook manages the event listeners. It now depends on the summary.
   useEffect(() => {
-    // CRITICAL FIX: The selection listener must know about the FILTERED list of cells.
     if (showOnSheet && summary) {
-      setupSelectionListener(summary.modifiedCells, setSelectedChange);
+      // Transform the data before passing it to the listener
+      const simpleChanges = summary.modifiedCells.map(toSimpleChange);
+      setupSelectionListener(simpleChanges, setSelectedChange);
     }
     return () => {
       removeSelectionListener();
     };
-  }, [showOnSheet, summary]); // Dependency changed from 'result' to 'summary'
+  }, [showOnSheet, summary]);
 
   const handleShowOnSheet = () => {
-    // CRITICAL FIX: Use the filtered list from the summary to highlight cells.
     if (summary) {
-      showChangesOnSheet(summary.modifiedCells);
+      // Transform the data before passing it to the highlighter
+      const simpleChanges = summary.modifiedCells.map(toSimpleChange);
+      showChangesOnSheet(simpleChanges);
       setShowOnSheet(true);
     }
   };
 
   const handleClearFromSheet = () => {
-    // CRITICAL FIX: Use the filtered list from the summary to clear cells.
     if (summary) {
       removeSelectionListener();
-      clearChangesFromSheet(summary.modifiedCells);
+      // Transform the data before passing it to the clearer
+      const simpleChanges = summary.modifiedCells.map(toSimpleChange);
+      clearChangesFromSheet(simpleChanges);
       setShowOnSheet(false);
       setSelectedChange(null);
     }

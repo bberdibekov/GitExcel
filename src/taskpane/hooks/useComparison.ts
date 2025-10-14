@@ -1,13 +1,13 @@
 // src/taskpane/hooks/useComparison.ts
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react"; // Import useEffect and useCallback
 import { IVersion, IDiffResult } from "../types/types";
 import { synthesizeChangesets } from "../services/synthesizer.service";
-import { debugService } from "../services/debug.service"; // <-- 1. Import the debug service
+import { debugService } from "../services/debug.service";
 
 /**
  * A custom hook to manage the state and logic for comparing versions.
- * @param versions - The complete list of all available versions.
+ * @param versions
  */
 export function useComparison(versions: IVersion[]) {
   const [selectedVersions, setSelectedVersions] = useState<number[]>([]);
@@ -15,7 +15,6 @@ export function useComparison(versions: IVersion[]) {
 
   /**
    * Handles toggling the selection of a version for comparison.
-   * Manages a queue of up to 2 selected versions.
    */
   const handleVersionSelect = (versionId: number) => {
     const newSelection = [...selectedVersions];
@@ -29,26 +28,22 @@ export function useComparison(versions: IVersion[]) {
       newSelection.shift();
     }
     setSelectedVersions(newSelection);
-    setDiffResult(null); // Clear old results whenever the selection changes.
+    setDiffResult(null);
   };
 
   /**
    * The core business logic for running a comparison.
-   * This function can now be called in two ways:
-   * 1. With no arguments (from the UI), it uses the selected versions.
-   * 2. With indices (from the test harness), it uses the specified versions.
+   * Wrapped in useCallback to stabilize its identity for the useEffect hook.
+   * This prevents the effect from running on every render.
    */
-  const compareVersions = async (startIndex?: number, endIndex?: number) => {
+  const compareVersions = useCallback(async (startIndex?: number, endIndex?: number) => {
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
 
-    // --- 2. Determine which versions to compare ---
     if (startIndex !== undefined && endIndex !== undefined) {
-      // Programmatic call from the test harness (using array indices)
       startVersion = versions[startIndex];
       endVersion = versions[endIndex];
     } else {
-      // UI-driven call (using version IDs stored in state)
       if (selectedVersions.length !== 2) return;
       const sortedIds = [...selectedVersions].sort((a, b) => a - b);
       startVersion = versions.find(v => v.id === sortedIds[0]);
@@ -56,20 +51,25 @@ export function useComparison(versions: IVersion[]) {
     }
 
     if (startVersion && endVersion) {
-      // --- 3. Run the synthesis and log the result ---
       const result = synthesizeChangesets(startVersion, endVersion, versions);
-      
       const description = `Comparison Result: "${startVersion.comment}" vs "${endVersion.comment}"`;
       debugService.addLogEntry(description, result);
-      
       setDiffResult(result);
     } else {
-        const description = `Comparison Failed: Could not find versions for indices ${startIndex} vs ${endIndex}`;
-        debugService.addLogEntry(description, { startIndex, endIndex, selectedVersions });
+      const description = `Comparison Failed: Could not find versions for indices ${startIndex} vs ${endIndex}`;
+      debugService.addLogEntry(description, { startIndex, endIndex, selectedVersions });
     }
-  };
+  }, [versions, selectedVersions]); // Dependencies for the callback
 
-  // Return the state and the handlers for the UI component to use.
+  // A useEffect hook to implement the "auto-compare" feature.
+  // It runs whenever the selection changes.
+  useEffect(() => {
+    // If exactly two versions are selected, run the comparison automatically.
+    if (selectedVersions.length === 2) {
+      compareVersions();
+    }
+  }, [selectedVersions, compareVersions]); // It depends on the selection and the compare function itself.
+
   return {
     selectedVersions,
     diffResult,

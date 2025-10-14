@@ -11,11 +11,7 @@ import ComparisonView from "./ComparisonView";
 import DeveloperTools from "./DeveloperTools";
 
 const App = () => {
-  // Logic for managing the VERSION LIST is in useVersions.
   const { versions, addVersion, clearVersions } = useVersions();
-  
-  // Logic for handling COMPARISON is now in useComparison.
-  // We pass it the list of versions it needs to operate on.
   const { 
     selectedVersions, 
     diffResult, 
@@ -23,8 +19,19 @@ const App = () => {
     compareVersions 
   } = useComparison(versions);
 
-  // This component now has NO business logic. It only renders children
-  // and wires up props and event handlers. This is its single responsibility.
+  // NEW: Handler for the "Compare to Previous" action emitted by VersionHistory.
+  const handleCompareToPrevious = (versionId: number) => {
+    // Find the index of the selected version in the original, un-reversed array.
+    const currentIndex = versions.findIndex(v => v.id === versionId);
+    // The previous version is simply the one at the prior index.
+    const previousIndex = currentIndex - 1;
+    
+    // Ensure both indices are valid before triggering the comparison.
+    if (currentIndex > 0 && previousIndex >= 0) {
+      // Call the core logic function with specific start and end indices.
+      compareVersions(previousIndex, currentIndex);
+    }
+  };
 
   return (
     <div style={{ padding: "10px", fontFamily: "Segoe UI" }}>
@@ -33,10 +40,11 @@ const App = () => {
       <SaveVersionForm onSave={addVersion} />
 
       <h3>Version History</h3>
+      {/* The main button is now less important but still useful for manual control. */}
       <Button 
         appearance="primary" 
         disabled={selectedVersions.length !== 2} 
-        onClick={() => compareVersions()} // <-- Call with no args for UI-driven comparison
+        onClick={() => compareVersions()}
         style={{ marginBottom: "10px" }}
       >
         Compare Selected ({selectedVersions.length}/2)
@@ -46,6 +54,8 @@ const App = () => {
         versions={versions} 
         selectedVersions={selectedVersions} 
         onVersionSelect={handleVersionSelect}
+        // Wire up the new event handler to its corresponding prop.
+        onCompareToPrevious={handleCompareToPrevious}
       />
       
       {diffResult && <ComparisonView result={diffResult} />}
@@ -54,7 +64,7 @@ const App = () => {
         <DeveloperTools 
           onSaveVersion={addVersion} 
           onClearHistory={clearVersions} 
-          onCompare={compareVersions} // <-- This is the new, critical connection
+          onCompare={compareVersions}
         />
       )}
     </div>

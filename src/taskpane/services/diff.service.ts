@@ -4,7 +4,7 @@ import { diffArrays } from "diff";
 import {
   ICellData,
   IChange,
-  IDiffResult,
+  IChangeset,
   IRowChange,
   IRowData,
   IStructuralChange,
@@ -15,8 +15,6 @@ import { generateRowHash } from "./hashing.service";
 
 /**
 Determines if a cell's formula property represents a true, user-entered formula.
-Excel's API returns literals (e.g., 5, "hello") in the formula property for non-formulas.
-A real formula is a string that starts with "=".
 */
 function isRealFormula(formula: any): boolean {
   return typeof formula === "string" && formula.startsWith("=");
@@ -64,7 +62,7 @@ function compareCells(
   rowIndex: number,
   oldRow: IRowData,
   newRow: IRowData,
-  result: IDiffResult,
+  result: IChangeset, // Expects the raw changeset type
 ) {
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
   for (let c = 0; c < maxCols; c++) {
@@ -72,22 +70,20 @@ function compareCells(
     const newCell = newRow.cells[c] || { value: "", formula: "" };
 
     const valueChanged = String(oldCell.value) !== String(newCell.value);
-    // A formula change is only valid if the formula string is different AND a real formula is involved.
     const formulaChanged =
       (isRealFormula(oldCell.formula) || isRealFormula(newCell.formula)) &&
       (String(oldCell.formula) !== String(newCell.formula));
 
     if (valueChanged || formulaChanged) {
-      let changeType: IChange["changeType"] = "value"; // Default to value change
+      let changeType: IChange["changeType"] = "value";
       if (formulaChanged) {
-        // If a real formula changed, check if the value changed too.
         changeType = valueChanged ? "both" : "formula";
       }
 
       result.modifiedCells.push({
         sheet: sheetName,
         address: toA1(rowIndex, c),
-        changeType, // Use the newly calculated, correct type
+        changeType,
         oldValue: oldCell.value,
         newValue: newCell.value,
         oldFormula: oldCell.formula,
@@ -101,8 +97,8 @@ function diffSheetData(
   sheetName: string,
   oldData: IRowData[],
   newData: IRowData[],
-): IDiffResult {
-  const result: IDiffResult = {
+): IChangeset {
+  const result: IChangeset = {
     modifiedCells: [],
     addedRows: [],
     deletedRows: [],
@@ -145,7 +141,6 @@ function diffSheetData(
           rowData: addedRowData,
         });
 
-        // --- LOGIC FOR CREATION EVENTS ---
         addedRowData.cells.forEach((cell, colIndex) => {
           const hasValue = cell.value !== "" && cell.value !== undefined;
           const hasFormula = cell.formula !== "" && cell.formula !== undefined;
@@ -154,7 +149,6 @@ function diffSheetData(
             result.modifiedCells.push({
               sheet: sheetName,
               address: toA1(newIdx, colIndex),
-              // Use the helper to correctly determine the change type on creation.
               changeType: isRealFormula(cell.formula) ? "both" : "value",
               oldValue: "",
               newValue: cell.value,
@@ -200,8 +194,8 @@ function diffSheetData(
 export function diffSnapshots(
   oldSnapshot: IWorkbookSnapshot,
   newSnapshot: IWorkbookSnapshot,
-): IDiffResult {
-  const result: IDiffResult = {
+): IChangeset {
+  const result: IChangeset = {
     modifiedCells: [],
     addedRows: [],
     deletedRows: [],

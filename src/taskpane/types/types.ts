@@ -19,8 +19,6 @@ export interface IWorkbookSnapshot {
   [sheetName: string]: ISheetSnapshot;
 }
 
-// NEW: A strict set of recognized structural change types.
-// This gives us type safety and prevents magic strings.
 export type StructuralChangeType =
   | "row_insertion"
   | "row_deletion"
@@ -30,19 +28,15 @@ export type StructuralChangeType =
   | "sheet_addition"
   | "sheet_deletion";
 
-// NEW: An interface to describe a single, high-level structural change.
-// This is the data packet that the CoordinateTransformationService will use.
 export interface IStructuralChange {
   type: StructuralChangeType;
   sheet: string;
-  // For row/col changes, 'index' is the starting position.
   index?: number;
-  // For row/col changes, 'count' is how many were inserted/deleted. Defaults to 1.
   count?: number;
-  // For sheet renames, this holds the new name.
   newName?: string;
 }
 
+// Represents a single, atomic change event between two adjacent versions.
 export interface IChange {
   sheet: string;
   address: string;
@@ -53,6 +47,18 @@ export interface IChange {
   newFormula: string | number | boolean;
 }
 
+// Represents the consolidated, final report for a modified cell.
+export interface ICombinedChange {
+  sheet: string;
+  address: string;
+  startValue: string | number | boolean;
+  endValue: string | number | boolean;
+  startFormula: string | number | boolean;
+  endFormula: string | number | boolean;
+  changeType: 'value' | 'formula' | 'both';
+  history: IChange[];
+}
+
 export interface IRowChange {
   sheet: string;
   rowIndex: number;
@@ -60,31 +66,33 @@ export interface IRowChange {
   containedChanges?: IChange[];
 }
 
-export interface IDiffResult {
+// This type represents the raw output of a diff between two ADJACENT versions.
+export interface IChangeset {
   modifiedCells: IChange[];
   addedRows: IRowChange[];
   deletedRows: IRowChange[];
-  // UPDATED: The result of a diff now formally includes a list of structural changes.
-  // This makes our diffs much more intelligent.
   structuralChanges: IStructuralChange[];
 }
+
+// This type represents the FINAL, user-facing result from the synthesizer.
+export interface IDiffResult {
+  modifiedCells: ICombinedChange[];
+  addedRows: IRowChange[];
+  deletedRows: IRowChange[];
+  structuralChanges: IStructuralChange[];
+}
+
 
 export interface IVersion {
   id: number;
   timestamp: string;
   comment: string;
   snapshot: IWorkbookSnapshot;
-  // UPDATED: This is the core of the new architecture.
-  // The 'changeset' property stores the diff from the PREVIOUS version.
-  // It's optional because the very first version has no preceding changeset.
-  changeset?: IDiffResult;
+  changeset?: IChangeset;
 }
 
-
-// These types are related to the summary/UI, and can remain for now.
-
 export interface IHighLevelChange {
-  type: 'structural' | 'column_insertion' | 'column_deletion'; 
+  type: 'structural' | 'column_insertion' | 'column_deletion';
   sheet: string;
   description: string;
   involvedCells: IChange[];
@@ -92,23 +100,14 @@ export interface IHighLevelChange {
 
 export interface ISummaryResult {
   highLevelChanges: IHighLevelChange[];
-  modifiedCells: IChange[];
+  modifiedCells: ICombinedChange[];
   addedRows: IRowChange[];
   deletedRows: IRowChange[];
 }
 
-// This is the intermediate data structure produced by the Timeline Resolver
-// and consumed by the Report Consolidator. It represents a clean, fully-mapped
-// history of all events between two versions.
 export interface IResolvedTimeline {
-  // Maps a cell's FINAL address to its full history of changes.
   finalChangeHistory: Map<string, IChange[]>;
-  // A map of rows that were deleted and never re-added.
-  // Crucially, this can include rows that were added AND deleted within the timeline,
-  // but only if they contained cell modifications before being deleted.
   netDeletedRows: Map<string, IRowChange>;
-  // A map of rows that were added and were never deleted.
   netAddedRows: Map<string, IRowChange>;
-  // The complete, ordered list of all structural transformations that occurred.
   chronologicalStructuralChanges: IStructuralChange[];
 }

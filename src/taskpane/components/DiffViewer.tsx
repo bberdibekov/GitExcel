@@ -1,32 +1,34 @@
 // src/taskpane/components/DiffViewer.tsx
 
 import * as React from "react";
-import { IChange, ISummaryResult } from "../types/types"; // IRowChange is implicitly handled via ISummaryResult
+import { IChange, ISummaryResult } from "../types/types";
+import CellChangeView from "./CellChangeView";
 
 interface DiffViewerProps {
-  summary: ISummaryResult; // Props now take the summary object
+  summary: ISummaryResult;
 }
 
-// This helper function for rendering cell details remains unchanged.
-// It is used for both top-level modifications and changes within deleted rows.
-const renderChangeDetails = (change: IChange) => {
+// UPDATED: This helper gets the same intelligent rendering logic for consistency.
+const renderLegacyChangeDetails = (change: IChange) => {
   const showValue = change.changeType === 'value' || change.changeType === 'both';
   const showFormula = change.changeType === 'formula' || change.changeType === 'both';
+
+  const valueExists = (val: any) => val !== "" && val !== undefined && val !== null;
 
   return (
     <>
       {showValue && (
         <div>
           <strong>Value:</strong><br />
-          <span style={{ color: "red" }}>- {String(change.oldValue)}</span><br />
-          <span style={{ color: "green" }}>+ {String(change.newValue)}</span>
+          {valueExists(change.oldValue) && <><span style={{ color: "red" }}>- {String(change.oldValue)}</span><br /></>}
+          {valueExists(change.newValue) && <span style={{ color: "green" }}>+ {String(change.newValue)}</span>}
         </div>
       )}
       {showFormula && (
         <div style={{ marginTop: showValue ? '5px' : '0' }}>
           <strong>Formula:</strong><br />
-          <span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br />
-          <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>
+          {valueExists(change.oldFormula) && <><span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br /></>}
+          {valueExists(change.newFormula) && <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>}
         </div>
       )}
     </>
@@ -34,7 +36,6 @@ const renderChangeDetails = (change: IChange) => {
 };
 
 const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
-  // Calculate total changes based on the summary object.
   const totalChanges = summary.highLevelChanges.length + summary.modifiedCells.length + summary.addedRows.length + summary.deletedRows.length;
 
   return (
@@ -43,7 +44,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
       
       {totalChanges === 0 ? <p>No differences found.</p> :
         <div>
-          {/* Section for High-Level Summary (unchanged) */}
           {summary.highLevelChanges.length > 0 && (
             <>
               <h5>Summary</h5>
@@ -60,25 +60,17 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
             </>
           )}
 
-          {/* Section for Modified Cells (unchanged) */}
           {summary.modifiedCells.length > 0 && (
             <>
               <h5>Modified Cells ({summary.modifiedCells.length})</h5>
               <ul style={{ listStyleType: "none", padding: 0 }}>
                 {summary.modifiedCells.map((change, index) => (
-                  <li
-                    key={`mod-${index}`}
-                    style={{ background: "#f5f5f5", padding: "8px", marginBottom: "5px", borderLeft: "3px solid #f0ad4e" }}
-                  >
-                    <strong>{change.sheet}!{change.address}</strong>
-                    {renderChangeDetails(change)}
-                  </li>
+                  <CellChangeView key={index} change={change} />
                 ))}
               </ul>
             </>
           )}
 
-          {/* Section for Added Rows (unchanged) */}
           {summary.addedRows.length > 0 && (
             <>
               <h5>Added Rows ({summary.addedRows.length})</h5>
@@ -95,7 +87,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
             </>
           )}
 
-          {/* --- UPDATED Section for Deleted Rows --- */}
           {summary.deletedRows.length > 0 && (
             <>
               <h5>Deleted Rows ({summary.deletedRows.length})</h5>
@@ -107,14 +98,13 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary }) => {
                   >
                     <strong>{rowChange.sheet}!{rowChange.rowIndex + 1}</strong>
                     
-                    {/* NEW: Render the history of cells within the deleted row */}
                     {rowChange.containedChanges && rowChange.containedChanges.length > 0 && (
                       <div style={{ marginTop: '8px', paddingLeft: '15px', borderLeft: '2px solid #b92c28', marginLeft: '5px' }}>
                         <strong style={{fontSize: '12px', color: '#a94442'}}>Changes within this row before deletion:</strong>
                         {rowChange.containedChanges.map((change, cIndex) => (
                           <div key={`contained-${cIndex}`} style={{paddingTop: '5px'}}>
                             <strong>{change.address}:</strong>
-                            {renderChangeDetails(change)}
+                            {renderLegacyChangeDetails(change)}
                           </div>
                         ))}
                       </div>

@@ -12,12 +12,19 @@ export function useVersions() {
   useEffect(() => {
     const savedVersions = localStorage.getItem("excelVersions");
     if (savedVersions) {
-      setVersions(JSON.parse(savedVersions));
+      try {
+        setVersions(JSON.parse(savedVersions));
+      } catch (error) {
+        console.error("Failed to parse versions from localStorage. The data may be corrupt or from an older version of the add-in. Clearing stored data.", error);
+        // If parsing fails, clear the bad data and start fresh.
+        localStorage.removeItem("excelVersions");
+        setVersions([]);
+      }
     }
   }, []);
 
   /**
-   * Adds a new version. This function is now safe to be called in rapid succession
+   * This function is safe to be called in rapid succession
    * because it uses a functional update to access the most recent state.
    */
   const addVersion = async (comment: string) => {
@@ -40,13 +47,12 @@ export function useVersions() {
           timestamp: new Date().toLocaleString(),
           comment: comment,
           snapshot: newSnapshot,
-          // This changeset calculation is now reliable because 'lastVersion' is correct.
           changeset: lastVersion ? diffSnapshots(lastVersion.snapshot, newSnapshot) : undefined,
         };
 
         const updatedVersions = [...currentVersions, newVersion];
         
-        // Persist the new, correct list to localStorage.
+        // Persist the new list to localStorage.
         localStorage.setItem("excelVersions", JSON.stringify(updatedVersions));
         
         // Return the new state for React to set.

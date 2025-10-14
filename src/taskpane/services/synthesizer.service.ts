@@ -1,15 +1,12 @@
 // src/taskpane/services/synthesizer.service.ts
-import { IDiffResult, IVersion } from "../types/types";
+import { IDiffResult, IVersion, IChangeset } from "../types/types";
 import { debugService } from "./debug.service";
 import { resolveTimeline } from "./timeline.resolver.service";
 import { consolidateReport } from "./report.consolidator.service";
 
 /**
-
-    The high-level "Orchestrator" for creating a diff between any two non-adjacent versions.
-    It uses specialized services to first resolve the complex timeline of events and then
-    consolidate that timeline into a final, user-facing report.
-    */
+ * The high-level "Orchestrator" for creating a diff between any two non-adjacent versions.
+ */
 export function synthesizeChangesets(
   startVersion: IVersion,
   endVersion: IVersion,
@@ -19,15 +16,10 @@ export function synthesizeChangesets(
     v.id > startVersion.id && v.id <= endVersion.id
   );
 
-  // --- DEEP CLONE THE INPUTS ---
-  // The changeset objects are part of the React state and must be treated as immutable.
-  // By creating a deep copy, we ensure that the entire synthesis process operates on
-  // temporary data and never mutates the original state, preventing the duplication bug.
   const changesetSequence = relevantVersions
     .map((v) => v.changeset)
     .filter((c) => c)
-    .map((c) => JSON.parse(JSON.stringify(c))) as IDiffResult[];
-
+    .map((c) => JSON.parse(JSON.stringify(c))) as IChangeset[];
   const description =
     `Synthesizing v"${startVersion.id}" vs v"${endVersion.id}"`;
   debugService.addLogEntry(description, {
@@ -44,12 +36,7 @@ export function synthesizeChangesets(
       structuralChanges: [],
     };
   }
-  if (changesetSequence.length === 1) {
-    return changesetSequence[0];
-  }
 
-  // --- STAGE 1 & 2: Resolve the entire timeline of events ---
-  // The resolver now operates on the safe, deep-cloned sequence.
   const resolvedTimeline = resolveTimeline(changesetSequence);
   debugService.addLogEntry(
     "Synthesizer Stage 1/2 (Timeline Resolution) Complete",
@@ -62,8 +49,7 @@ export function synthesizeChangesets(
     },
   );
 
-  // --- STAGE 3: Consolidate the resolved timeline into a final report ---
-  const finalResult = consolidateReport(resolvedTimeline);
+  const finalResult = consolidateReport(resolvedTimeline, startVersion.snapshot);
   debugService.addLogEntry(
     "Synthesizer Stage 3 (Report Consolidation) Complete",
     finalResult,

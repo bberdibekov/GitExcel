@@ -15,7 +15,7 @@ export function toA1(row: number, col: number): string {
   return `${colStr}${row + 1}`;
 }
 
-// NEW: This is the inverse of toA1, providing the structured data
+// This is the inverse of toA1, providing the structured data
 // needed for coordinate transformation calculations.
 /**
  * Converts an A1-style address string to a zero-based coordinate object.

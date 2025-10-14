@@ -7,26 +7,27 @@ interface SelectionDetailViewerProps {
   change: IChange | null;
 }
 
-// This helper function renders the old vs. new details.
-// It's included here to make the component self-contained.
+// This helper gets the same intelligent rendering logic.
 const renderChangeDetails = (change: IChange) => {
   const showValue = change.changeType === 'value' || change.changeType === 'both';
   const showFormula = change.changeType === 'formula' || change.changeType === 'both';
+
+  const valueExists = (val: any) => val !== "" && val !== undefined && val !== null;
 
   return (
     <>
       {showValue && (
         <div>
           <strong>Value:</strong><br />
-          <span style={{ color: "red" }}>- {String(change.oldValue)}</span><br />
-          <span style={{ color: "green" }}>+ {String(change.newValue)}</span>
+          {valueExists(change.oldValue) && <><span style={{ color: "red" }}>- {String(change.oldValue)}</span><br /></>}
+          {valueExists(change.newValue) && <span style={{ color: "green" }}>+ {String(change.newValue)}</span>}
         </div>
       )}
       {showFormula && (
         <div style={{ marginTop: showValue ? '5px' : '0' }}>
           <strong>Formula:</strong><br />
-          <span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br />
-          <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>
+          {valueExists(change.oldFormula) && <><span style={{ color: "red", fontFamily: "monospace" }}>- {String(change.oldFormula)}</span><br /></>}
+          {valueExists(change.newFormula) && <span style={{ color: "green", fontFamily: "monospace" }}>+ {String(change.newFormula)}</span>}
         </div>
       )}
     </>
