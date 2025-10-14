@@ -2,7 +2,6 @@
 
 import * as jose from 'jose';
 
-// ... (ILicense interface and mock constants are unchanged) ...
 export interface ILicense {
   tier: 'free' | 'pro';
   userId: string;
@@ -33,14 +32,12 @@ class AuthService {
 
 
   private async _tryGetLocalLicense(): Promise<ILicense | null> {
-    // --- START OF DEFENSIVE CODING FIX ---
-    // First, check if the Office context and roamingSettings are available.
+    // check if the Office context and roamingSettings are available.
     // This prevents crashes when running outside a proper Office host environment (e.g., standalone browser).
     if (!Office.context || !Office.context.roamingSettings) {
       console.warn('[AuthService] Office context or roamingSettings not available. This is expected if not running inside a sideloaded Office Add-in. Proceeding without a local license.');
       return null;
     }
-    // --- END OF DEFENSIVE CODING FIX ---
 
     const token = Office.context.roamingSettings.get(LICENSE_TOKEN_KEY) as string | null;
 
@@ -68,7 +65,6 @@ class AuthService {
     }
   }
 
-  // ... (_fetchAndStoreNewLicense is mostly unchanged, but we'll add the same defensive checks) ...
   private async _fetchAndStoreNewLicense(): Promise<ILicense> {
     console.log('[AuthService] Generating a new mock "pro" license...');
     const payload = {
@@ -82,7 +78,6 @@ class AuthService {
       .setExpirationTime('1h')
       .sign(MOCK_SECRET_KEY);
       
-    // --- START OF DEFENSIVE CODING FIX ---
     // Add the same check here before attempting to set and save.
     if (Office.context && Office.context.roamingSettings) {
         Office.context.roamingSettings.set(LICENSE_TOKEN_KEY, token);
@@ -91,7 +86,6 @@ class AuthService {
     } else {
         console.warn('[AuthService] Office context not available. Cannot store new license token.');
     }
-    // --- END OF DEFENSIVE CODING FIX ---
 
     const decodedPayload = jose.decodeJwt(token);
     return {

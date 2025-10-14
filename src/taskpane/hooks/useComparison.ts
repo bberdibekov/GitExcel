@@ -4,9 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { IVersion, IDiffResult } from "../types/types";
 import { synthesizeChangesets } from "../services/synthesizer.service";
 import { debugService } from "../services/debug.service";
-// --- MODIFICATION START (FEAT-005) ---
 import { ILicense } from "../services/AuthService";
-// --- MODIFICATION END ---
+
 
 /**
  * A custom hook to manage the state and logic for comparing versions.
@@ -38,7 +37,7 @@ export function useComparison(versions: IVersion[]) {
    * The core business logic for running a comparison.
    * Wrapped in useCallback to stabilize its identity.
    */
-  // --- MODIFICATION START (FEAT-005) ---
+
   const compareVersions = useCallback(async (
     license: ILicense,
     activeFilterIds: Set<string>,

@@ -1,10 +1,10 @@
 // src/taskpane/components/App.tsx
 
 import * as React from "react";
-// --- MODIFICATION START (FEAT-005) ---
+
 import { useState, useEffect } from "react";
-import { useUser } from "../context/UserContext"; // Import the useUser hook
-// --- MODIFICATION END ---
+import { useUser } from "../context/UserContext";
+
 import { Button } from "@fluentui/react-components";
 import { useVersions } from "../hooks/useVersions";
 import { useComparison } from "../hooks/useComparison";
@@ -23,7 +23,7 @@ const App = () => {
     compareVersions 
   } = useComparison(versions);
   
-  // --- MODIFICATION START (FEAT-005) ---
+  
   const { license, isLoading: isLicenseLoading } = useUser(); // Get license from context
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
 
@@ -53,7 +53,7 @@ const App = () => {
       runComparison();
     }
   }, [activeFilters, selectedVersions, license]); // Rerun if filters, selection, or license change
-  // --- MODIFICATION END ---
+  
 
   const handleCompareToPrevious = (versionId: number) => {
     const currentIndex = versions.findIndex(v => v.id === versionId);

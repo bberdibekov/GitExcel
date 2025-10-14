@@ -21,7 +21,6 @@ interface TestStep {
   action: () => Promise<void>;
 }
 
-// ... (testSteps array is unchanged) ...
 const testSteps: TestStep[] = [ 
     { description: "Setting up v1: Empty Sheet", comment: "v1: Initial State", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange().clear(); await context.sync(); }); }, }, 
     { description: "Setting up v2: A2 = 1", comment: "v2: A2 = 1", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A2").values = [[1]]; await context.sync(); }); }, }, 
@@ -100,7 +99,6 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
     }
   };
   
-  // ... (JSX is unchanged) ...
   return (
     <div className={styles.card_warning}>
       <h4>Developer Tools</h4>

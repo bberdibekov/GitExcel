@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { IVersion } from "../types/types";
 import { createWorkbookSnapshot } from "../services/excel.service";
-// --- MODIFICATION START (FEAT-005) ---
+
 // The diff.service is no longer needed here as we are not pre-computing changesets.
 // import { diffSnapshots } from "../services/diff.service"; 
-// --- MODIFICATION END ---
 
 export function useVersions() {
   const [versions, setVersions] = useState<IVersion[]>([]);
@@ -51,7 +50,7 @@ export function useVersions() {
       setVersions(currentVersions => {
         console.log(`[useVersions] Saving "${comment}". Previous version count: ${currentVersions.length}`);
 
-        // --- MODIFICATION START (FEAT-005) ---
+        
         // We no longer pre-compute the changeset. It will be computed on-demand
         // by the synthesizer service when a comparison is requested.
         const newVersion: IVersion = {
@@ -61,7 +60,7 @@ export function useVersions() {
           snapshot: newSnapshot,
           // changeset property is now removed from the IVersion object.
         };
-        // --- MODIFICATION END ---
+      
 
         const updatedVersions = [...currentVersions, newVersion];
         

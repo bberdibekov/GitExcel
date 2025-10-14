@@ -3,10 +3,9 @@ import { IDiffResult, IVersion, IChangeset } from "../types/types";
 import { debugService } from "./debug.service";
 import { resolveTimeline } from "./timeline.resolver.service";
 import { consolidateReport } from "./report.consolidator.service";
-// --- MODIFICATION START (FEAT-005) ---
 import { diffSnapshots } from "./diff.service";
 import { ILicense } from "./AuthService";
-// --- MODIFICATION END ---
+
 
 
 /**
@@ -16,16 +15,15 @@ export function synthesizeChangesets(
   startVersion: IVersion,
   endVersion: IVersion,
   allVersions: IVersion[],
-  // --- MODIFICATION START (FEAT-005) ---
   license: ILicense,
   activeFilterIds: Set<string>
-  // --- MODIFICATION END ---
+  
 ): IDiffResult {
   const relevantVersions = allVersions.filter((v) =>
     v.id >= startVersion.id && v.id <= endVersion.id
   );
 
-  // --- MODIFICATION START (FEAT-005) ---
+  
   // Generate changesets on the fly using the provided filters and license.
   const changesetSequence: IChangeset[] = [];
   for (let i = 0; i < relevantVersions.length - 1; i++) {
@@ -39,7 +37,7 @@ export function synthesizeChangesets(
     );
     changesetSequence.push(changeset);
   }
-  // --- MODIFICATION END ---
+  
   
   const description =
     `Synthesizing v"${startVersion.id}" vs v"${endVersion.id}"`;
