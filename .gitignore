@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+.pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+npm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+build/
+dist/
+out/
+
+# Local environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+jest-html-reporters-*
+
+# Misc
+*.tgz
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Storybook
+storybook-static/
+.out/
+
+#Internal docs
+docs/
+scripts/
+
+#assets
+assets/
