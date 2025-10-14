@@ -4,6 +4,8 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./components/App";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { UserProvider } from "./context/UserContext";
+
 
 console.log("[Trace] 1. index.tsx module loaded.");
 
@@ -21,7 +23,12 @@ Office.onReady(() => {
   console.log("[Trace] 3. Office.onReady() has fired.");
   root?.render(
     <FluentProvider theme={webLightTheme}>
-      <App/>
+      {/* 2. Wrap the main App component with the UserProvider. */}
+      {/* Now, the entire App component tree can access the user's license */}
+      {/* state via the useUser() hook. */}
+      <UserProvider>
+        <App/>
+      </UserProvider>
     </FluentProvider>
   );
   console.log("[Trace] 4. React root.render() has been called.");

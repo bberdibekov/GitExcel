@@ -10,6 +10,12 @@ import VersionHistory from "./VersionHistory";
 import ComparisonView from "./ComparisonView";
 import DeveloperTools from "./DeveloperTools";
 
+// --- PAYWALL-001 DEMO START ---
+// 1. Import the new paywall components for demonstration.
+import FeatureBadge from "./paywall/FeatureBadge";
+import LockOverlay from "./paywall/LockOverlay";
+// --- PAYWALL-001 DEMO END ---
+
 const App = () => {
   const { versions, addVersion, clearVersions } = useVersions();
   const { 
@@ -39,7 +45,11 @@ const App = () => {
       
       <SaveVersionForm onSave={addVersion} />
 
-      <h3>Version History</h3>
+      {/* --- PAYWALL-001 DEMO START --- */}
+      {/* 2. Demonstrate the FeatureBadge by placing it next to a title. */}
+      <h3>Version History <FeatureBadge tier="pro" /></h3>
+      {/* --- PAYWALL-001 DEMO END --- */}
+
       <Button 
         appearance="primary" 
         disabled={selectedVersions.length !== 2} 
@@ -48,14 +58,28 @@ const App = () => {
       >
         Compare Selected ({selectedVersions.length}/2)
       </Button>
+      
+      {/* --- PAYWALL-001 DEMO START --- */}
+      {/* 3. Demonstrate the LockOverlay. */}
+      {/* The parent div needs `position: 'relative'` for the overlay to work. */}
+      <div style={{ position: 'relative' }}>
 
-      <VersionHistory 
-        versions={versions} 
-        selectedVersions={selectedVersions} 
-        onVersionSelect={handleVersionSelect}
-        // Wire up the new event handler to its corresponding prop.
-        onCompareToPrevious={handleCompareToPrevious}
-      />
+        <LockOverlay 
+          title="Unlock Full History View"
+          message="Gain access to the complete version history and advanced comparison tools by upgrading your plan."
+          onUpgradeClick={() => console.log('[Paywall Demo] Upgrade button was clicked!')}
+        />
+
+        <VersionHistory 
+          versions={versions} 
+          selectedVersions={selectedVersions} 
+          onVersionSelect={handleVersionSelect}
+          // Wire up the new event handler to its corresponding prop.
+          onCompareToPrevious={handleCompareToPrevious}
+        />
+
+      </div>
+      {/* --- PAYWALL-001 DEMO END --- */}
       
       {diffResult && <ComparisonView result={diffResult} />}
 

@@ -31,6 +31,7 @@
     "core-js": "^3.36.0",
     "diff": "^8.0.2",
     "es6-promise": "^4.2.8",
+    "jose": "^6.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "regenerator-runtime": "^0.14.1"

@@ -102,4 +102,18 @@ export const useSharedStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground2,
   },
+
+  // --- PAYWALL STYLES ---
+  badge_pro: {
+    display: 'inline-block',
+    padding: `0 ${tokens.spacingHorizontalSNudge}`,
+    marginLeft: tokens.spacingHorizontalS,
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+    borderRadius: tokens.borderRadiusSmall,
+    fontSize: tokens.fontSizeBase200,
+    fontWeight: tokens.fontWeightSemibold,
+    lineHeight: '16px',
+    verticalAlign: 'middle',
+  },
 });
