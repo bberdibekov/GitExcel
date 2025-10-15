@@ -1,8 +1,8 @@
 // src/taskpane/services/excel.service.ts
 
-import { IWorkbookSnapshot, ICellData, IRowData, IFormat } from "../types/types";
+import { IWorkbookSnapshot, ICellData, IRowData } from "../types/types";
 import { generateRowHash } from "./hashing.service";
-import { excelFormatService } from "./excel.format.service"; // NEW: Import the service
+import { excelFormatService } from "./excel.format.service"; 
 
 export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
   const workbookSnapshot: IWorkbookSnapshot = {};
@@ -12,26 +12,21 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
     sheets.load("items/name");
     await context.sync();
 
+    // --- The properties to load are now simplified. We only need data properties.
+    // All format properties are now handled by the excelFormatService.
     const cellPropertiesToLoad = [
       "address", 
       "values", 
       "formulas", 
-      "numberFormat",
-      "format/fill",
-      "format/font",
-      "format/horizontalAlignment",
-      "format/verticalAlignment",
     ];
-
 
     for (const sheet of sheets.items) {
       console.log(`[excel.service] --- Starting snapshot for sheet: ${sheet.name} ---`);
 
       const usedRange = sheet.getUsedRangeOrNullObject();
-      usedRange.load("isNullObject");
-      const lastCell = usedRange.getLastCell();
-      lastCell.load(["rowIndex", "columnIndex"]);
-      await context.sync();
+      // --- FIX: Load the 'address' property along with 'isNullObject' ---
+      usedRange.load("isNullObject, address");
+      await context.sync(); // Sync to check if the range is null AND get its address
 
       if (usedRange.isNullObject) {
         console.warn(`[excel.service] Sheet ${sheet.name} is empty. Snapshot will be empty.`);
@@ -39,36 +34,39 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
         continue;
       }
 
-      const rowCount = lastCell.rowIndex + 1;
-      const colCount = lastCell.columnIndex + 1;
-      const actualRange = sheet.getRangeByIndexes(0, 0, rowCount, colCount);
-
+      // This call is now safe because usedRange.address has been loaded.
+      const actualRange = sheet.getRange(usedRange.address);
       actualRange.load(cellPropertiesToLoad);
-
+      
       const mergedAreas = usedRange.getMergedAreasOrNullObject(); 
       mergedAreas.load("isNullObject, address");
 
-      await context.sync();
+      await context.sync(); // Sync to load cell data and merge info
+
+      // --- NEW: Delegate all format reading to the format service ---
+      // This single call performs the entire hybrid scan (1 or 2 syncs)
+      // and returns a complete, reliable 2D array of format data.
+      const allFormats = await excelFormatService.getFormatsForRange(actualRange);
+      // --- END NEW ---
 
       const sheetData: IRowData[] = [];
+      const rowCount = actualRange.values.length;
+      const colCount = actualRange.values[0]?.length || 0;
+
       for (let r = 0; r < rowCount; r++) {
         const cellData: ICellData[] = [];
         for (let c = 0; c < colCount; c++) {
-
-          const format = excelFormatService.extractFormatFromCell(
-            actualRange.format,
-            actualRange.numberFormat,
-            r,
-            c
-          );
+          
+          // The complex logic is gone. We just get the pre-fetched format.
+          const format = allFormats[r][c];
 
           const cellToSave: ICellData = {
             value: actualRange.values[r][c],
             formula: actualRange.formulas[r][c],
           };
 
-          // If the service extracted any formats, add them to the cell object.
-          if (Object.keys(format).length > 0) {
+          // Only attach the format object if it contains data.
+          if (format && Object.keys(format).length > 0) {
             cellToSave.format = format;
           }
 

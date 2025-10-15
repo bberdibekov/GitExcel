@@ -4,6 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import { IVersion } from "../types/types";
 import { ILicense } from "../services/AuthService";
 import { excelWriterService, IRestoreOptions } from "../services/excel.writer.service";
+import { NotificationSeverity } from "../components/Notification"; // Import severity type
+
+// Define the shape of our generic notification state
+interface INotification {
+  severity: NotificationSeverity;
+  message: string;
+  title: string;
+}
 
 interface IAppActionsProps {
   versions: IVersion[];
@@ -15,6 +23,8 @@ interface IAppActionsProps {
 export function useAppActions({ versions, license, selectedVersions, compareVersions }: IAppActionsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  // Use a structured notification object for state
+  const [notification, setNotification] = useState<INotification | null>(null);
 
   const handleFilterChange = (filterId: string) => {
     setActiveFilters(prevFilters => {
@@ -47,27 +57,29 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
   };
 
   const handleRestoreSheets = async (versionId: number) => {
+    // Clear any previous notifications when starting a new operation
+    setNotification(null);
     setIsRestoring(true);
-    console.log(`[AppActions] Restore requested for version ID: ${versionId}`); // This is our entry point log.
+    console.log(`[AppActions] Restore requested for version ID: ${versionId}`);
     try {
       if (license?.tier !== 'pro') {
         throw new Error("Restore blocked: User does not have a Pro license.");
       }
       const versionToRestore = versions.find(v => v.id === versionId);
-      
-      // --- DIAGNOSTIC LOG 2.1 ---
-      // Let's see which version object the .find() method actually returned.
-      console.log('[AppActions] Found version object to restore:', versionToRestore);
-
       if (!versionToRestore) {
         throw new Error("Could not find the selected version to restore.");
       }
 
-      // --- DIAGNOSTIC LOG 2.2 ---
-      // This is the definitive test. We'll check a key value inside the snapshot
-      // before it gets sent to the writer service.
-      const snapshotSampleData = versionToRestore.snapshot?.Sheet1?.data[1]?.cells[0]?.value;
-      console.log(`[AppActions] Verifying snapshot data before restore. Sample value for Sheet1!A2 is:`, snapshotSampleData);
+      // --- Proactive Sheet Name Check ---
+      const firstSheetName = Object.keys(versionToRestore.snapshot)[0];
+      if (firstSheetName) {
+        const prospectiveSheetName = excelWriterService.generateSheetName(firstSheetName, versionToRestore.comment);
+        const isConflict = await excelWriterService.isSheetNameTaken(prospectiveSheetName);
+        if (isConflict) {
+          // If the sheet exists, throw a user-friendly error. This stops the process.
+          throw new Error(`A sheet named "${prospectiveSheetName}" already exists. Please rename or delete the existing sheet and try again.`);
+        }
+      }
 
       const restoreOptions: IRestoreOptions = {
         restoreCellFormats: true,
@@ -81,15 +93,26 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
       );
     } catch (error) {
       console.error("Failed to restore sheets:", error);
+      // Set a structured notification object for the UI to display
+      setNotification({
+        severity: 'error',
+        title: 'Restore Failed',
+        message: error.message,
+      });
     } finally {
       setIsRestoring(false);
       console.log("[AppActions] Restore operation finished.");
     }
   };
 
+  // A function to allow the UI to dismiss the notification
+  const clearNotification = () => setNotification(null);
+
   return {
     isRestoring,
     activeFilters,
+    notification,       // Expose the new notification object
+    clearNotification,  // Expose the handler to clear it
     handleFilterChange,
     runComparison,
     handleCompareToPrevious,

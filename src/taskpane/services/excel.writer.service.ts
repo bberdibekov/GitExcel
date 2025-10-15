@@ -2,7 +2,7 @@
 
 import { ISheetSnapshot, IWorkbookSnapshot } from '../types/types';
 import { debugService } from './debug.service';
-import { excelFormatService } from './excel.format.service'; // NEW: Import the service
+import { excelFormatService } from './excel.format.service';
 
 /**
  * Defines the granular options for a restore operation.
@@ -17,20 +17,23 @@ export interface IRestoreOptions {
  */
 class ExcelWriterService {
 
-  private _sanitizeArrayForWriting(data: any[][]): any[][] {
-    return data.map(row => row.map(cell => (cell === undefined ? null : cell)));
+  public async isSheetNameTaken(sheetName: string): Promise<boolean> {
+    let isTaken = false;
+    await Excel.run(async (context) => {
+      const sheets = context.workbook.worksheets;
+      sheets.load("items/name");
+      await context.sync();
+      for (const sheet of sheets.items) {
+        if (sheet.name.toLowerCase() === sheetName.toLowerCase()) {
+          isTaken = true;
+          break;
+        }
+      }
+    });
+    return isTaken;
   }
 
-  private _coerceToStringForWriting(data: any[][]): (string | null)[][] {
-    return data.map(row => 
-      row.map(cell => {
-        if (cell === null || typeof cell === 'string') { return cell; }
-        return String(cell);
-      })
-    );
-  }
-  
-  private _generateValidSheetName(baseName: string, versionComment: string): string {
+  public generateSheetName(baseName: string, versionComment: string): string {
     const sanitizedComment = versionComment.replace(/[\\/*?:[\]]/g, '');
     const prefix = `${baseName} (${sanitizedComment})`;
     if (prefix.length > 31) {
@@ -38,7 +41,7 @@ class ExcelWriterService {
     }
     return prefix;
   }
-
+  
   public async restoreWorkbookFromSnapshot(workbookSnapshot: IWorkbookSnapshot, versionPrefix: string, options: IRestoreOptions) {
     console.log(`[WriterService] Starting restore for version: "${versionPrefix}"`);
     console.time('Total Restore Time');
@@ -54,7 +57,7 @@ class ExcelWriterService {
   }
 
   private async _restoreSheet(snapshot: ISheetSnapshot, originalSheetName: string, versionComment: string, options: IRestoreOptions) {
-    const newSheetName = this._generateValidSheetName(originalSheetName, versionComment);
+    const newSheetName = this.generateSheetName(originalSheetName, versionComment);
     
     await Excel.run(async (context) => {
       console.log(`[WriterService] Phase 1: Creating new sheet: "${newSheetName}"`);
@@ -112,7 +115,9 @@ class ExcelWriterService {
     for (let r = 0; r < rowCount; r++) {
       for (let c = 0; c < colCount; c++) {
         const cellData = snapshot.data[r]?.cells?.[c];
+
         if (cellData && cellData.format) {
+          console.log(`[WriterService] Applying format to cell (${r},${c}):`, JSON.stringify(cellData.format));
           const range = sheet.getRangeByIndexes(r, c, 1, 1);
           excelFormatService.applyFormatToRange(range, cellData.format);
         }
@@ -127,6 +132,19 @@ class ExcelWriterService {
           sheet.getRange(address).merge(false);
       });
     }
+  }
+
+  private _sanitizeArrayForWriting(data: any[][]): any[][] {
+    return data.map(row => row.map(cell => (cell === undefined ? null : cell)));
+  }
+
+  private _coerceToStringForWriting(data: any[][]): (string | null)[][] {
+    return data.map(row => 
+      row.map(cell => {
+        if (cell === null || typeof cell === 'string') { return cell; }
+        return String(cell);
+      })
+    );
   }
 }
 

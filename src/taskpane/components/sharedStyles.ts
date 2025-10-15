@@ -79,11 +79,37 @@ export const useSharedStyles = makeStyles({
     backgroundColor: tokens.colorBrandBackground2,
     border: `1px solid ${tokens.colorCompoundBrandStroke}`,
   },
-  card_warning: {
+  // RENAMED: This style is specifically for the developer tools panel.
+  card_dev_tools: {
     backgroundColor: tokens.colorPaletteRedBackground2,
     border: `2px dashed ${tokens.colorPaletteRedBorderActive}`,
     padding: tokens.spacingVerticalL,
     marginTop: tokens.spacingVerticalL,
+  },
+  // NEW: Styles for the Notification component
+  card_error: {
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    border: `1px solid ${tokens.colorPaletteRedBorderActive}`,
+    padding: tokens.spacingVerticalM,
+    marginBottom: tokens.spacingVerticalM,
+    color: tokens.colorNeutralForeground1,
+    borderRadius: tokens.borderRadiusMedium,
+  },
+  card_warning: {
+    backgroundColor: tokens.colorPaletteYellowBackground1,
+    border: `1px solid ${tokens.colorPaletteYellowBorderActive}`,
+    padding: tokens.spacingVerticalM,
+    marginBottom: tokens.spacingVerticalM,
+    color: tokens.colorNeutralForeground1,
+    borderRadius: tokens.borderRadiusMedium,
+  },
+  card_success: {
+    backgroundColor: tokens.colorPaletteGreenBackground1,
+    border: `1px solid ${tokens.colorPaletteGreenBorderActive}`,
+    padding: tokens.spacingVerticalM,
+    marginBottom: tokens.spacingVerticalM,
+    color: tokens.colorNeutralForeground1,
+    borderRadius: tokens.borderRadiusMedium,
   },
 
   // --- DETAIL BLOCK STYLES ---

@@ -5,8 +5,10 @@ import { useState } from "react";
 import { Button } from "@fluentui/react-components";
 import { debugService } from "../services/debug.service";
 import { useSharedStyles } from "./sharedStyles";
+import { IVersion } from "../types/types"; 
 
 interface DevToolsProps {
+  versions: IVersion[];
   onSaveVersion: (comment: string) => Promise<void>;
   onClearHistory: () => void;
   onCompare: (startIndex: number, endIndex: number) => void;
@@ -58,7 +60,7 @@ const testSteps: TestStep[] = [
     { description: "Setting up v10: Delete row 3", comment: "v10: Delete row 3", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("3:3").delete(Excel.DeleteShiftDirection.up); await context.sync(); }); }, }, 
 ];
 
-const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory, onCompare }) => {
+const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onClearHistory, onCompare }) => {
   const styles = useSharedStyles();
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
@@ -83,11 +85,11 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
         await delay(500);
       }
       
+      debugService.capture('AllVersionsAfterCreation', versions);
       setStatus("Phase 2/2: Running focused comparison matrix...");
       await delay(500);
       
       const numVersions = testSteps.length;
-      // We'll still just run one major comparison for the log file
       const pairs: [number, number][] = [[0, numVersions - 1]];
 
       debugService.addLogEntry("Starting comparison verification phase.", { totalPairs: pairs.length, generatedPairs: pairs });
@@ -119,7 +121,8 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
   };
 
   return (
-    <div className={styles.card_warning}>
+    // FIX: Use the new, more specific style name
+    <div className={styles.card_dev_tools}>
       <h4>Developer Tools</h4>
       <p className={styles.textSubtle} style={{ margin: 0 }}>
         This panel is only visible in development mode.
@@ -130,7 +133,6 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ onSaveVersion, onClearHistory
         disabled={isRunning}
         style={{ marginTop: "10px", width: "100%" }}
       >
-        {/* --- NEW: Updated button text --- */}
         {isRunning ? "Running..." : `Run Formatted v1-v${testSteps.length} Test Case`}
       </Button>
       
