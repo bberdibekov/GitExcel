@@ -1,28 +1,46 @@
 // src/taskpane/hooks/useAppActions.ts
 
-import { useState, useCallback } from "react"; // Removed useEffect as it's no longer used
+import { useState, useCallback, useEffect } from "react";
 import { IVersion } from "../types/types";
 import { ILicense } from "../services/AuthService";
 import { excelWriterService, IRestoreOptions } from "../services/excel.writer.service";
 import { INotification } from "../components/NotificationDialog";
+import { crossWindowMessageBus } from "../services/dialog/CrossWindowMessageBus";
+import { MessageType, NavigateToCellPayload } from "../types/messaging.types";
+import { navigateToCell } from "../services/excel.interaction.service";
 
-// --- Define the threshold for the upgrade nudge ---
 const FREE_RESTORE_NUDGE_THRESHOLD = 3;
 
 interface IAppActionsProps {
   versions: IVersion[];
   license: ILicense | null;
-  selectedVersions: number[];
+  // <<< MODIFIED: 'selectedVersions' prop is removed.
   compareVersions: (license: ILicense, activeFilterIds: Set<string>, startIndex?: number, endIndex?: number) => void;
 }
 
-export function useAppActions({ versions, license, selectedVersions, compareVersions }: IAppActionsProps) {
+// <<< MODIFIED: 'selectedVersions' is removed from destructuring.
+export function useAppActions({ versions, license, compareVersions }: IAppActionsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<INotification | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<IVersion | null>(null);
-  // --- Session-based counter for the freemium nudge ---
   const [freeRestoreCount, setFreeRestoreCount] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = crossWindowMessageBus.listen(
+      MessageType.NAVIGATE_TO_CELL,
+      (payload: NavigateToCellPayload) => {
+        console.log(`[TaskPane-App] Received navigate request to: ${payload.sheet}!${payload.address}`);
+        try {
+          navigateToCell(payload.sheet, payload.address);
+        } catch (error) {
+          console.error("Failed to navigate from dialog message:", error);
+        }
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
 
   const handleFilterChange = (filterId: string) => {
     setActiveFilters(prevFilters => {
@@ -38,16 +56,12 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
 
   const runComparison = useCallback((startIndex?: number, endIndex?: number) => {
     if (!license) return;
-    // Auto-comparison logic is removed for now, comparison is explicit.
-    // if (selectedVersions.length === 2) {
-      compareVersions(license, activeFilters, startIndex, endIndex);
-    // }
-  }, [license, activeFilters, compareVersions, selectedVersions]);
+    compareVersions(license, activeFilters, startIndex, endIndex);
+  }, [license, activeFilters, compareVersions]);
 
   const handleCompareToPrevious = (versionId: number) => {
     const currentIndex = versions.findIndex(v => v.id === versionId);
     if (currentIndex > 0) {
-      // Logic to select the versions should be in useComparison, for now just run it
       runComparison(currentIndex - 1, currentIndex);
     }
   };
@@ -58,18 +72,13 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
       setRestoreTarget(versionToRestore);
     } else {
       console.error(`[AppActions] Could not find version with ID: ${versionId}`);
-      setNotification({
-        severity: 'error',
-        title: 'An Error Occurred',
-        message: 'The selected version could not be found.',
-      });
     }
   };
 
+  // ... (the rest of the file is unchanged) ...
   const cancelRestore = () => {
     setRestoreTarget(null);
   };
-
   const executeRestore = async (selection: {
     sheets: string[];
     destinations: { asNewSheets: boolean; asNewWorkbook: boolean };
@@ -78,17 +87,11 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
       console.error("ExecuteRestore called without a valid restore target.");
       return;
     }
-
     setNotification(null);
     setIsRestoring(true);
-
     try {
       if (selection.destinations.asNewSheets) {
-        console.log(`[AppActions] Restoring sheets for version ID: ${restoreTarget.id}`);
-        const restoreOptions: IRestoreOptions = {
-          restoreCellFormats: true,
-          restoreMergedCells: true,
-        };
+        const restoreOptions: IRestoreOptions = { restoreCellFormats: true, restoreMergedCells: true };
         await excelWriterService.restoreWorkbookFromSnapshot(
           restoreTarget.snapshot,
           restoreTarget.comment,
@@ -96,12 +99,10 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
           selection.sheets
         );
       }
-
       if (selection.destinations.asNewWorkbook) {
         if (license?.tier !== 'pro') {
           throw new Error("Creating a new workbook is a Pro feature.");
         }
-        console.log(`[AppActions] Simulating workbook creation for version ID: ${restoreTarget.id}`);
         await new Promise(resolve => setTimeout(resolve, 2500));
         setNotification({
           severity: 'success',
@@ -109,37 +110,27 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
           message: 'Your workbook has been generated and is now downloading.',
         });
       }
-
-      // --- Upgrade Nudge Logic ---
       if (license?.tier === 'free' && selection.destinations.asNewSheets) {
         const newCount = freeRestoreCount + 1;
         setFreeRestoreCount(newCount);
         if (newCount === FREE_RESTORE_NUDGE_THRESHOLD) {
-          // Use setTimeout to show the nudge slightly after the main operation feels complete.
           setTimeout(() => {
             setNotification({
-              severity: 'success', // Using 'success' to feel like a helpful tip, not a warning
+              severity: 'success',
               title: 'Pro Tip!',
               message: 'Want to restore all sheets at once? Upgrade to Pro to batch-restore entire versions.'
             });
           }, 700);
         }
       }
-
     } catch (error) {
       console.error("Failed to restore:", error);
-      setNotification({
-        severity: 'error',
-        title: 'Restore Failed',
-        message: error.message,
-      });
+      setNotification({ severity: 'error', title: 'Restore Failed', message: error.message });
     } finally {
       setIsRestoring(false);
       setRestoreTarget(null);
-      console.log("[AppActions] Restore operation finished.");
     }
   };
-
   const clearNotification = () => setNotification(null);
 
   return {

@@ -11,7 +11,7 @@ import NotificationDialog from "./NotificationDialog";
 
 import SaveVersionForm from "./SaveVersionForm";
 import VersionHistory from "./VersionHistory";
-import ComparisonView from "./ComparisonView";
+import ComparisonView from "./TaskPaneComparisonView";
 import DeveloperTools from "./DeveloperTools";
 import { RestoreSelectionDialog } from "./RestoreSelectionDialog";
 import { IVersionViewModel } from "../types/types";
@@ -44,7 +44,6 @@ const App = () => {
   } = useAppActions({
     versions,
     license,
-    selectedVersions,
     compareVersions,
   });
 
