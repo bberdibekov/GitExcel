@@ -13,10 +13,53 @@ export interface ILicense {
 const MOCK_JWT_SECRET = 'a-secure-secret-key-for-development-only-do-not-use-in-production';
 const MOCK_SECRET_KEY = new TextEncoder().encode(MOCK_JWT_SECRET);
 const LICENSE_TOKEN_KEY = 'licenseToken';
+// --- NEW ---
+const MOCK_LICENSE_TIER_KEY = 'mockLicenseTier'; // The key for our localStorage override.
 
 
 class AuthService {
+  // --- NEW ---
+  /**
+   * For development only. Overrides the license state until cleared.
+   * A page reload is required for the change to take effect.
+   */
+  public setMockTier(tier: 'pro' | 'free'): void {
+    localStorage.setItem(MOCK_LICENSE_TIER_KEY, tier);
+    console.log(`[AuthService] Mock tier set to: "${tier}". Reload to apply.`);
+  }
+
+  /**
+   * For development only. Clears any overridden license state.
+   * A page reload is required for the change to take effect.
+   */
+  public clearMockTier(): void {
+    localStorage.removeItem(MOCK_LICENSE_TIER_KEY);
+    console.log('[AuthService] Mock tier cleared. Reload to revert to default behavior.');
+  }
+
+  /**
+   * Generates a simple, non-expiring license object for mocking purposes.
+   */
+  private _createMockLicense(tier: 'pro' | 'free'): ILicense {
+    return {
+      tier,
+      userId: `mock-user-${tier}`,
+      status: 'verified',
+      expiresAt: Date.now() + 3600 * 1000 * 24, // Expires in 24 hours
+    };
+  }
+  // --- END NEW ---
+
   public async getVerifiedLicense(): Promise<ILicense> {
+    // --- MODIFIED ---
+    // First, check for a developer override in localStorage.
+    const mockTier = localStorage.getItem(MOCK_LICENSE_TIER_KEY);
+    if (mockTier === 'pro' || mockTier === 'free') {
+      console.warn(`[AuthService] Using MOCKED license tier: "${mockTier}"`);
+      return this._createMockLicense(mockTier);
+    }
+    // --- END MODIFIED ---
+
     console.log('[AuthService] Attempting to get verified license...');
     const localLicense = await this._tryGetLocalLicense();
 

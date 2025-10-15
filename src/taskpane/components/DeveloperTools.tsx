@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import { useState } from "react";
-import { Button } from "@fluentui/react-components";
+import { Button, Divider } from "@fluentui/react-components";
 import { debugService } from "../services/debug.service";
 import { useSharedStyles } from "./sharedStyles";
 import { IVersion } from "../types/types"; 
+import { authService } from "../services/AuthService";
+import { useUser } from "../context/UserContext";
+import { devHarnessService } from "../services/developer/dev.harness.service";
+import { testSteps } from "../services/developer/test.cases";
 
 interface DevToolsProps {
   versions: IVersion[];
@@ -14,103 +18,30 @@ interface DevToolsProps {
   onCompare: (startIndex: number, endIndex: number) => void;
 }
 
-interface TestStep {
-  description: string;
-  comment: string;
-  action: () => Promise<void>;
-}
-
-// --- NEW: Expanded test steps including formatting ---
-const testSteps: TestStep[] = [ 
-    { description: "Setting up v1: Empty Sheet", comment: "v1: Initial State", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange().clear(); await context.sync(); }); }, }, 
-    { description: "Setting up v2: A2 = 1", comment: "v2: A2 = 1", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A2").values = [[1]]; await context.sync(); }); }, }, 
-    { description: "Setting up v3: A3 = 2", comment: "v3: A3 = 2", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A3").values = [[2]]; await context.sync(); }); }, }, 
-    { description: "Setting up v4: A4 = SUM(A2:A3)", comment: "v4: A4 = SUM", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A4").formulas = [["=SUM(A2:A3)"]]; await context.sync(); }); }, }, 
-    
-    // --- NEW FORMATTING STEPS ---
-    { 
-      description: "Setting up v5: Format A4 (Bold, Yellow)", 
-      comment: "v5: Format SUM cell", 
-      action: async () => { 
-        await Excel.run(async (context) => { 
-          const range = context.workbook.worksheets.getActiveWorksheet().getRange("A4");
-          range.format.font.bold = true;
-          range.format.fill.color = "yellow";
-          await context.sync(); 
-        }); 
-      }, 
-    },
-    { 
-      description: "Setting up v6: Change A4 format (Not Bold, Orange)", 
-      comment: "v6: Change SUM format", 
-      action: async () => { 
-        await Excel.run(async (context) => { 
-          const range = context.workbook.worksheets.getActiveWorksheet().getRange("A4");
-          range.format.font.bold = false;
-          range.format.fill.color = "orange";
-          await context.sync(); 
-        }); 
-      }, 
-    },
-    // --- END NEW FORMATTING STEPS ---
-
-    { description: "Setting up v7: Insert row at 4", comment: "v7: Insert row at 4", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("4:4").insert(Excel.InsertShiftDirection.down); await context.sync(); }); }, }, 
-    { description: "Setting up v8: A4 = 'new value'", comment: "v8: A4 = 'new value'", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A4").values = [['new value']]; await context.sync(); }); }, }, 
-    { description: "Setting up v9: A3 = 25", comment: "v9: A3 = 25", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("A3").values = [[25]]; await context.sync(); }); }, }, 
-    { description: "Setting up v10: Delete row 3", comment: "v10: Delete row 3", action: async () => { await Excel.run(async (context) => { context.workbook.worksheets.getActiveWorksheet().getRange("3:3").delete(Excel.DeleteShiftDirection.up); await context.sync(); }); }, }, 
-];
-
 const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onClearHistory, onCompare }) => {
   const styles = useSharedStyles();
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
-
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const { license, isLoading } = useUser();
 
   const handleRunTest = async () => {
     setIsRunning(true);
-    debugService.startNewLogSession();
+    setStatus("Initiating test run...");
 
     try {
-      setStatus("Phase 1/2: Clearing history and creating versions...");
-      onClearHistory();
-      await delay(500);
-
-      for (let i = 0; i < testSteps.length; i++) {
-        const step = testSteps[i];
-        setStatus(`Creating v${i + 1}/${testSteps.length}: ${step.description}`);
-        await step.action();
-        await delay(200);
-        await onSaveVersion(step.comment);
-        await delay(500);
-      }
-      
-      debugService.capture('AllVersionsAfterCreation', versions);
-      setStatus("Phase 2/2: Running focused comparison matrix...");
-      await delay(500);
-      
-      const numVersions = testSteps.length;
-      const pairs: [number, number][] = [[0, numVersions - 1]];
-
-      debugService.addLogEntry("Starting comparison verification phase.", { totalPairs: pairs.length, generatedPairs: pairs });
-
-      for (let i = 0; i < pairs.length; i++) {
-        const [startIndex, endIndex] = pairs[i];
-        setStatus(`Comparing v${startIndex + 1} vs v${endIndex + 1} (${i + 1}/${pairs.length})`);
-        onCompare(startIndex, endIndex);
-        await delay(200);
-      }
-      
-      setStatus("Test complete! Log file is being saved.");
-
+      await devHarnessService.runComprehensiveTest({
+        versions,
+        onSaveVersion,
+        onClearHistory,
+        onCompare,
+        onStatusUpdate: setStatus, // Pass the setStatus function as a callback
+      });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("Test harness failed:", error);
-      setStatus(`Failed at step: ${status}. Check console.`);
-      debugService.addLogEntry("Test Harness Failed", { error: errorMessage, status });
+      // The service now throws an error on failure, which we can catch here.
+      setStatus(error.message);
     } finally {
+      // This ensures the running state is always reset, even if the test fails.
       setIsRunning(false);
-      debugService.saveLogSession('formatted_test_run_log.json');
     }
   };
   
@@ -120,13 +51,49 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onCl
     setStatus("Debug session saved.");
   };
 
+  const handleToggleTier = () => {
+    const currentTier = license?.tier || 'free';
+    const nextTier = currentTier === 'free' ? 'pro' : 'free';
+    authService.setMockTier(nextTier);
+    window.location.reload(); 
+  };
+
+  const handleClearMock = () => {
+    authService.clearMockTier();
+    window.location.reload();
+  };
+
   return (
-    // FIX: Use the new, more specific style name
     <div className={styles.card_dev_tools}>
       <h4>Developer Tools</h4>
       <p className={styles.textSubtle} style={{ margin: 0 }}>
         This panel is only visible in development mode.
       </p>
+
+      <Divider style={{ margin: "12px 0" }} />
+      <p className={styles.textSubtle} style={{ margin: 0, fontWeight: "bold" }}>
+        Mock Auth Control
+      </p>
+      <p className={styles.textSubtle} style={{ marginTop: '4px' }}>
+        Current Tier: <strong>{isLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
+      </p>
+      <div className={styles.buttonGroup} style={{ marginTop: '8px' }}>
+        <Button
+          appearance="primary"
+          onClick={handleToggleTier}
+          disabled={isLoading}
+        >
+          {`Switch to ${license?.tier === 'pro' ? 'Free' : 'Pro'}`}
+        </Button>
+        <Button
+          appearance="secondary"
+          onClick={handleClearMock}
+        >
+          Clear Mock & Revert
+        </Button>
+      </div>
+      <Divider style={{ margin: "12px 0" }} />
+      
       <Button 
         appearance="primary" 
         onClick={handleRunTest} 
