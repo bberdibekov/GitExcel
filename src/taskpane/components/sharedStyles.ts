@@ -79,14 +79,14 @@ export const useSharedStyles = makeStyles({
     backgroundColor: tokens.colorBrandBackground2,
     border: `1px solid ${tokens.colorCompoundBrandStroke}`,
   },
-  // RENAMED: This style is specifically for the developer tools panel.
+  // This style is specifically for the developer tools panel.
   card_dev_tools: {
     backgroundColor: tokens.colorPaletteRedBackground2,
     border: `2px dashed ${tokens.colorPaletteRedBorderActive}`,
     padding: tokens.spacingVerticalL,
     marginTop: tokens.spacingVerticalL,
   },
-  // NEW: Styles for the Notification component
+  // Styles for the Notification component
   card_error: {
     backgroundColor: tokens.colorPaletteRedBackground1,
     border: `1px solid ${tokens.colorPaletteRedBorderActive}`,

@@ -18,7 +18,6 @@ export function useVersions() {
       try {
         const parsedVersions = JSON.parse(savedVersions);
         console.log("[useVersions Hook] Parsed versions from localStorage:", parsedVersions);
-        // --- MIGRATION LOGIC (FEAT-005) ---
         // Simple migration: if old versions have a 'changeset', remove it.
         // This ensures data consistency moving forward.
         const migratedVersions = parsedVersions.map(v => {
@@ -26,7 +25,6 @@ export function useVersions() {
           return v;
         });
         setVersions(migratedVersions);
-        // --- END MIGRATION LOGIC ---
       } catch (error) {
         console.error("Failed to parse versions from localStorage. The data may be corrupt or from an older version of the add-in. Clearing stored data.", error);
         // If parsing fails, clear the bad data and start fresh.

@@ -42,7 +42,6 @@ class ExcelWriterService {
     return prefix;
   }
   
-  // --- MODIFIED ---
   public async restoreWorkbookFromSnapshot(
     workbookSnapshot: IWorkbookSnapshot,
     versionPrefix: string,
@@ -67,7 +66,6 @@ class ExcelWriterService {
     console.timeEnd('Total Restore Time');
     console.log('[WriterService] Restore operation complete.');
   }
-  // --- END MODIFIED ---
 
   private async _restoreSheet(snapshot: ISheetSnapshot, originalSheetName: string, versionComment: string, options: IRestoreOptions) {
     const newSheetName = this.generateSheetName(originalSheetName, versionComment);

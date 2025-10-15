@@ -122,7 +122,7 @@ export interface IVersion {
 }
 
 export interface IVersionViewModel extends IVersion {
-  /** Is the user allowed to initiate a restore for this specific version? */
+    /** Is the user allowed to initiate a restore for this specific version? */
   isRestorable: boolean;
   /** The tooltip to display for the restore button, contextual to the user's permissions. */
   restoreTooltip: string;

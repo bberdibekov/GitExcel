@@ -6,7 +6,7 @@ import { ILicense } from "../services/AuthService";
 import { excelWriterService, IRestoreOptions } from "../services/excel.writer.service";
 import { INotification } from "../components/NotificationDialog";
 
-// --- NEW: Define the threshold for the upgrade nudge ---
+// --- Define the threshold for the upgrade nudge ---
 const FREE_RESTORE_NUDGE_THRESHOLD = 3;
 
 interface IAppActionsProps {
@@ -21,7 +21,7 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<INotification | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<IVersion | null>(null);
-  // --- NEW: Session-based counter for the freemium nudge ---
+  // --- Session-based counter for the freemium nudge ---
   const [freeRestoreCount, setFreeRestoreCount] = useState(0);
 
   const handleFilterChange = (filterId: string) => {
@@ -110,7 +110,7 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
         });
       }
 
-      // --- NEW: Upgrade Nudge Logic ---
+      // --- Upgrade Nudge Logic ---
       if (license?.tier === 'free' && selection.destinations.asNewSheets) {
         const newCount = freeRestoreCount + 1;
         setFreeRestoreCount(newCount);
@@ -125,7 +125,6 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
           }, 700);
         }
       }
-      // --- END NEW ---
 
     } catch (error) {
       console.error("Failed to restore:", error);

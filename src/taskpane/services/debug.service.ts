@@ -8,12 +8,11 @@ interface ILogEntry {
 
 class DebugService {
   private logEntries: ILogEntry[] = [];
-  // NEW: A separate store for capturing the state of specific variables.
+  // A separate store for capturing the state of specific variables.
   private capturedState: Record<string, any> = {};
 
   public startNewLogSession(): void {
     this.logEntries = [];
-    // NEW: Also reset the captured state.
     this.capturedState = {};
     console.log("[DebugService] New log session started (events and state cleared).");
   }
@@ -57,7 +56,6 @@ class DebugService {
     }
 
     try {
-      // NEW: Combine events and state into a structured root object.
       const logData = {
         sessionEvents: this.logEntries,
         capturedState: this.capturedState,

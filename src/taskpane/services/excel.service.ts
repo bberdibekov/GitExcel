@@ -43,11 +43,10 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
 
       await context.sync(); // Sync to load cell data and merge info
 
-      // --- NEW: Delegate all format reading to the format service ---
+      // --- Delegate all format reading to the format service ---
       // This single call performs the entire hybrid scan (1 or 2 syncs)
       // and returns a complete, reliable 2D array of format data.
       const allFormats = await excelFormatService.getFormatsForRange(actualRange);
-      // --- END NEW ---
 
       const sheetData: IRowData[] = [];
       const rowCount = actualRange.values.length;
