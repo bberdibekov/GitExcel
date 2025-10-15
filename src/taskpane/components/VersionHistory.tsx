@@ -1,15 +1,14 @@
 // src/taskpane/components/VersionHistory.tsx
 
 import * as React from "react";
-import { IVersion } from "../types/types";
+import { IVersionViewModel } from "../types/types";
 import { Checkbox, Button, Tooltip } from "@fluentui/react-components";
 import { BranchCompare20Filled, ArrowClockwise20Filled } from "@fluentui/react-icons";
 import { useSharedStyles } from "./sharedStyles";
-import { useUser } from "../context/UserContext";
 import FeatureBadge from "./paywall/FeatureBadge";
 
 interface VersionHistoryProps {
-  versions: IVersion[];
+  versions: IVersionViewModel[];
   selectedVersions: number[];
   isRestoring: boolean;
   onVersionSelect: (versionId: number) => void;
@@ -26,7 +25,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
   onRestore
 }) => {
   const styles = useSharedStyles();
-  const { license } = useUser();
 
   if (versions.length === 0) {
     return <p>No versions saved yet.</p>;
@@ -34,39 +32,30 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
 
   const reversedVersions = [...versions].reverse();
 
-  const renderRestoreButton = (version: IVersion) => {
-    if (license?.tier === 'pro') {
-      return (
-        <Tooltip content="Restore sheets from this version" relationship="label">
-          <Button 
-            size="small"
-            appearance="subtle" 
-            icon={<ArrowClockwise20Filled />}
-            onClick={() => {
-              // --- DIAGNOSTIC LOG 1 ---
-              // Log the specific version info at the moment of the click.
-              console.log(`[VersionHistory] Restore button clicked for: ID=${version.id}, Comment="${version.comment}"`);
-              onRestore(version.id);
-            }}
-            disabled={isRestoring} 
-          />
-        </Tooltip>
-      );
-    } else {
-      return (
-        <Tooltip content="Upgrade to Pro to restore previous versions" relationship="label">
-          <div>
-            <Button 
-              size="small"
-              appearance="subtle" 
-              icon={<ArrowClockwise20Filled />}
-              disabled={true}
-            />
-            <FeatureBadge tier="pro" />
-          </div>
-        </Tooltip>
-      );
-    }
+  const renderRestoreButton = (version: IVersionViewModel) => {
+    // The button is disabled if the entire app is in a restore state,
+    // OR if the pre-calculated ViewModel logic says this item is not restorable.
+    const isDisabled = isRestoring || !version.isRestorable;
+
+    const button = (
+      <Button 
+        size="small"
+        appearance="subtle" 
+        icon={<ArrowClockwise20Filled />}
+        onClick={() => onRestore(version.id)}
+        disabled={isDisabled}
+      />
+    );
+
+    return (
+      <Tooltip content={version.restoreTooltip} relationship="label">
+        {/* We use a div to group the button and the optional badge for correct tooltip behavior. */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {button}
+          {version.showProBadge && <FeatureBadge tier="pro" />}
+        </div>
+      </Tooltip>
+    );
   };
 
   return (

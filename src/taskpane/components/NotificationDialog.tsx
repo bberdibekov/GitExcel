@@ -20,7 +20,7 @@ import {
 
 // The shape of the notification object this component expects
 export type NotificationSeverity = 'error' | 'warning' | 'success';
-interface INotification {
+export interface INotification {
   severity: NotificationSeverity;
   title: string;
   message: string;

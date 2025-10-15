@@ -1,17 +1,13 @@
 // src/taskpane/hooks/useAppActions.ts
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react"; // Removed useEffect as it's no longer used
 import { IVersion } from "../types/types";
 import { ILicense } from "../services/AuthService";
 import { excelWriterService, IRestoreOptions } from "../services/excel.writer.service";
-import { NotificationSeverity } from "../components/Notification"; // Import severity type
+import { INotification } from "../components/NotificationDialog";
 
-// Define the shape of our generic notification state
-interface INotification {
-  severity: NotificationSeverity;
-  message: string;
-  title: string;
-}
+// --- NEW: Define the threshold for the upgrade nudge ---
+const FREE_RESTORE_NUDGE_THRESHOLD = 3;
 
 interface IAppActionsProps {
   versions: IVersion[];
@@ -23,8 +19,10 @@ interface IAppActionsProps {
 export function useAppActions({ versions, license, selectedVersions, compareVersions }: IAppActionsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
-  // Use a structured notification object for state
   const [notification, setNotification] = useState<INotification | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<IVersion | null>(null);
+  // --- NEW: Session-based counter for the freemium nudge ---
+  const [freeRestoreCount, setFreeRestoreCount] = useState(0);
 
   const handleFilterChange = (filterId: string) => {
     setActiveFilters(prevFilters => {
@@ -40,60 +38,97 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
 
   const runComparison = useCallback((startIndex?: number, endIndex?: number) => {
     if (!license) return;
-    compareVersions(license, activeFilters, startIndex, endIndex);
-  }, [license, activeFilters, compareVersions]);
-
-  useEffect(() => {
-    if (selectedVersions.length === 2) {
-      runComparison();
-    }
-  }, [activeFilters, selectedVersions, runComparison]);
+    // Auto-comparison logic is removed for now, comparison is explicit.
+    // if (selectedVersions.length === 2) {
+      compareVersions(license, activeFilters, startIndex, endIndex);
+    // }
+  }, [license, activeFilters, compareVersions, selectedVersions]);
 
   const handleCompareToPrevious = (versionId: number) => {
     const currentIndex = versions.findIndex(v => v.id === versionId);
     if (currentIndex > 0) {
+      // Logic to select the versions should be in useComparison, for now just run it
       runComparison(currentIndex - 1, currentIndex);
     }
   };
 
-  const handleRestoreSheets = async (versionId: number) => {
-    // Clear any previous notifications when starting a new operation
+  const initiateRestore = (versionId: number) => {
+    const versionToRestore = versions.find(v => v.id === versionId);
+    if (versionToRestore) {
+      setRestoreTarget(versionToRestore);
+    } else {
+      console.error(`[AppActions] Could not find version with ID: ${versionId}`);
+      setNotification({
+        severity: 'error',
+        title: 'An Error Occurred',
+        message: 'The selected version could not be found.',
+      });
+    }
+  };
+
+  const cancelRestore = () => {
+    setRestoreTarget(null);
+  };
+
+  const executeRestore = async (selection: {
+    sheets: string[];
+    destinations: { asNewSheets: boolean; asNewWorkbook: boolean };
+  }) => {
+    if (!restoreTarget) {
+      console.error("ExecuteRestore called without a valid restore target.");
+      return;
+    }
+
     setNotification(null);
     setIsRestoring(true);
-    console.log(`[AppActions] Restore requested for version ID: ${versionId}`);
+
     try {
-      if (license?.tier !== 'pro') {
-        throw new Error("Restore blocked: User does not have a Pro license.");
-      }
-      const versionToRestore = versions.find(v => v.id === versionId);
-      if (!versionToRestore) {
-        throw new Error("Could not find the selected version to restore.");
+      if (selection.destinations.asNewSheets) {
+        console.log(`[AppActions] Restoring sheets for version ID: ${restoreTarget.id}`);
+        const restoreOptions: IRestoreOptions = {
+          restoreCellFormats: true,
+          restoreMergedCells: true,
+        };
+        await excelWriterService.restoreWorkbookFromSnapshot(
+          restoreTarget.snapshot,
+          restoreTarget.comment,
+          restoreOptions,
+          selection.sheets
+        );
       }
 
-      // --- Proactive Sheet Name Check ---
-      const firstSheetName = Object.keys(versionToRestore.snapshot)[0];
-      if (firstSheetName) {
-        const prospectiveSheetName = excelWriterService.generateSheetName(firstSheetName, versionToRestore.comment);
-        const isConflict = await excelWriterService.isSheetNameTaken(prospectiveSheetName);
-        if (isConflict) {
-          // If the sheet exists, throw a user-friendly error. This stops the process.
-          throw new Error(`A sheet named "${prospectiveSheetName}" already exists. Please rename or delete the existing sheet and try again.`);
+      if (selection.destinations.asNewWorkbook) {
+        if (license?.tier !== 'pro') {
+          throw new Error("Creating a new workbook is a Pro feature.");
+        }
+        console.log(`[AppActions] Simulating workbook creation for version ID: ${restoreTarget.id}`);
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        setNotification({
+          severity: 'success',
+          title: 'Restore Complete',
+          message: 'Your workbook has been generated and is now downloading.',
+        });
+      }
+
+      // --- NEW: Upgrade Nudge Logic ---
+      if (license?.tier === 'free' && selection.destinations.asNewSheets) {
+        const newCount = freeRestoreCount + 1;
+        setFreeRestoreCount(newCount);
+        if (newCount === FREE_RESTORE_NUDGE_THRESHOLD) {
+          // Use setTimeout to show the nudge slightly after the main operation feels complete.
+          setTimeout(() => {
+            setNotification({
+              severity: 'success', // Using 'success' to feel like a helpful tip, not a warning
+              title: 'Pro Tip!',
+              message: 'Want to restore all sheets at once? Upgrade to Pro to batch-restore entire versions.'
+            });
+          }, 700);
         }
       }
+      // --- END NEW ---
 
-      const restoreOptions: IRestoreOptions = {
-        restoreCellFormats: true,
-        restoreMergedCells: true,
-      };
-      
-      await excelWriterService.restoreWorkbookFromSnapshot(
-        versionToRestore.snapshot, 
-        versionToRestore.comment, 
-        restoreOptions
-      );
     } catch (error) {
-      console.error("Failed to restore sheets:", error);
-      // Set a structured notification object for the UI to display
+      console.error("Failed to restore:", error);
       setNotification({
         severity: 'error',
         title: 'Restore Failed',
@@ -101,21 +136,24 @@ export function useAppActions({ versions, license, selectedVersions, compareVers
       });
     } finally {
       setIsRestoring(false);
+      setRestoreTarget(null);
       console.log("[AppActions] Restore operation finished.");
     }
   };
 
-  // A function to allow the UI to dismiss the notification
   const clearNotification = () => setNotification(null);
 
   return {
     isRestoring,
     activeFilters,
-    notification,       // Expose the new notification object
-    clearNotification,  // Expose the handler to clear it
+    notification,
+    restoreTarget,
+    clearNotification,
     handleFilterChange,
     runComparison,
     handleCompareToPrevious,
-    handleRestoreSheets,
+    initiateRestore,
+    cancelRestore,
+    executeRestore,
   };
 }

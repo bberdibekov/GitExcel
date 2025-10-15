@@ -42,19 +42,32 @@ class ExcelWriterService {
     return prefix;
   }
   
-  public async restoreWorkbookFromSnapshot(workbookSnapshot: IWorkbookSnapshot, versionPrefix: string, options: IRestoreOptions) {
+  // --- MODIFIED ---
+  public async restoreWorkbookFromSnapshot(
+    workbookSnapshot: IWorkbookSnapshot,
+    versionPrefix: string,
+    options: IRestoreOptions,
+    sheetsToRestore: string[] // NEW: Added parameter
+  ) {
     console.log(`[WriterService] Starting restore for version: "${versionPrefix}"`);
     console.time('Total Restore Time');
 
-    for (const sheetName in workbookSnapshot) {
+    // The core logic change is here: iterate over the specified list of sheets
+    // instead of all sheets in the snapshot.
+    for (const sheetName of sheetsToRestore) {
       const sheetSnapshot = workbookSnapshot[sheetName];
-      debugService.capture(`Snapshot for ${sheetName}`, sheetSnapshot);
-      await this._restoreSheet(sheetSnapshot, sheetName, versionPrefix, options);
+      if (sheetSnapshot) {
+        debugService.capture(`Snapshot for ${sheetName}`, sheetSnapshot);
+        await this._restoreSheet(sheetSnapshot, sheetName, versionPrefix, options);
+      } else {
+        console.warn(`[WriterService] Sheet "${sheetName}" was requested for restore but not found in the snapshot.`);
+      }
     }
 
     console.timeEnd('Total Restore Time');
     console.log('[WriterService] Restore operation complete.');
   }
+  // --- END MODIFIED ---
 
   private async _restoreSheet(snapshot: ISheetSnapshot, originalSheetName: string, versionComment: string, options: IRestoreOptions) {
     const newSheetName = this.generateSheetName(originalSheetName, versionComment);

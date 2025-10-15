@@ -1,20 +1,26 @@
 // src/taskpane/components/App.tsx
 
 import * as React from "react";
+import { useMemo } from "react";
 import { useUser } from "../context/UserContext";
 import { Button } from "@fluentui/react-components";
 import { useVersions } from "../hooks/useVersions";
 import { useComparison } from "../hooks/useComparison";
 import { useAppActions } from "../hooks/useAppActions";
-import NotificationDialog from "./NotificationDialog"; // Import our new, clean component
+import NotificationDialog from "./NotificationDialog";
 
 import SaveVersionForm from "./SaveVersionForm";
 import VersionHistory from "./VersionHistory";
 import ComparisonView from "./ComparisonView";
 import DeveloperTools from "./DeveloperTools";
+import { RestoreSelectionDialog } from "./RestoreSelectionDialog";
+import { IVersionViewModel } from "../types/types";
+
+// --- REMOVED --- The sheet limit is no longer defined here.
+// const FREE_TIER_SHEET_LIMIT = 3; 
+const FREE_TIER_VERSION_LIMIT = 3; // This rule is still valid.
 
 const App = () => {
-  // All hooks remain exactly the same. No logic changes needed here.
   const { versions, addVersion, clearVersions } = useVersions();
   const { 
     selectedVersions, 
@@ -27,11 +33,14 @@ const App = () => {
     isRestoring,
     activeFilters,
     notification,
+    restoreTarget,
+    initiateRestore,
+    cancelRestore,
+    executeRestore,
     clearNotification,
     handleFilterChange,
     runComparison,
     handleCompareToPrevious,
-    handleRestoreSheets,
   } = useAppActions({
     versions,
     license,
@@ -39,12 +48,44 @@ const App = () => {
     compareVersions,
   });
 
+  const versionsForView = useMemo((): IVersionViewModel[] => {
+    const isPro = license?.tier === 'pro';
+    const totalVersions = versions.length;
+
+    return versions.map((version, index) => {
+      const isWithinFreeLimit = index >= totalVersions - FREE_TIER_VERSION_LIMIT;
+      const isRestorable = isPro || isWithinFreeLimit;
+
+      let restoreTooltip = "Restore sheets from this version";
+      if (!isRestorable) {
+        restoreTooltip = `Upgrade to Pro to restore versions older than the last ${FREE_TIER_VERSION_LIMIT}.`;
+      }
+
+      return {
+        ...version,
+        isRestorable,
+        restoreTooltip,
+        showProBadge: !isRestorable,
+      };
+    });
+  }, [versions, license]);
+
   console.log("[App.tsx] State of 'versions' before render:", versions);
 
   return (
     <div style={{ padding: "10px", fontFamily: "Segoe UI" }}>
-      {/* The cluttered dialog logic is gone, replaced by this single clean line. */}
       <NotificationDialog notification={notification} onDismiss={clearNotification} />
+      
+      {restoreTarget && (
+        <RestoreSelectionDialog
+          isOpen={!!restoreTarget}
+          onDismiss={cancelRestore}
+          onRestore={executeRestore}
+          tier={license?.tier ?? 'free'}
+          availableSheets={Object.keys(restoreTarget.snapshot)}
+          // --- REMOVED --- The `freeTierSheetLimit` prop is gone.
+        />
+      )}
 
       <h2>Version Control</h2>
       
@@ -62,12 +103,12 @@ const App = () => {
       </Button>
 
       <VersionHistory 
-        versions={versions} 
+        versions={versionsForView} 
         selectedVersions={selectedVersions} 
         isRestoring={isRestoring}
         onVersionSelect={handleVersionSelect}
         onCompareToPrevious={handleCompareToPrevious}
-        onRestore={handleRestoreSheets}
+        onRestore={initiateRestore}
       />
       
       {diffResult && (

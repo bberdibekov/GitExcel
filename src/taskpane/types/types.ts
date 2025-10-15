@@ -1,6 +1,5 @@
 // src/taskpane/types/types.ts
 
-// --- NEW (FEAT-004) ---
 /** Represents the formatting of a single cell. */
 export interface IFormat {
   font?: {
@@ -21,7 +20,6 @@ export interface IFormat {
   };
   numberFormat?: string;
 }
-// --- END NEW ---
 
 
 export interface ICellData {
@@ -38,11 +36,9 @@ export interface IRowData {
 export interface ISheetSnapshot {
   address: string;
   data: IRowData[];
-  // --- NEW (FEAT-004) ---
   rowHeights?: { [key: number]: number };
   columnWidths?: { [key: number]: number };
   mergedCells?: string[];
-  // --- END NEW ---
 }
 
 export interface IWorkbookSnapshot {
@@ -123,6 +119,15 @@ export interface IVersion {
   comment: string;
   snapshot: IWorkbookSnapshot;
   changeset?: IChangeset;
+}
+
+export interface IVersionViewModel extends IVersion {
+  /** Is the user allowed to initiate a restore for this specific version? */
+  isRestorable: boolean;
+  /** The tooltip to display for the restore button, contextual to the user's permissions. */
+  restoreTooltip: string;
+  /** Should a "PRO" badge be shown next to the disabled restore button? */
+  showProBadge: boolean;
 }
 
 export interface IHighLevelChange {
