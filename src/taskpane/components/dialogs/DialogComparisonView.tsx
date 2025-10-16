@@ -9,7 +9,6 @@ import DiffFilterOptions from "../DiffFilterOptions";
 import { generateSummary } from "../../services/summary.service";
 import { crossWindowMessageBus } from "../../services/dialog/CrossWindowMessageBus";
 import { MessageType, GridSelectionChangedPayload } from "../../types/messaging.types";
-// <<< NEW: Import the logging service.
 import { loggingService } from "../../services/LoggingService";
 
 interface DialogComparisonViewProps {
@@ -17,7 +16,6 @@ interface DialogComparisonViewProps {
 }
 
 const DialogComparisonView: React.FC<DialogComparisonViewProps> = ({ result }) => {
-  // <<< NEW: This is our key diagnostic log.
   loggingService.log("[DialogComparisonView] Component rendered with props:", { result });
 
   // Gracefully handle the case where data is still loading or failed to load.
@@ -26,7 +24,6 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = ({ result }) =
     return <Spinner label="Loading comparison data..." />;
   }
 
-  // State for this component is simpler, we only need the summary.
   const summary: ISummaryResult = generateSummary(result);
   const [activeFilters, setActiveFilters] = React.useState<Set<string>>(new Set());
 

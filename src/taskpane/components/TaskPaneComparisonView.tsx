@@ -17,8 +17,6 @@ import DiffViewer from "./DiffViewer";
 import { useSharedStyles } from "./sharedStyles";
 import DiffFilterOptions from "./DiffFilterOptions";
 import LockOverlay from './paywall/LockOverlay';
-// <<< MODIFIED: Correct the import to point to the actual DialogService.
-import { dialogService } from "../services/dialog/DialogService"; 
 import { crossWindowMessageBus } from "../services/dialog/CrossWindowMessageBus";
 import { MessageType } from "../types/messaging.types";
 
@@ -38,9 +36,10 @@ interface TaskPaneComparisonViewProps {
   result: IDiffResult | null;
   activeFilters: Set<string>;
   onFilterChange: (filterId: string) => void;
+  onOpenInWindow: (result: IDiffResult) => void;
 }
 
-const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ result, activeFilters, onFilterChange }) => {
+const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ result, activeFilters, onFilterChange, onOpenInWindow }) => {
   if (!result) {
     return <Spinner label="Loading comparison data..." />;
   }
@@ -105,12 +104,7 @@ const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ result,
   };
 
   const handleViewInWindow = () => {
-    console.log("[TaskPaneComparisonView] Opening diff result in new window.");
-    // Now this call uses the correct service instance.
-    dialogService.open('diff-viewer', result)
-      .catch(error => {
-        console.error("Failed to open dialog:", error);
-      });
+    onOpenInWindow(result);
   };
 
   const isPartialResult = result.isPartialResult ?? false;

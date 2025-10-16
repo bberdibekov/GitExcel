@@ -1,17 +1,11 @@
 // src/taskpane/services/dialog/CrossWindowMessageBus.ts
 
 import { BusMessage, MessageType } from "../../types/messaging.types";
-// <<< NEW: Import the logging service.
 import { loggingService } from "../LoggingService";
 
 type MessageCallback = (payload: any) => void;
 type UnsubscribeFunction = () => void;
 
-/**
- * A type-safe, isomorphic pub/sub event bus that works across the Office.js
- * dialog's iframe boundary. It allows the task pane and dialog to communicate
- * without holding direct references to each other, promoting a decoupled architecture.
- */
 class CrossWindowMessageBus {
   private listeners: Map<MessageType, MessageCallback[]> = new Map();
   private activeDialog: Office.Dialog | null = null;
@@ -19,13 +13,9 @@ class CrossWindowMessageBus {
 
   constructor() {
     this.isDialog = !!(window.Office && Office.context && Office.context.ui.messageParent);
-    // <<< MODIFIED: Use the logging service.
     loggingService.log(`[MessageBus] Initialized in ${this.isDialog ? "Dialog" : "TaskPane"} context.`);
   }
 
-  /**
-   * Registers a callback to be executed when a message of a specific type is received.
-   */
   public listen(type: MessageType, callback: MessageCallback): UnsubscribeFunction {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, []);
@@ -45,9 +35,6 @@ class CrossWindowMessageBus {
     };
   }
 
-  /**
-   * Broadcasts a message to the other window (task pane -> dialog, or dialog -> task pane).
-   */
   public broadcast(message: BusMessage): void {
     const serializedMessage = JSON.stringify(message);
     loggingService.log(`[MessageBus] Broadcasting:`, message);
@@ -63,29 +50,26 @@ class CrossWindowMessageBus {
     }
   }
 
-  /**
-   * This method is called by the message-receiving logic to process an incoming message.
-   */
   public __internal_receive(rawMessage: string): void {
+    loggingService.log(`[MessageBus] Raw message received for processing:`, rawMessage);
     try {
       const message = JSON.parse(rawMessage) as BusMessage;
-      if (message && message.type && this.listeners.has(message.type)) {
-        loggingService.log(`[MessageBus] Processing received message of type: ${message.type}`, message);
+      
+      const hasListener = message && message.type && this.listeners.has(message.type);
+      loggingService.log(`[MessageBus] Parsed message. Type: ${message?.type}. Has Listener? ${hasListener}`);
+
+      if (hasListener) {
         const callbacks = this.listeners.get(message.type)!;
         const payload = (message as any).payload;
         callbacks.forEach((cb) => cb(payload));
       } else {
-        loggingService.warn(`[MessageBus] Received message with unknown or unhandled type: ${message?.type}`);
+        loggingService.warn(`[MessageBus] No active listener for received message type: ${message?.type}`);
       }
     } catch (error) {
       loggingService.logError(error, `[MessageBus] Failed to parse or process incoming message: ${rawMessage}`);
     }
   }
 
-  /**
-   * [Task Pane Context Only]
-   * Called by the DialogService to provide a reference to the active dialog.
-   */
   public __internal_setActiveDialog(dialog: Office.Dialog | null): void {
     if (this.isDialog) {
       loggingService.warn("[MessageBus] setActiveDialog should only be called from the task pane context.");
@@ -97,5 +81,4 @@ class CrossWindowMessageBus {
   }
 }
 
-// Export a singleton instance for the entire application to use.
 export const crossWindowMessageBus = new CrossWindowMessageBus();

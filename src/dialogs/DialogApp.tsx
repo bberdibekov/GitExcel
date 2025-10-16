@@ -3,9 +3,8 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import { Spinner } from "@fluentui/react-components";
-import { dialogStateService } from "../taskpane/services/dialog/DialogStateService";
 import { crossWindowMessageBus } from "../taskpane/services/dialog/CrossWindowMessageBus";
-import { MessageType } from "../taskpane/types/messaging.types";
+import { MessageType, InitializeDataPayload } from "../taskpane/types/messaging.types";
 import DialogComparisonView from "../taskpane/components/dialogs/DialogComparisonView";
 import { IDiffResult } from "../taskpane/types/types";
 import { loggingService } from "../taskpane/services/LoggingService";
@@ -35,50 +34,47 @@ const DialogApp: React.FC = () => {
   });
 
   useEffect(() => {
-    loggingService.log("[DialogApp] Initializing component...");
-    
-    // <<< NEW: Diagnostic log to capture the storage state.
-    loggingService.log("[DialogApp] Dialog sessionStorage snapshot BEFORE read:", { ...sessionStorage });
+    loggingService.log("[DialogApp] Initializing and starting handshake...");
 
     const params = new URLSearchParams(window.location.search);
     const view = params.get("view");
-    const sessionId = params.get("sessionId");
-    
-    loggingService.log(`[DialogApp] URL Params found: view=${view}, sessionId=${sessionId}`);
+    loggingService.log(`[DialogApp] URL Param 'view' found: ${view}`);
 
     if (!view) {
       const errorMsg = "Initialization failed: No 'view' parameter found in URL.";
       loggingService.warn(`[DialogApp] ${errorMsg}`);
       setState({ ...state, isLoading: false, error: errorMsg });
-      return;
+      return () => {};
     }
+    
+    setState(prevState => ({ ...prevState, view }));
 
-    let data = null;
-    try {
-      if (sessionId) {
-        loggingService.log(`[DialogApp] Attempting to retrieve data for sessionId: ${sessionId}`);
-        data = dialogStateService.retrieveAndClearData(sessionId);
-        loggingService.log("[DialogApp] Data retrieved from state service:", data);
-      } else {
-        loggingService.warn("[DialogApp] No sessionId found in URL. Cannot load data.");
+    const unsubscribe = crossWindowMessageBus.listen(
+      MessageType.INITIALIZE_DATA,
+      (payload: InitializeDataPayload) => {
+        loggingService.log("[DialogApp] Received INITIALIZE_DATA message with payload:", payload);
+        setState({
+          view,
+          initialData: payload.diffResult,
+          isLoading: false,
+          error: null,
+        });
       }
-    } catch (e) {
-      const errorMsg = "Failed to parse initialization data.";
-      loggingService.logError(e, `[DialogApp] ${errorMsg}`);
-      setState({ ...state, isLoading: false, error: errorMsg });
-      return;
-    }
+    );
 
-    loggingService.log("[DialogApp] Setting final component state with view and data.", { view, data });
-    setState({ view, initialData: data, isLoading: false, error: null });
-
-    crossWindowMessageBus.broadcast({ type: MessageType.DIALOG_INITIALIZED });
+    loggingService.log("[DialogApp] Broadcasting DIALOG_READY_FOR_DATA to task pane.");
+    crossWindowMessageBus.broadcast({ type: MessageType.DIALOG_READY_FOR_DATA });
+    
+    return () => {
+      loggingService.log("[DialogApp] Cleaning up listener for INITIALIZE_DATA.");
+      unsubscribe();
+    };
   }, []);
 
   loggingService.log("[DialogApp] Rendering component with current state:", state);
 
   if (state.isLoading) {
-    return <Spinner label="Loading..." />;
+    return <Spinner label="Requesting data from task pane..." />;
   }
 
   if (state.error) {

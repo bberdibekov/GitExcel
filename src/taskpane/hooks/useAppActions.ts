@@ -14,11 +14,9 @@ const FREE_RESTORE_NUDGE_THRESHOLD = 3;
 interface IAppActionsProps {
   versions: IVersion[];
   license: ILicense | null;
-  // <<< MODIFIED: 'selectedVersions' prop is removed.
   compareVersions: (license: ILicense, activeFilterIds: Set<string>, startIndex?: number, endIndex?: number) => void;
 }
 
-// <<< MODIFIED: 'selectedVersions' is removed from destructuring.
 export function useAppActions({ versions, license, compareVersions }: IAppActionsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());

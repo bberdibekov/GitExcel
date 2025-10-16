@@ -15,10 +15,11 @@ import ComparisonView from "./TaskPaneComparisonView";
 import DeveloperTools from "./DeveloperTools";
 import { RestoreSelectionDialog } from "./RestoreSelectionDialog";
 import { IVersionViewModel } from "../types/types";
+    
+import { useComparisonDialog } from "../hooks/useComparisonDialog";
 
-// --- REMOVED --- The sheet limit is no longer defined here.
-// const FREE_TIER_SHEET_LIMIT = 3; 
-const FREE_TIER_VERSION_LIMIT = 3; // This rule is still valid.
+
+const FREE_TIER_VERSION_LIMIT = 3;
 
 const App = () => {
   const { versions, addVersion, clearVersions } = useVersions();
@@ -46,6 +47,8 @@ const App = () => {
     license,
     compareVersions,
   });
+
+  const { openComparisonInDialog } = useComparisonDialog(); 
 
   const versionsForView = useMemo((): IVersionViewModel[] => {
     const isPro = license?.tier === 'pro';
@@ -82,7 +85,6 @@ const App = () => {
           onRestore={executeRestore}
           tier={license?.tier ?? 'free'}
           availableSheets={Object.keys(restoreTarget.snapshot)}
-          // --- REMOVED --- The `freeTierSheetLimit` prop is gone.
         />
       )}
 
@@ -115,6 +117,7 @@ const App = () => {
           result={diffResult} 
           activeFilters={activeFilters}
           onFilterChange={handleFilterChange}
+          onOpenInWindow={openComparisonInDialog}
         />
       )}
 

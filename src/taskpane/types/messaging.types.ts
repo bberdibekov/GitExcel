@@ -1,8 +1,9 @@
 // src/taskpane/types/messaging.types.ts
 
+import { IDiffResult } from "./types"; // Import the type for our payload
+
 /**
  * Defines the distinct types of messages that can be sent across the window boundary.
- * Using a string enum provides clear, readable identifiers for message types.
  */
 export enum MessageType {
   // Navigation Events
@@ -11,14 +12,14 @@ export enum MessageType {
   // Excel Grid Interaction Events
   GRID_SELECTION_CHANGED = "GRID_SELECTION_CHANGED",
 
-  // Dialog Lifecycle Events
-  DIALOG_INITIALIZED = "DIALOG_INITIALIZED",
+  // Dialog Lifecycle & Handshake Events
+  DIALOG_INITIALIZED = "DIALOG_INITIALIZED", // Still useful for knowing the dialog's JS has loaded
   DIALOG_CLOSED = "DIALOG_CLOSED",
+  DIALOG_READY_FOR_DATA = "DIALOG_READY_FOR_DATA", // Dialog sends this to request data
+  INITIALIZE_DATA = "INITIALIZE_DATA",             // Task Pane sends this with the data payload
 }
 
 // --- Payload Definitions ---
-// For each message type, we define a corresponding payload interface.
-// This ensures that every message carries the correct data.
 
 export interface NavigateToCellPayload {
   sheet: string;
@@ -28,12 +29,14 @@ export interface NavigateToCellPayload {
 export interface GridSelectionChangedPayload {
   sheet: string;
   address: string;
-  // We can include more context if needed, like the cell value.
 }
 
+export interface InitializeDataPayload {
+  diffResult: IDiffResult;
+}
+
+
 // --- The Generic Message Wrapper ---
-// This is a discriminated union. The `type` property acts as the discriminant,
-// allowing TypeScript to infer the specific payload type.
 
 export type BusMessage =
   | {
@@ -46,9 +49,14 @@ export type BusMessage =
     }
   | {
       type: MessageType.DIALOG_INITIALIZED;
-      // This message might not need a payload
     }
   | {
       type: MessageType.DIALOG_CLOSED;
-      // This message is broadcast by the DialogService when it detects a close event
+    }
+  | {
+      type: MessageType.DIALOG_READY_FOR_DATA;
+    }
+  | {
+      type: MessageType.INITIALIZE_DATA;
+      payload: InitializeDataPayload;
     };
