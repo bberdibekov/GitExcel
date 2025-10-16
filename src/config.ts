@@ -17,3 +17,17 @@ export const config = {
    */
   isPaywallActive: true,
 };
+
+export const diffViewerConfig = {
+  /**
+   * Settings for the "smart truncation" algorithm in the comparison row summary.
+   */
+  truncation: {
+    // How many characters to show from the start of the string.
+    startContextLength: 10,
+    // The size of the "window" around the first character difference.
+    diffWindowLength: 20,
+    // How many characters to show from the end of the string.
+    endContextLength: 10,
+  },
+};

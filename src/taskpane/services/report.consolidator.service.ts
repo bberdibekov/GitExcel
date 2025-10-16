@@ -35,7 +35,6 @@ export function consolidateReport(timeline: IResolvedTimeline, startVersionSnaps
         const coords = fromA1(finalAddressKey)!;
         const lastEvent = history[history.length - 1];
 
-        // Get the true start state by looking it up in the start version's snapshot.
         const startState = getCellFromSnapshot(startVersionSnapshot, coords.sheet!, coords.row, coords.col);
 
         const hasValueChange = startState.value !== lastEvent.newValue;
@@ -57,7 +56,8 @@ export function consolidateReport(timeline: IResolvedTimeline, startVersionSnaps
             endValue: lastEvent.newValue,
             endFormula: lastEvent.newFormula,
             changeType: finalChangeType,
-            history: history, // Pass the full history through
+            history: history,
+            metadata: {},
         });
     });
 
@@ -72,8 +72,6 @@ export function consolidateReport(timeline: IResolvedTimeline, startVersionSnaps
                 (addedRow as any).futureStructuralChanges,
             );
 
-            // If this cell was created but never modified again, it won't be in finalChangeHistory.
-            // We must add it to the report here.
             if (finalAddressStr && !timeline.finalChangeHistory.has(finalAddressStr)) {
                 const finalCoords = fromA1(finalAddressStr)!;
                 const creationEvent: IChange = {
@@ -92,7 +90,8 @@ export function consolidateReport(timeline: IResolvedTimeline, startVersionSnaps
                   endValue: cell.value,
                   endFormula: cell.formula,
                   changeType: creationEvent.changeType,
-                  history: [creationEvent], // History is just the creation event
+                  history: [creationEvent],
+                  metadata: {},
                 });
             }
         });
@@ -106,7 +105,6 @@ export function consolidateReport(timeline: IResolvedTimeline, startVersionSnaps
     };
 }
 
-// Helper function to be used in step 2.
 function isRealFormula(formula: any): boolean {
     return typeof formula === "string" && formula.startsWith("=");
 }

@@ -142,4 +142,39 @@ export const useSharedStyles = makeStyles({
     lineHeight: '16px',
     verticalAlign: 'middle',
   },
+
+  /**
+    Style for displaying pre-formatted text blocks, such as values or comments.
+    Ensures content wraps correctly and preserves whitespace.
+    */
+    textBlock: {
+    whiteSpace: "pre-wrap", // Wrap long text onto the next line
+    wordBreak: "break-word", // Break long words to prevent overflow
+    margin: "0", // Remove default <pre> margins
+    padding: "8px",
+    backgroundColor: "#ffffff",
+    border: "1px solid #e0e0e0",
+    borderRadius: "4px",
+    maxHeight: "150px", // Prevent huge blocks from breaking layout
+    overflowY: "auto", // Add scrollbar if content exceeds max height
+    },
+
+/**
+
+    Style specifically for displaying code, such as Excel formulas.
+    Inherits from textBlock but uses a monospace font for readability.
+    */
+    codeBlock: {
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    margin: "0",
+    padding: "8px",
+    backgroundColor: "#fafafa", // Slightly different background for code
+    border: "1px solid #e0e0e0",
+    borderRadius: "4px",
+    maxHeight: "150px",
+    overflowY: "auto",
+    fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
+    },
+
 });

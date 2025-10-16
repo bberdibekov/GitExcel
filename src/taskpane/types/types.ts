@@ -83,6 +83,9 @@ export interface ICombinedChange {
   endFormula: string | number | boolean;
   changeType: 'value' | 'formula' | 'both';
   history: IChange[];
+  metadata: {
+    [key: string]: any;
+  };
 }
 
 export interface IRowChange {

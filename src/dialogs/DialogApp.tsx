@@ -11,15 +11,17 @@ import { loggingService } from "../taskpane/services/LoggingService";
 
 interface IAppState {
   view: string | null;
-  initialData: any | null;
+  initialData: IDiffResult | null;
+  licenseTier: 'free' | 'pro';
   isLoading: boolean;
   error: string | null;
 }
 
-const renderView = (view: string, data: any) => {
+const renderView = (view: string, data: IDiffResult, licenseTier: 'free' | 'pro') => {
   switch (view) {
     case "diff-viewer":
-      return <DialogComparisonView result={data as IDiffResult} />;
+      // [MODIFIED] Pass the licenseTier prop to the component.
+      return <DialogComparisonView result={data} licenseTier={licenseTier} />;
     default:
       return <p>Error: Unknown view '{view}' requested.</p>;
   }
@@ -29,6 +31,7 @@ const DialogApp: React.FC = () => {
   const [state, setState] = useState<IAppState>({
     view: null,
     initialData: null,
+    licenseTier: 'free',
     isLoading: true,
     error: null,
   });
@@ -43,7 +46,7 @@ const DialogApp: React.FC = () => {
     if (!view) {
       const errorMsg = "Initialization failed: No 'view' parameter found in URL.";
       loggingService.warn(`[DialogApp] ${errorMsg}`);
-      setState({ ...state, isLoading: false, error: errorMsg });
+      setState({ view: null, initialData: null, licenseTier: 'free', isLoading: false, error: errorMsg });
       return () => {};
     }
     
@@ -56,6 +59,7 @@ const DialogApp: React.FC = () => {
         setState({
           view,
           initialData: payload.diffResult,
+          licenseTier: payload.licenseTier,
           isLoading: false,
           error: null,
         });
@@ -83,7 +87,7 @@ const DialogApp: React.FC = () => {
 
   return (
     <div>
-      {state.view ? renderView(state.view, state.initialData) : <p>No view specified.</p>}
+      {state.view && state.initialData ? renderView(state.view, state.initialData, state.licenseTier) : <p>Waiting for data...</p>}
     </div>
   );
 };

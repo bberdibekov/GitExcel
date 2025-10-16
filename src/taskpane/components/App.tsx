@@ -18,18 +18,27 @@ import { IVersionViewModel } from "../types/types";
     
 import { useComparisonDialog } from "../hooks/useComparisonDialog";
 
-
 const FREE_TIER_VERSION_LIMIT = 3;
 
+/**
+ * The root component of the task pane application.
+ * It is responsible for composing all the hooks and components together.
+ */
 const App = () => {
   const { versions, addVersion, clearVersions } = useVersions();
+  
+  // 1. Destructure the new `lastComparedIndices` state from the useComparison hook.
   const { 
     selectedVersions, 
     diffResult, 
+    lastComparedIndices,
     handleVersionSelect, 
     compareVersions 
   } = useComparison(versions);
+
   const { license, isLoading: isLicenseLoading } = useUser();
+  
+  // 2. Pass `lastComparedIndices` as a prop to the useAppActions hook.
   const {
     isRestoring,
     activeFilters,
@@ -45,6 +54,7 @@ const App = () => {
   } = useAppActions({
     versions,
     license,
+    lastComparedIndices,
     compareVersions,
   });
 

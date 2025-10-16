@@ -24,7 +24,6 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
       console.log(`[excel.service] --- Starting snapshot for sheet: ${sheet.name} ---`);
 
       const usedRange = sheet.getUsedRangeOrNullObject();
-      // --- FIX: Load the 'address' property along with 'isNullObject' ---
       usedRange.load("isNullObject, address");
       await context.sync(); // Sync to check if the range is null AND get its address
 

@@ -25,10 +25,9 @@ module.exports = async (env, options) => {
         dependOn: "react",
       },
       commands: "./src/commands/commands.ts",
-      // <<< NEW: Add the dialog as a separate, self-contained entry point.
       dialog: {
         import: ["./src/dialogs/index.tsx", "./src/dialogs/dialog.html"],
-        dependOn: "react", // It shares the same React libraries as the task pane.
+        dependOn: "react",
       },
     },
     output: {
@@ -95,11 +94,10 @@ module.exports = async (env, options) => {
         template: "./src/commands/commands.html",
         chunks: ["polyfill", "commands"],
       }),
-      // <<< NEW: Add a plugin instance to generate our dialog.html.
       new HtmlWebpackPlugin({
         filename: "dialog.html",
         template: "./src/dialogs/dialog.html",
-        chunks: ["polyfill", "react", "dialog"], // Tells webpack which JS bundles to inject.
+        chunks: ["polyfill", "react", "dialog"],
       }),
       new webpack.ProvidePlugin({
         Promise: ["es6-promise", "Promise"],

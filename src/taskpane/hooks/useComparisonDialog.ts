@@ -6,6 +6,7 @@ import { dialogService } from "../services/dialog/DialogService";
 import { crossWindowMessageBus } from "../services/dialog/CrossWindowMessageBus";
 import { MessageType } from "../types/messaging.types";
 import { loggingService } from "../services/LoggingService";
+import { useUser } from "../context/UserContext";
 
 /**
  * A custom hook to manage the state and communication lifecycle for the
@@ -13,6 +14,7 @@ import { loggingService } from "../services/LoggingService";
  */
 export function useComparisonDialog() {
   const [dataToSend, setDataToSend] = useState<IDiffResult | null>(null);
+  const { license } = useUser();
 
   useEffect(() => {
     if (!dataToSend) {
@@ -26,7 +28,10 @@ export function useComparisonDialog() {
       
       crossWindowMessageBus.broadcast({
         type: MessageType.INITIALIZE_DATA,
-        payload: { diffResult: dataToSend },
+        payload: {
+          diffResult: dataToSend,
+          licenseTier: license?.tier ?? 'free',
+        },
       });
 
       setDataToSend(null);
@@ -39,17 +44,12 @@ export function useComparisonDialog() {
       unsubscribe();
     });
 
-    // This is now the return for the primary code path.
     return () => {
       loggingService.log("[useComparisonDialog] Cleaning up handshake listener due to unmount.");
       unsubscribe();
     };
-  }, [dataToSend]);
+  }, [dataToSend, license]);
 
-  /**
-   * The public function exposed by the hook. Components call this to start the process.
-   * @param result The diff result data to be sent to the dialog.
-   */
   const openComparisonInDialog = (result: IDiffResult) => {
     loggingService.log("[useComparisonDialog] openComparisonInDialog called. Staging data for handshake.");
     setDataToSend(result);

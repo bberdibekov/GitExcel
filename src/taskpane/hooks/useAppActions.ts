@@ -6,7 +6,7 @@ import { ILicense } from "../services/AuthService";
 import { excelWriterService, IRestoreOptions } from "../services/excel.writer.service";
 import { INotification } from "../components/NotificationDialog";
 import { crossWindowMessageBus } from "../services/dialog/CrossWindowMessageBus";
-import { MessageType, NavigateToCellPayload } from "../types/messaging.types";
+import { MessageType, NavigateToCellPayload, RunComparisonWithFiltersPayload } from "../types/messaging.types";
 import { navigateToCell } from "../services/excel.interaction.service";
 
 const FREE_RESTORE_NUDGE_THRESHOLD = 3;
@@ -14,18 +14,24 @@ const FREE_RESTORE_NUDGE_THRESHOLD = 3;
 interface IAppActionsProps {
   versions: IVersion[];
   license: ILicense | null;
+  lastComparedIndices: { start: number; end: number } | null;
   compareVersions: (license: ILicense, activeFilterIds: Set<string>, startIndex?: number, endIndex?: number) => void;
 }
 
-export function useAppActions({ versions, license, compareVersions }: IAppActionsProps) {
+/**
+ * An orchestrator hook that connects UI events and cross-window messages
+ * to the core business logic contained in other hooks and services.
+ */
+export function useAppActions({ versions, license, lastComparedIndices, compareVersions }: IAppActionsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [notification, setNotification] = useState<INotification | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<IVersion | null>(null);
   const [freeRestoreCount, setFreeRestoreCount] = useState(0);
 
+  // This useEffect sets up all listeners for messages incoming from the dialog window.
   useEffect(() => {
-    const unsubscribe = crossWindowMessageBus.listen(
+    const unsubNavigate = crossWindowMessageBus.listen(
       MessageType.NAVIGATE_TO_CELL,
       (payload: NavigateToCellPayload) => {
         console.log(`[TaskPane-App] Received navigate request to: ${payload.sheet}!${payload.address}`);
@@ -37,19 +43,51 @@ export function useAppActions({ versions, license, compareVersions }: IAppAction
       }
     );
 
-    return () => unsubscribe();
-  }, []);
+    // Add a listener for when the dialog user changes a PRO filter setting.
+    const unsubRunCompare = crossWindowMessageBus.listen(
+      MessageType.RUN_COMPARISON_WITH_FILTERS,
+      (payload: RunComparisonWithFiltersPayload) => {
+        console.log(`[TaskPane-App] Received request to re-run comparison with filters:`, payload.filterIds);
+        if (!license) {
+          console.error("Cannot re-run comparison: license is not available.");
+          return;
+        }
+        if (!lastComparedIndices) {
+          console.error("Cannot re-run comparison: lastComparedIndices are not available.");
+          return;
+        }
+
+        const newFilters = new Set(payload.filterIds);
+        
+        // 1. Update the local state so the task pane's UI is in sync with the dialog.
+        setActiveFilters(newFilters);
+        
+        // 2. Immediately trigger a new comparison using the new filters and the stored indices.
+        compareVersions(license, newFilters, lastComparedIndices.start, lastComparedIndices.end);
+      }
+    );
+
+    // The cleanup function unsubscribes from both listeners when the component unmounts.
+    return () => {
+      unsubNavigate();
+      unsubRunCompare();
+    };
+  }, [license, lastComparedIndices, compareVersions]); // Dependencies are crucial for the listeners to have the latest state.
 
   const handleFilterChange = (filterId: string) => {
-    setActiveFilters(prevFilters => {
-      const newFilters = new Set(prevFilters);
-      if (newFilters.has(filterId)) {
-        newFilters.delete(filterId);
-      } else {
-        newFilters.add(filterId);
-      }
-      return newFilters;
-    });
+    const newFilters = new Set(activeFilters);
+    if (newFilters.has(filterId)) {
+      newFilters.delete(filterId);
+    } else {
+      newFilters.add(filterId);
+    }
+    setActiveFilters(newFilters);
+    
+    // If a comparison is already active, re-run it immediately with the new filter.
+    if (lastComparedIndices) {
+        if (!license) return;
+        compareVersions(license, newFilters, lastComparedIndices.start, lastComparedIndices.end);
+    }
   };
 
   const runComparison = useCallback((startIndex?: number, endIndex?: number) => {
@@ -73,10 +111,10 @@ export function useAppActions({ versions, license, compareVersions }: IAppAction
     }
   };
 
-  // ... (the rest of the file is unchanged) ...
   const cancelRestore = () => {
     setRestoreTarget(null);
   };
+
   const executeRestore = async (selection: {
     sheets: string[];
     destinations: { asNewSheets: boolean; asNewWorkbook: boolean };

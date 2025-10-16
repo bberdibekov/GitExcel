@@ -18,8 +18,6 @@ class DialogStateService {
       const serializedData = JSON.stringify(data);
       sessionStorage.setItem(sessionId, serializedData);
       console.log(`[DialogStateService] Stored data for session: ${sessionId}`);
-
-      // <<< NEW: Diagnostic log to capture the storage state.
       console.log("[DialogStateService] Task Pane sessionStorage snapshot AFTER write:", { ...sessionStorage });
 
       return sessionId;

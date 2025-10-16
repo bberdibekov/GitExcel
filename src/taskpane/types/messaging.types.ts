@@ -13,10 +13,12 @@ export enum MessageType {
   GRID_SELECTION_CHANGED = "GRID_SELECTION_CHANGED",
 
   // Dialog Lifecycle & Handshake Events
-  DIALOG_INITIALIZED = "DIALOG_INITIALIZED", // Still useful for knowing the dialog's JS has loaded
+  DIALOG_INITIALIZED = "DIALOG_INITIALIZED",
   DIALOG_CLOSED = "DIALOG_CLOSED",
-  DIALOG_READY_FOR_DATA = "DIALOG_READY_FOR_DATA", // Dialog sends this to request data
-  INITIALIZE_DATA = "INITIALIZE_DATA",             // Task Pane sends this with the data payload
+  DIALOG_READY_FOR_DATA = "DIALOG_READY_FOR_DATA",
+  INITIALIZE_DATA = "INITIALIZE_DATA",
+
+  RUN_COMPARISON_WITH_FILTERS = "RUN_COMPARISON_WITH_FILTERS",
 }
 
 // --- Payload Definitions ---
@@ -33,6 +35,11 @@ export interface GridSelectionChangedPayload {
 
 export interface InitializeDataPayload {
   diffResult: IDiffResult;
+  licenseTier: 'free' | 'pro';
+}
+
+export interface RunComparisonWithFiltersPayload {
+    filterIds: string[];
 }
 
 
@@ -59,4 +66,8 @@ export type BusMessage =
   | {
       type: MessageType.INITIALIZE_DATA;
       payload: InitializeDataPayload;
+    }
+  | {
+      type: MessageType.RUN_COMPARISON_WITH_FILTERS;
+      payload: RunComparisonWithFiltersPayload;
     };
