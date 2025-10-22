@@ -6,7 +6,12 @@ import { dialogService } from "../services/dialog/DialogService";
 import { crossWindowMessageBus } from "../services/dialog/CrossWindowMessageBus";
 import { MessageType } from "../types/messaging.types";
 import { loggingService } from "../services/LoggingService";
-import { useUser } from "../context/UserContext";
+
+// --- STEP 1: Import the Zustand store ---
+import { useAppStore } from "../state/appStore"; 
+
+// --- STEP 2: Remove the old context import ---
+// import { useUser } from "../context/UserContext"; // This is no longer needed
 
 /**
  * A custom hook to manage the state and communication lifecycle for the
@@ -14,7 +19,9 @@ import { useUser } from "../context/UserContext";
  */
 export function useComparisonDialog() {
   const [dataToSend, setDataToSend] = useState<IDiffResult | null>(null);
-  const { license } = useUser();
+  
+  // --- STEP 3: Select the license state directly from the Zustand store ---
+  const license = useAppStore((state) => state.license);
 
   useEffect(() => {
     if (!dataToSend) {
@@ -30,6 +37,7 @@ export function useComparisonDialog() {
         type: MessageType.INITIALIZE_DATA,
         payload: {
           diffResult: dataToSend,
+          // Use the license tier from the store's state
           licenseTier: license?.tier ?? 'free',
         },
       });
@@ -48,7 +56,7 @@ export function useComparisonDialog() {
       loggingService.log("[useComparisonDialog] Cleaning up handshake listener due to unmount.");
       unsubscribe();
     };
-  }, [dataToSend, license]);
+  }, [dataToSend, license]); // `license` remains a dependency
 
   const openComparisonInDialog = (result: IDiffResult) => {
     loggingService.log("[useComparisonDialog] openComparisonInDialog called. Staging data for handshake.");

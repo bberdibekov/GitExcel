@@ -1,6 +1,7 @@
 // src/taskpane/components/RestoreSelectionDialog.styles.ts
 
 import { makeStyles, tokens } from '@fluentui/react-components';
+import { useAppStore } from '../state/appStore';
 
 /**
  * A dedicated hook for styling the RestoreSelectionDialog component.

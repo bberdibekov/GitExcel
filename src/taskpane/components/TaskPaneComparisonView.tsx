@@ -19,6 +19,7 @@ import DiffFilterOptions from "./DiffFilterOptions";
 import LockOverlay from './paywall/LockOverlay';
 import { crossWindowMessageBus } from "../services/dialog/CrossWindowMessageBus";
 import { MessageType } from "../types/messaging.types";
+import { useAppStore } from "../state/appStore";
 
 function toSimpleChange(combinedChange: ICombinedChange): IChange {
   return {
@@ -33,13 +34,15 @@ function toSimpleChange(combinedChange: ICombinedChange): IChange {
 }
 
 interface TaskPaneComparisonViewProps {
-  result: IDiffResult | null;
-  activeFilters: Set<string>;
-  onFilterChange: (filterId: string) => void;
   onOpenInWindow: (result: IDiffResult) => void;
 }
 
-const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ result, activeFilters, onFilterChange, onOpenInWindow }) => {
+const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ onOpenInWindow }) => {
+  
+  const result = useAppStore((state) => state.diffResult);
+  const activeFilters = useAppStore((state) => state.activeFilters);
+  const onFilterChange = useAppStore((state) => state.handleFilterChange);
+  
   if (!result) {
     return <Spinner label="Loading comparison data..." />;
   }

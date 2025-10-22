@@ -1,35 +1,34 @@
 // src/taskpane/components/DeveloperTools.tsx
 
 import * as React from "react";
-// Add useRef and useEffect to the React import
 import { useState, useRef, useEffect } from "react";
 import { Button, Divider } from "@fluentui/react-components";
 import { debugService } from "../services/debug.service";
 import { useSharedStyles } from "./sharedStyles";
-import { IVersion } from "../types/types"; 
 import { authService } from "../services/AuthService";
-import { useUser } from "../context/UserContext";
 import { devHarnessService } from "../services/developer/dev.harness.service";
 import { testSteps } from "../services/developer/test.cases";
 
-interface DevToolsProps {
-  versions: IVersion[];
-  onSaveVersion: (comment: string) => Promise<void>;
-  onClearHistory: () => void;
-  onCompare: (startIndex: number, endIndex: number) => void;
-}
+import { useAppStore } from "../state/appStore";
 
-const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onClearHistory, onCompare }) => {
+interface DevToolsProps {}
+
+const DeveloperTools: React.FC<DevToolsProps> = () => {
+  // --- Select state and actions from the store ---
+  const {
+    versions,
+    license,
+    isLicenseLoading, // <-- FIX #1: Use the correct property name from the store
+    addVersion,
+    clearVersions,
+    runComparison,
+  } = useAppStore();
+
   const styles = useSharedStyles();
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
-  const { license, isLoading } = useUser();
 
-  // 1. Create a ref. Its .current property will hold our versions.
   const versionsRef = useRef(versions);
-
-  // 2. This effect hook will run AFTER every render.
-  // It keeps the ref's value synchronized with the latest `versions` prop.
   useEffect(() => {
     versionsRef.current = versions;
   }, [versions]);
@@ -40,16 +39,15 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onCl
 
     try {
       await devHarnessService.runComprehensiveTest({
-        // 3. The callback now reads from the ref. `versionsRef.current` is
-        // guaranteed to be the most up-to-date version of the array.
         getVersions: () => versionsRef.current,
-        onSaveVersion,
-        onClearHistory,
-        onCompare,
+        onSaveVersion: addVersion,
+        onClearHistory: clearVersions,
+        onCompare: runComparison,
         onStatusUpdate: setStatus,
       });
+      setStatus("Test run completed successfully!");
     } catch (error) {
-      setStatus(error.message);
+      setStatus(`Error during test: ${error.message}`);
     } finally {
       setIsRunning(false);
     }
@@ -57,7 +55,7 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onCl
   
   const handleSaveLog = () => {
     setStatus("Manually saving debug session...");
-    debugService.saveLogSession('manual_restore_debug_log.json');
+    debugService.saveLogSession('manual_debug_log.json');
     setStatus("Debug session saved.");
   };
 
@@ -85,13 +83,14 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onCl
         Mock Auth Control
       </p>
       <p className={styles.textSubtle} style={{ marginTop: '4px' }}>
-        Current Tier: <strong>{isLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
+        {/* FIX #2: Use the corrected variable name here */}
+        Current Tier: <strong>{isLicenseLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
       </p>
       <div className={styles.buttonGroup} style={{ marginTop: '8px' }}>
         <Button
           appearance="primary"
           onClick={handleToggleTier}
-          disabled={isLoading}
+          disabled={isLicenseLoading} // <-- FIX #3: And here
         >
           {`Switch to ${license?.tier === 'pro' ? 'Free' : 'Pro'}`}
         </Button>

@@ -7,49 +7,58 @@ import { BranchCompare20Filled, ArrowClockwise20Filled } from "@fluentui/react-i
 import { useSharedStyles } from "./sharedStyles";
 import FeatureBadge from "./paywall/FeatureBadge";
 
+// --- STEP 1: Import the central Zustand store ---
+import { useAppStore } from "../state/appStore";
+
+/**
+ * The props for this component are simplified. It only receives the pre-calculated
+ * view model data. All interactive state and actions are now sourced from the store.
+ */
 interface VersionHistoryProps {
   versions: IVersionViewModel[];
-  selectedVersions: number[];
-  isRestoring: boolean;
-  onVersionSelect: (versionId: number) => void;
-  onCompareToPrevious: (versionId: number) => void;
-  onRestore: (versionId: number) => void;
 }
 
-const VersionHistory: React.FC<VersionHistoryProps> = ({ 
-  versions, 
-  selectedVersions, 
-  isRestoring,
-  onVersionSelect, 
-  onCompareToPrevious,
-  onRestore
-}) => {
+const VersionHistory: React.FC<VersionHistoryProps> = ({ versions }) => {
+  // --- STEP 2: Select all necessary state and actions from the store ---
+  const {
+    selectedVersions,
+    isRestoring,
+    selectVersion,
+    compareWithPrevious,
+    initiateRestore,
+  } = useAppStore();
+
   const styles = useSharedStyles();
 
   if (versions.length === 0) {
     return <p>No versions saved yet.</p>;
   }
 
+  // The logic to reverse the array for display remains the same.
   const reversedVersions = [...versions].reverse();
 
+  /**
+   * Renders the restore button with its tooltip and conditional PRO badge.
+   * The logic is the same, but it now uses `isRestoring` from the store and
+   * calls the `initiateRestore` action from the store.
+   */
   const renderRestoreButton = (version: IVersionViewModel) => {
-    // The button is disabled if the entire app is in a restore state,
-    // OR if the pre-calculated ViewModel logic says this item is not restorable.
+    // The button is disabled if the app is globally restoring,
+    // or if this specific item is not restorable per the view model logic.
     const isDisabled = isRestoring || !version.isRestorable;
 
     const button = (
-      <Button 
+      <Button
         size="small"
-        appearance="subtle" 
+        appearance="subtle"
         icon={<ArrowClockwise20Filled />}
-        onClick={() => onRestore(version.id)}
+        onClick={() => initiateRestore(version.id)} // Call action from store
         disabled={isDisabled}
       />
     );
 
     return (
       <Tooltip content={version.restoreTooltip} relationship="label">
-        {/* We use a div to group the button and the optional badge for correct tooltip behavior. */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {button}
           {version.showProBadge && <FeatureBadge tier="pro" />}
@@ -58,6 +67,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
     );
   };
 
+  // --- STEP 3: The JSX now uses state and actions directly from the store ---
   return (
     <div>
       {reversedVersions.map((version, index) => {
@@ -70,9 +80,9 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
           >
             <div className={styles.flexRow}>
               <Checkbox
-                checked={selectedVersions.includes(version.id)}
-                onChange={() => onVersionSelect(version.id)}
-                disabled={isRestoring}
+                checked={selectedVersions.includes(version.id)} // Use state from store
+                onChange={() => selectVersion(version.id)}      // Call action from store
+                disabled={isRestoring}                           // Use state from store
               />
               <div style={{ marginLeft: "10px" }}>
                 <strong>{version.comment}</strong>
@@ -89,8 +99,8 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({
                     size="small"
                     appearance="subtle" 
                     icon={<BranchCompare20Filled />}
-                    onClick={() => onCompareToPrevious(version.id)}
-                    disabled={isRestoring}
+                    onClick={() => compareWithPrevious(version.id)} // Call action from store
+                    disabled={isRestoring}                          // Use state from store
                   />
                 </Tooltip>
               )}

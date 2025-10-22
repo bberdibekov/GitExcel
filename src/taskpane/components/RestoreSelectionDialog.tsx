@@ -15,29 +15,35 @@ import {
   Dropdown,
   Option,
 } from '@fluentui/react-components';
+
+// --- Local Hook and Style Imports ---
 import { useRestoreDialog } from '../hooks/useRestoreDialog';
 import { useDialogStyles } from './RestoreSelectionDialog.styles';
 import FeatureBadge from './paywall/FeatureBadge';
 
+// --- STEP 1: Import the central Zustand store ---
+import { useAppStore } from '../state/appStore';
+
 /**
- * The props for the "controlled" presentation component.
- * It no longer needs freeTierSheetLimit as the new free tier rule is "one sheet only".
+ * The props for this component are now empty. It gets all its data
+ * and actions directly from the Zustand store, making it a self-managing component.
  */
 export interface IRestoreSelectionDialogProps {
-  isOpen: boolean;
-  onDismiss: () => void;
-  tier: 'free' | 'pro';
-  availableSheets: string[];
-  onRestore: (selection: {
-    sheets: string[];
-    destinations: {
-      asNewSheets: boolean;
-      asNewWorkbook: boolean;
-    };
-  }) => void;
+  // No props are needed after refactoring to Zustand.
 }
 
-export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = (props) => {
+export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = () => {
+  // --- STEP 2: Select all necessary state and actions from the store ---
+  const { restoreTarget, license, cancelRestore, executeRestore } = useAppStore();
+
+  // --- STEP 3: Derive constants and variables from the store's state ---
+  // The dialog's visibility is determined by whether a `restoreTarget` exists.
+  const isOpen = !!restoreTarget;
+  const tier = license?.tier ?? 'free';
+  const availableSheets = restoreTarget ? Object.keys(restoreTarget.snapshot) : [];
+
+  // --- The component still uses its dedicated logic hook for its internal UI state ---
+  // We feed the hook with data pulled from the central store.
   const {
     isSingleSelectMode,
     selectedSheet,
@@ -49,16 +55,22 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = (p
     handleDeselectAll,
     handleDestinationChange,
     handleConfirmRestore,
-  } = useRestoreDialog(props);
+  } = useRestoreDialog({
+    isOpen,
+    tier,
+    availableSheets,
+    onRestore: executeRestore, // The hook calls the central store's action on confirm.
+  });
 
   const styles = useDialogStyles();
 
-  if (!props.isOpen) {
+  // If there's no restore target, the component renders nothing.
+  if (!isOpen) {
     return null;
   }
 
   /**
-   * Renders the correct sheet selection UI based on the user's tier (single-select vs. multi-select).
+   * Renders the correct sheet selection UI based on the user's tier.
    */
   const renderSheetSelector = () => {
     if (isSingleSelectMode) {
@@ -71,7 +83,7 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = (p
             value={selectedSheet || ''}
             onOptionSelect={(_ev, data) => handleSheetSelect(data.optionValue as string)}
           >
-            {props.availableSheets.map(sheetName => (
+            {availableSheets.map(sheetName => (
               <Option key={sheetName} value={sheetName}>
                 {sheetName}
               </Option>
@@ -93,7 +105,7 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = (p
             <Button size="small" onClick={handleDeselectAll}>Deselect All</Button>
           </div>
           <div className={styles.sheetListContainer}>
-            {props.availableSheets.map(sheetName => (
+            {availableSheets.map(sheetName => (
               <Checkbox
                 key={sheetName}
                 label={sheetName}
@@ -140,9 +152,12 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = (p
   return (
     <Dialog
       modalType="modal"
-      open={props.isOpen}
+      open={isOpen}
       onOpenChange={(_event, data) => {
-        if (!data.open) { props.onDismiss(); }
+        // --- STEP 4: Call the store's action on dismiss ---
+        if (!data.open) {
+          cancelRestore();
+        }
       }}
     >
       <DialogSurface>
@@ -167,7 +182,8 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = (p
           </div>
 
           <DialogActions>
-            <Button appearance="secondary" onClick={props.onDismiss}>Cancel</Button>
+            {/* --- STEP 5: Call the store's action on cancel --- */}
+            <Button appearance="secondary" onClick={cancelRestore}>Cancel</Button>
             <Button
               appearance="primary"
               disabled={isRestoreButtonDisabled}
