@@ -1,7 +1,8 @@
 // src/taskpane/components/DeveloperTools.tsx
 
 import * as React from "react";
-import { useState } from "react";
+// Add useRef and useEffect to the React import
+import { useState, useRef, useEffect } from "react";
 import { Button, Divider } from "@fluentui/react-components";
 import { debugService } from "../services/debug.service";
 import { useSharedStyles } from "./sharedStyles";
@@ -24,23 +25,32 @@ const DeveloperTools: React.FC<DevToolsProps> = ({ versions, onSaveVersion, onCl
   const [status, setStatus] = useState("Ready");
   const { license, isLoading } = useUser();
 
+  // 1. Create a ref. Its .current property will hold our versions.
+  const versionsRef = useRef(versions);
+
+  // 2. This effect hook will run AFTER every render.
+  // It keeps the ref's value synchronized with the latest `versions` prop.
+  useEffect(() => {
+    versionsRef.current = versions;
+  }, [versions]);
+
   const handleRunTest = async () => {
     setIsRunning(true);
     setStatus("Initiating test run...");
 
     try {
       await devHarnessService.runComprehensiveTest({
-        versions,
+        // 3. The callback now reads from the ref. `versionsRef.current` is
+        // guaranteed to be the most up-to-date version of the array.
+        getVersions: () => versionsRef.current,
         onSaveVersion,
         onClearHistory,
         onCompare,
-        onStatusUpdate: setStatus, // Pass the setStatus function as a callback
+        onStatusUpdate: setStatus,
       });
     } catch (error) {
-      // The service now throws an error on failure, which we can catch here.
       setStatus(error.message);
     } finally {
-      // This ensures the running state is always reset, even if the test fails.
       setIsRunning(false);
     }
   };

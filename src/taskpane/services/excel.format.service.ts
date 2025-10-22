@@ -66,13 +66,13 @@ class ExcelFormatService {
       for (let c = 0; c < colCount; c++) {
         // --- START: ENHANCED DIAGNOSTIC LOG ---
         if (perCellFormats) {
-            console.log(`--- DIAGNOSTIC LOG (Fill Analysis) Cell(${r},${c}) ---`);
-            console.log(`Summary Fill Color:`, range.format.fill.color);
-            console.log(`Summary TintAndShade:`, range.format.fill.tintAndShade);
+            // console.log(`--- DIAGNOSTIC LOG (Fill Analysis) Cell(${r},${c}) ---`);
+            // console.log(`Summary Fill Color:`, range.format.fill.color);
+            // console.log(`Summary TintAndShade:`, range.format.fill.tintAndShade);
             const cellProxy = perCellFormats[r][c];
-            console.log(`Detailed Fill Color:`, cellProxy.format.fill.color);
-            console.log(`Detailed TintAndShade:`, cellProxy.format.fill.tintAndShade);
-            console.log(`----------------------------------------------------`);
+            // console.log(`Detailed Fill Color:`, cellProxy.format.fill.color);
+            // console.log(`Detailed TintAndShade:`, cellProxy.format.fill.tintAndShade);
+            // console.log(`----------------------------------------------------`);
         }
         // --- END: ENHANCED DIAGNOSTIC LOG ---
 

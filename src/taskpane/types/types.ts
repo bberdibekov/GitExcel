@@ -23,6 +23,7 @@ export interface IFormat {
 
 
 export interface ICellData {
+  address: string;
   value: string | number | boolean;
   formula: string | number | boolean;
   format?: IFormat; // MODIFIED (FEAT-004)
@@ -108,8 +109,8 @@ export interface IChangeset {
 // This type represents the FINAL, user-facing result from the synthesizer.
 export interface IDiffResult {
   modifiedCells: ICombinedChange[];
-  addedRows: IRowChange[];
-  deletedRows: IRowChange[];
+  addedRows: IRowChange[];      // This will eventually be replaced by the consolidator.
+  deletedRows: IRowChange[];    // This will eventually be replaced by the consolidator.
   structuralChanges: IStructuralChange[];
   isPartialResult?: boolean;
   hiddenChangeCount?: number;
@@ -138,18 +139,23 @@ export interface IHighLevelChange {
   sheet: string;
   description: string;
   involvedCells: IChange[];
+  involvedRows?: IRowChange[];
 }
 
 export interface ISummaryResult {
   highLevelChanges: IHighLevelChange[];
   modifiedCells: ICombinedChange[];
-  addedRows: IRowChange[];
-  deletedRows: IRowChange[];
 }
 
+// +++ NEW (REFACTOR): Represents a single, chronological row event.
+export interface IRowEvent {
+  type: 'add' | 'delete';
+  data: IRowChange;
+}
+
+// --- MODIFIED (REFACTOR): The timeline now produces a simple chronological ledger.
 export interface IResolvedTimeline {
   finalChangeHistory: Map<string, IChange[]>;
-  netDeletedRows: Map<string, IRowChange>;
-  netAddedRows: Map<string, IRowChange>;
+  chronologicalRowEvents: IRowEvent[]; // Replaces netAddedRows and netDeletedRows
   chronologicalStructuralChanges: IStructuralChange[];
 }

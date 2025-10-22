@@ -65,18 +65,20 @@ export function synthesizeChangesets(
   // --- END PAYWALL LOGIC ---
 
   const resolvedTimeline = resolveTimeline(changesetSequence);
+  
+  // --- MODIFIED (BUGFIX): Update logging to use the new data structure.
   debugService.addLogEntry(
     "Synthesizer Stage 1/2 (Timeline Resolution) Complete",
     {
       finalChangeHistoryKeys: Array.from(
         resolvedTimeline.finalChangeHistory.keys(),
       ),
-      netAddedRowsCount: resolvedTimeline.netAddedRows.size,
-      netDeletedRowsCount: resolvedTimeline.netDeletedRows.size,
+      chronologicalRowEventCount: resolvedTimeline.chronologicalRowEvents.length, // Log the count of new events
     },
   );
+  // --- END MODIFICATION ---
 
-  const finalResult = consolidateReport(resolvedTimeline, startVersion.snapshot);
+  const finalResult = consolidateReport(resolvedTimeline);
   debugService.addLogEntry(
     "Synthesizer Stage 3 (Report Consolidation) Complete",
     finalResult,

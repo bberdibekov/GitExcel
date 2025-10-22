@@ -1,10 +1,12 @@
-//src/taskpane/components/comparison_dialog/ComparisonRow.tsx
+// src/taskpane/components/comparison_dialog/ComparisonRow.tsx
+
 import * as React from "react";
 import { useState } from "react";
+import { mergeClasses } from "@fluentui/react-components";
 import { ICombinedChange } from "../../types/types";
 import { useSharedStyles } from "../sharedStyles";
 import ChangeDetailViewer from "./ChangeDetailViewer";
-import { Checkbox, CheckboxOnChangeData } from "@fluentui/react-components";
+import { Checkbox, CheckboxOnChangeData, Tooltip } from "@fluentui/react-components";
 import {
     Calculator16Filled,
     ChevronRight16Filled,
@@ -21,6 +23,10 @@ interface ComparisonRowProps {
     onNavigate: (sheet: string, address: string) => void;
 }
 
+/**
+ * [REFACTORED] Renders a single, interactive row in the comparison report,
+ * meticulously structured into a multi-column layout that aligns with the report header.
+ */
 const ComparisonRow: React.FC<ComparisonRowProps> = (props) => {
     const { changeId, change, isSelected, onSelectionChange, onNavigate } = props;
     const [isExpanded, setIsExpanded] = useState(false);
@@ -28,22 +34,36 @@ const ComparisonRow: React.FC<ComparisonRowProps> = (props) => {
 
     const isFormula = change.changeType.includes("formula");
     const icon = isFormula ? <Calculator16Filled /> : <TextDescription16Filled />;
-    
-    const handleCheckboxChange = (
-      _ev: React.ChangeEvent<HTMLInputElement>,
-      data: CheckboxOnChangeData
-    ) => {
-      onSelectionChange(changeId, !!data.checked);
+
+    const handleCheckboxChange = (_ev: React.ChangeEvent<HTMLInputElement>, data: CheckboxOnChangeData) => {
+        onSelectionChange(changeId, !!data.checked);
+    };
+
+    const handlePrimaryClick = () => {
+        // The main info block click handles both navigation and expansion.
+        onNavigate(change.sheet, change.address);
+        setIsExpanded(!isExpanded);
+    };
+
+    const handleChevronClick = (e: React.MouseEvent) => {
+        // Stop propagation to prevent the primary click (and navigation) from firing.
+        e.stopPropagation();
+        setIsExpanded(!isExpanded);
+    };
+
+    const handleQuickRestoreClick = (e: React.MouseEvent) => {
+        // Stop propagation to prevent any other click handlers on the row from firing.
+        e.stopPropagation();
+        console.log(`[TODO] Quick Restore clicked for: ${changeId}`);
+        // Future: onQuickRestore(changeId);
     };
 
     const renderTruncatedSummary = () => {
         const before = String(isFormula ? change.startFormula : change.startValue ?? "");
         const after = String(isFormula ? change.endFormula : change.endValue ?? "");
-        const { startContextLength, diffWindowLength, endContextLength } = diffViewerConfig.truncation;
+        const { startContextLength, diffWindowLength } = diffViewerConfig.truncation;
 
-        if (before.length + after.length < 50) {
-            return `${before} → ${after}`;
-        }
+        if (before.length + after.length < 50) return `${before} → ${after}`;
 
         const firstDiffIndex = [...after].findIndex((char, i) => char !== before[i]);
         const startIndex = Math.max(0, firstDiffIndex - Math.floor(diffWindowLength / 2));
@@ -56,32 +76,46 @@ const ComparisonRow: React.FC<ComparisonRowProps> = (props) => {
 
     return (
         <li className={styles.listItem_modified} id={`change-${change.sheet}-${change.address}`}>
-            <div className={styles.flexRow} style={{ alignItems: "center", padding: "8px 0" }}>
-                <div style={{ paddingRight: "8px" }}>
-                    <Checkbox
-                        checked={isSelected}
-                        onChange={handleCheckboxChange}
-                    />
+            {/* The main container uses the row container style to get padding and hover effects */}
+            <div className={styles.comparisonRowContainer}>
+                {/* Checkbox Column */}
+                <div className={styles.columnCheckbox}>
+                    <Checkbox checked={isSelected} onChange={handleCheckboxChange} />
                 </div>
-                <div onClick={() => onNavigate(change.sheet, change.address)} style={{ flexGrow: 1, cursor: "pointer" }}>
-                    <div style={{ fontWeight: "bold" }}>
-                        {change.sheet}!{change.address}
-                    </div>
-                    <div className={styles.textSubtle} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        {icon}
-                        <span>{renderTruncatedSummary()}</span>
-                    </div>
+
+                {/* Sheet Column */}
+                <div className={styles.columnSheet} onClick={handlePrimaryClick}>
+                    {change.sheet}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", paddingLeft: "8px", gap: "4px" }}>
-                    <span title="Quick Restore (coming soon)">
-                        <ArrowUndo16Filled />
-                    </span>
-                    <span onClick={() => setIsExpanded(!isExpanded)} style={{ cursor: "pointer" }}>
-                        <ChevronRight16Filled style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+
+                {/* Cell Column */}
+                <div className={styles.columnCell} onClick={handlePrimaryClick}>
+                    {change.address}
+                </div>
+                
+                {/* Value / Formula Column */}
+                <div className={styles.columnValue} onClick={handlePrimaryClick}>
+                    {icon}
+                    <span className={styles.textSubtle}>{renderTruncatedSummary()}</span>
+                </div>
+
+                {/* Action Column */}
+                <div className={styles.columnAction}>
+                    <Tooltip content="Quick Restore" relationship="label">
+                        <span 
+                            className={mergeClasses(styles.quickRestoreIcon, "quick-restore-icon-hook")} 
+                            onClick={handleQuickRestoreClick}
+                        >
+                            <ArrowUndo16Filled />
+                        </span>
+                    </Tooltip>
+                    <span className={styles.chevron} onClick={handleChevronClick}>
+                        <ChevronRight16Filled style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }} />
                     </span>
                 </div>
             </div>
 
+            {/* The expanded detail view appears below the row when active */}
             {isExpanded && <ChangeDetailViewer change={change.history[change.history.length - 1]} />}
         </li>
     );

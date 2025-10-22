@@ -1,6 +1,6 @@
 // src/taskpane/components/sharedStyles.ts
 
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 
 /**
  * A shared hook for common styles used across multiple components.
@@ -52,8 +52,8 @@ export const useSharedStyles = makeStyles({
     listStyleType: "none",
   },
   listItem_modified: {
-    backgroundColor: tokens.colorNeutralBackground3,
-    borderLeftColor: tokens.colorPaletteDarkOrangeBorderActive,
+    // This is now just a basic wrapper for the comparison row.
+    backgroundColor: tokens.colorNeutralBackground1,
   },
   listItem_added: {
     backgroundColor: tokens.colorPaletteGreenBackground2,
@@ -79,14 +79,12 @@ export const useSharedStyles = makeStyles({
     backgroundColor: tokens.colorBrandBackground2,
     border: `1px solid ${tokens.colorCompoundBrandStroke}`,
   },
-  // This style is specifically for the developer tools panel.
   card_dev_tools: {
     backgroundColor: tokens.colorPaletteRedBackground2,
     border: `2px dashed ${tokens.colorPaletteRedBorderActive}`,
     padding: tokens.spacingVerticalL,
     marginTop: tokens.spacingVerticalL,
   },
-  // Styles for the Notification component
   card_error: {
     backgroundColor: tokens.colorPaletteRedBackground1,
     border: `1px solid ${tokens.colorPaletteRedBorderActive}`,
@@ -142,39 +140,102 @@ export const useSharedStyles = makeStyles({
     lineHeight: '16px',
     verticalAlign: 'middle',
   },
-
-  /**
-    Style for displaying pre-formatted text blocks, such as values or comments.
-    Ensures content wraps correctly and preserves whitespace.
-    */
-    textBlock: {
-    whiteSpace: "pre-wrap", // Wrap long text onto the next line
-    wordBreak: "break-word", // Break long words to prevent overflow
-    margin: "0", // Remove default <pre> margins
-    padding: "8px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e0e0e0",
-    borderRadius: "4px",
-    maxHeight: "150px", // Prevent huge blocks from breaking layout
-    overflowY: "auto", // Add scrollbar if content exceeds max height
-    },
-
-/**
-
-    Style specifically for displaying code, such as Excel formulas.
-    Inherits from textBlock but uses a monospace font for readability.
-    */
-    codeBlock: {
+  textBlock: {
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
     margin: "0",
     padding: "8px",
-    backgroundColor: "#fafafa", // Slightly different background for code
+    backgroundColor: "#ffffff",
+    border: "1px solid #e0e0e0",
+    borderRadius: "4px",
+    maxHeight: "150px",
+    overflowY: "auto",
+  },
+  codeBlock: {
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    margin: "0",
+    padding: "8px",
+    backgroundColor: "#fafafa",
     border: "1px solid #e0e0e0",
     borderRadius: "4px",
     maxHeight: "150px",
     overflowY: "auto",
     fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
-    },
+  },
 
+  // --- [AESTHETIC SHIFT APPLIED HERE] DIALOG REPORT GRID STYLES ---
+  
+  comparisonHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '8px 8px',
+    backgroundColor: 'transparent',
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    color: tokens.colorNeutralForeground2,
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase200,
+  },
+
+  comparisonRowContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '10px 4px',
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    transition: 'none',
+    ':hover': {
+      backgroundColor: 'transparent',
+    },
+    [`&:hover .quick-restore-icon-hook`]: {
+      visibility: 'visible',
+      opacity: 1,
+    },
+  },
+
+  columnCheckbox: {
+    flex: '0 0 32px',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  columnSheet: {
+    flex: '1 1 80px',
+    paddingRight: '8px',
+    color: tokens.colorNeutralForeground2,
+  },
+  columnCell: {
+    flex: '1 1 80px',
+    paddingRight: '8px',
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+  },
+  columnValue: {
+    flex: '3 1 200px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  columnAction: {
+    flex: '0 0 50px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: '8px',
+  },
+
+  quickRestoreIcon: {
+    visibility: 'hidden',
+    opacity: 0,
+    transition: `opacity 0.2s ${tokens.curveEasyEase}, color 0.2s`,
+    cursor: 'pointer',
+    color: tokens.colorNeutralForeground3,
+    ':hover': {
+      color: tokens.colorNeutralForeground2,
+    }
+  },
+
+  chevron: {
+    cursor: 'pointer',
+    transition: `transform 0.2s ${tokens.curveEasyEase}`,
+    color: tokens.colorNeutralForeground3,
+  },
 });

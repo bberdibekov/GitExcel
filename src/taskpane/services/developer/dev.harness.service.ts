@@ -9,7 +9,7 @@ import { testSteps } from "./test.cases";
  * to perform its operations.
  */
 interface IHarnessCallbacks {
-  versions: IVersion[];
+  getVersions: () => IVersion[];
   onSaveVersion: (comment: string) => Promise<void>;
   onClearHistory: () => void;
   onCompare: (startIndex: number, endIndex: number) => void;
@@ -25,7 +25,7 @@ class DevHarnessService {
    * @param callbacks An object containing functions to interact with the app's state.
    */
   public async runComprehensiveTest(callbacks: IHarnessCallbacks): Promise<void> {
-    const { onClearHistory, onSaveVersion, onCompare, onStatusUpdate, versions } = callbacks;
+    const { onClearHistory, onSaveVersion, onCompare, onStatusUpdate, getVersions } = callbacks;
     
     debugService.startNewLogSession();
 
@@ -43,7 +43,8 @@ class DevHarnessService {
         await this.delay(500);
       }
       
-      debugService.capture('AllVersionsAfterCreation', versions);
+      console.log("[DEV HARNESS] State of 'versions' array AFTER loop and BEFORE capture:", getVersions());
+      debugService.capture('AllVersionsAfterCreation', getVersions());
       onStatusUpdate("Phase 2/2: Running focused comparison matrix...");
       await this.delay(500);
       
@@ -65,10 +66,9 @@ class DevHarnessService {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Test harness failed:", error);
       debugService.addLogEntry("Test Harness Failed", { error: errorMessage });
-      // Re-throw the error so the UI layer knows the operation failed.
       throw new Error(`Test harness failed. Check console for details.`);
     } finally {
-      debugService.saveLogSession('formatted_test_run_log.json');
+      debugService.saveLogSession('timeline_resolver_debug_log.json');
     }
   }
 }

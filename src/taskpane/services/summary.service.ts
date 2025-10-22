@@ -10,7 +10,7 @@ import { fromA1 } from "./address.converter";
 
 /**
 Coalesces a list of individual row changes into blocks and generates human-readable
-descriptions for them.
+descriptions for them, now including the row data itself.
 */
 function coalesceAndDescribe(
   rows: IRowChange[],
@@ -33,31 +33,31 @@ function coalesceAndDescribe(
   rowsBySheet.forEach((sheetRows, sheetName) => {
     sheetRows.sort((a, b) => a.rowIndex - b.rowIndex);
 
-    let currentBlockStart = sheetRows[0].rowIndex;
-    let currentBlockSize = 1;
+    let blockStartIndex = 0; // --- MODIFIED: Use index to track start of a block
+    for (let i = 1; i <= sheetRows.length; i++) {
+      // --- MODIFIED: Loop condition and logic to correctly handle the end of the array
+      if (i === sheetRows.length || sheetRows[i].rowIndex !== sheetRows[i - 1].rowIndex + 1) {
+        
+        const currentBlockRows = sheetRows.slice(blockStartIndex, i);
+        const currentBlockSize = currentBlockRows.length;
+        const startRow = currentBlockRows[0].rowIndex;
 
-    for (let i = 1; i < sheetRows.length; i++) {
-      const prevIndex = sheetRows[i - 1].rowIndex;
-      const currentIndex = sheetRows[i].rowIndex;
-
-      if (currentIndex === prevIndex + 1) {
-        currentBlockSize++;
-      } else {
         const description = currentBlockSize > 1
-          ? `Rows ${currentBlockStart + 1}-${currentBlockStart + currentBlockSize} were ${action}.`
-          : `Row ${currentBlockStart + 1} was ${action}.`;
+          ? `Rows ${startRow + 1}-${startRow + currentBlockSize} were ${action}.`
+          : `Row ${startRow + 1} was ${action}.`;
 
-        highLevelChanges.push({ type: "structural", sheet: sheetName, description, involvedCells: [] });
-        currentBlockStart = currentIndex;
-        currentBlockSize = 1;
+        // --- MODIFIED: Attach the actual row data for this block
+        highLevelChanges.push({ 
+            type: "structural", 
+            sheet: sheetName, 
+            description, 
+            involvedCells: [],
+            involvedRows: currentBlockRows 
+        });
+
+        blockStartIndex = i; // Start the next block
       }
     }
-
-    const description = currentBlockSize > 1
-      ? `Rows ${currentBlockStart + 1}-${currentBlockStart + currentBlockSize} were ${action}.`
-      : `Row ${currentBlockStart + 1} was ${action}.`;
-
-    highLevelChanges.push({ type: "structural", sheet: sheetName, description, involvedCells: [] });
   });
 
   return highLevelChanges;
@@ -89,10 +89,9 @@ export function generateSummary(result: IDiffResult): ISummaryResult {
   const deletedDescriptions = coalesceAndDescribe(result.deletedRows, "deleted");
   const highLevelChanges = [...addedDescriptions, ...deletedDescriptions];
 
+  // --- MODIFIED: Return the clean, authoritative result without raw row data.
   return {
     highLevelChanges,
     modifiedCells: result.modifiedCells,
-    addedRows: trueAddedRows,
-    deletedRows: result.deletedRows,
   };
 }

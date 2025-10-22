@@ -9,8 +9,9 @@ import {
   IRowData,
   IStructuralChange,
   IWorkbookSnapshot,
+  ISheetSnapshot,
 } from "../types/types";
-import { toA1 } from "./address.converter";
+import { toA1, fromA1 } from "./address.converter";
 import { generateRowHash } from "./hashing.service";
 import { ILicense } from "./AuthService";
 import { valueFilters, formulaFilters, IComparisonFilter } from "./comparison.filters";
@@ -63,23 +64,33 @@ function coalesceRowChanges(
   sheetName: string,
   rowChanges: IRowChange[],
   type: "row_insertion" | "row_deletion",
+  startRowOffset: number // This is now correctly used.
 ): IStructuralChange[] {
   if (rowChanges.length === 0) return [];
   const structuralChanges: IStructuralChange[] = [];
   const sortedChanges = [...rowChanges].sort((a, b) => a.rowIndex - b.rowIndex);
+  
+  // --- MODIFIED (BUGFIX) ---
+  // The rowIndex for insertions is relative, so we MUST apply the offset.
+  // The rowIndex for deletions is already absolute, so an offset of 0 is passed in.
   let currentBlock: IStructuralChange = {
     type,
     sheet: sheetName,
-    index: sortedChanges[0].rowIndex,
+    index: sortedChanges[0].rowIndex + startRowOffset, // Apply offset
     count: 1,
   };
+
   for (let i = 1; i < sortedChanges.length; i++) {
     const prevIndex = sortedChanges[i - 1].rowIndex;
     const currentIndex = sortedChanges[i].rowIndex;
-    if (currentIndex === prevIndex + 1) currentBlock.count!++;
+    if (currentIndex === prevIndex + 1) {
+        currentBlock.count!++;
+    }
     else {
       structuralChanges.push(currentBlock);
-      currentBlock = { type, sheet: sheetName, index: currentIndex, count: 1 };
+      // --- MODIFIED (BUGFIX) ---
+      // Apply offset to the start of the next block as well.
+      currentBlock = { type, sheet: sheetName, index: currentIndex + startRowOffset, count: 1 };
     }
   }
   structuralChanges.push(currentBlock);
@@ -98,28 +109,32 @@ function normalizeSheetData(data: IRowData[] | ICellData[][]): IRowData[] {
 
 function compareCells(
   sheetName: string,
-  rowIndex: number,
   oldRow: IRowData,
   newRow: IRowData,
   result: IChangeset,
-  activeFilterIds: Set<string> // Now accepts active filters
+  activeFilterIds: Set<string>
 ) {
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
   for (let c = 0; c < maxCols; c++) {
-    const oldCell = oldRow.cells[c] || { value: "", formula: "" };
-    const newCell = newRow.cells[c] || { value: "", formula: "" };
+    const oldCell = oldRow.cells[c];
+    const newCell = newRow.cells[c];
 
-    // Use filter engine instead of direct comparison (FEAT-005) ---
-    // A value has changed if the filter engine does NOT find them equal, AND they are textually different.
+    const canonicalAddress = (newCell?.address || oldCell?.address);
+    if (!canonicalAddress) {
+      continue;
+    }
+
+    const _oldCell = oldCell || { value: "", formula: "" };
+    const _newCell = newCell || { value: "", formula: "" };
+
     const valueChanged = 
-      !applyFilters(oldCell.value, newCell.value, activeFilterIds, valueFilters) 
-      && String(oldCell.value) !== String(newCell.value);
+      !applyFilters(_oldCell.value, _newCell.value, activeFilterIds, valueFilters) 
+      && String(_oldCell.value) !== String(_newCell.value);
       
-    // A formula has changed if it's a real formula and the filter engine does NOT find them equal.
     const formulaChanged =
-      (isRealFormula(oldCell.formula) || isRealFormula(newCell.formula)) &&
-      !applyFilters(oldCell.formula, newCell.formula, activeFilterIds, formulaFilters)
-      && (String(oldCell.formula) !== String(newCell.formula));
+      (isRealFormula(_oldCell.formula) || isRealFormula(_newCell.formula)) &&
+      !applyFilters(_oldCell.formula, _newCell.formula, activeFilterIds, formulaFilters)
+      && (String(_oldCell.formula) !== String(_newCell.formula));
 
     if (valueChanged || formulaChanged) {
       let changeType: IChange["changeType"] = "value";
@@ -129,12 +144,12 @@ function compareCells(
 
       result.modifiedCells.push({
         sheet: sheetName,
-        address: toA1(rowIndex, c),
+        address: canonicalAddress, 
         changeType,
-        oldValue: oldCell.value,
-        newValue: newCell.value,
-        oldFormula: oldCell.formula,
-        newFormula: newCell.formula,
+        oldValue: _oldCell.value,
+        newValue: _newCell.value,
+        oldFormula: _oldCell.formula,
+        newFormula: _newCell.formula,
       });
     }
   }
@@ -142,8 +157,8 @@ function compareCells(
 
 function diffSheetData(
   sheetName: string,
-  oldData: IRowData[],
-  newData: IRowData[],
+  oldSheet: ISheetSnapshot,
+  newSheet: ISheetSnapshot,
   activeFilterIds: Set<string>
 ): IChangeset {
   const result: IChangeset = {
@@ -152,6 +167,12 @@ function diffSheetData(
     deletedRows: [],
     structuralChanges: [],
   };
+
+  const oldCoords = oldSheet.address ? fromA1(oldSheet.address) : null;
+  const startRowOffset = oldCoords ? oldCoords.row : 0;
+
+  const oldData = normalizeSheetData(oldSheet.data);
+  const newData = normalizeSheetData(newSheet.data);
 
   const oldHashes = oldData.map((r) => r.hash);
   const newHashes = newData.map((r) => r.hash);
@@ -171,11 +192,10 @@ function diffSheetData(
       for (let j = 0; j < part.count; j++) {
         compareCells(
           sheetName,
-          newIdx,
           oldData[oldIdx],
           newData[newIdx],
           result,
-          activeFilterIds // Pass filters down
+          activeFilterIds
         );
         oldIdx++;
         newIdx++;
@@ -186,18 +206,18 @@ function diffSheetData(
         const addedRowData = newData[newIdx];
         result.addedRows.push({
           sheet: sheetName,
-          rowIndex: newIdx,
+          rowIndex: newIdx, // This remains relative for the "trueInsertions" filter logic.
           rowData: addedRowData,
         });
 
-        addedRowData.cells.forEach((cell, colIndex) => {
+        addedRowData.cells.forEach((cell) => {
           const hasValue = cell.value !== "" && cell.value !== undefined;
           const hasFormula = cell.formula !== "" && cell.formula !== undefined;
 
           if (hasValue || hasFormula) {
             result.modifiedCells.push({
               sheet: sheetName,
-              address: toA1(newIdx, colIndex),
+              address: cell.address,
               changeType: isRealFormula(cell.formula) ? "both" : "value",
               oldValue: "",
               newValue: cell.value,
@@ -212,7 +232,7 @@ function diffSheetData(
       for (let j = 0; j < part.count; j++) {
         result.deletedRows.push({
           sheet: sheetName,
-          rowIndex: oldIdx,
+          rowIndex: oldIdx + startRowOffset, // This is now an absolute worksheet index.
           rowData: oldData[oldIdx],
         });
         oldIdx++;
@@ -221,11 +241,10 @@ function diffSheetData(
       for (let j = 0; j < part.count; j++) {
         compareCells(
           sheetName,
-          newIdx,
           oldData[oldIdx],
           newData[newIdx],
           result,
-          activeFilterIds // Pass filters down
+          activeFilterIds
         );
         oldIdx++;
         newIdx++;
@@ -233,10 +252,14 @@ function diffSheetData(
     }
   }
 
-  result.structuralChanges.push(
-    ...coalesceRowChanges(sheetName, result.addedRows, "row_insertion"),
-    ...coalesceRowChanges(sheetName, result.deletedRows, "row_deletion"),
-  );
+  const trueInsertions = result.addedRows.filter(row => row.rowIndex < oldData.length);
+  const trueDeletions = result.deletedRows;
+  
+  // Pass startRowOffset for insertions (relative) and 0 for deletions (already absolute).
+  const insertionChanges = coalesceRowChanges(sheetName, trueInsertions, "row_insertion", startRowOffset);
+  const deletionChanges = coalesceRowChanges(sheetName, trueDeletions, "row_deletion", 0);
+
+  result.structuralChanges.push(...insertionChanges, ...deletionChanges);
 
   return result;
 }
@@ -244,7 +267,6 @@ function diffSheetData(
 export function diffSnapshots(
   oldSnapshot: IWorkbookSnapshot,
   newSnapshot: IWorkbookSnapshot,
-  // Now accepts license and filter state
   license: ILicense,
   activeFilterIds: Set<string>
 ): IChangeset {
@@ -260,10 +282,11 @@ export function diffSnapshots(
   ]);
   for (const sheetName of Array.from(allSheetNames)) {
     if (!oldSnapshot[sheetName] || !newSnapshot[sheetName]) continue;
-    const oldSheetData = normalizeSheetData(oldSnapshot[sheetName].data);
-    const newSheetData = normalizeSheetData(newSnapshot[sheetName].data);
-    // --- Pass filters down to sheet-level diff ---
-    const sheetResult = diffSheetData(sheetName, oldSheetData, newSheetData, activeFilterIds);
+    
+    const oldSheet = oldSnapshot[sheetName];
+    const newSheet = newSnapshot[sheetName];
+
+    const sheetResult = diffSheetData(sheetName, oldSheet, newSheet, activeFilterIds);
     result.modifiedCells.push(...sheetResult.modifiedCells);
     result.addedRows.push(...sheetResult.addedRows);
     result.deletedRows.push(...sheetResult.deletedRows);
@@ -282,9 +305,7 @@ export function diffSnapshots(
 
   if (license?.tier === 'free' && isProFilterActive && result.modifiedCells.length > PARTIAL_RESULT_COUNT) {
     const originalCount = result.modifiedCells.length;
-    // Slice the results to show only a limited number.
     result.modifiedCells = result.modifiedCells.slice(0, PARTIAL_RESULT_COUNT);
-    // Add the flags for the UI to consume.
     result.isPartialResult = true;
     result.hiddenChangeCount = originalCount - PARTIAL_RESULT_COUNT;
   }

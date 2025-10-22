@@ -1,71 +1,104 @@
 // src/taskpane/services/timeline.resolver.service.ts
 
-import { IChange, IRowChange, IStructuralChange, IResolvedTimeline, IChangeset } from "../types/types";
+import { IChange, IRowChange, IStructuralChange, IResolvedTimeline, IChangeset, IRowEvent } from "../types/types"; // MODIFIED: Import IRowEvent
 import { transformAddress } from "./coordinate.transform.service";
-import { fromA1 } from "./address.converter";
+import { debugService } from "./debug.service"; 
 
 /**
  * The "Brain" of the synthesizer. Takes a raw sequence of changesets and produces a
- * clean, resolved history of every event, mapping it to its final coordinates.
+ * clean, resolved history of every event by simulating the timeline of changes.
+ * This is a stateful process that tracks each cell's identity over time.
+ * 
  * @param changesetSequence An ordered array of diffs between versions.
  * @returns An IResolvedTimeline object containing the fully mapped history.
  */
 export function resolveTimeline(changesetSequence: IChangeset[]): IResolvedTimeline {
-  // --- STAGE 1: GATHER ALL RAW EVENTS ---
-  const allModificationEvents: IChange[] = [];
-  const rawAddedRows = new Map<string, IRowChange>();
-  const rawDeletedRows = new Map<string, IRowChange>();
+  // The core of our new stateful engine. 
+  // The key is the *current* A1 address of a cell, and the value is its complete history.
+  let cellHistoryTracker = new Map<string, IChange[]>();
+
+  // --- MODIFIED (REFACTOR): We no longer track 'net' changes.
+  // We now keep a simple, chronological ledger of every single row event.
+  const chronologicalRowEvents: IRowEvent[] = [];
+
+  // Keep a clean, chronological list of structural changes for the final report.
   const chronologicalStructuralChanges: IStructuralChange[] = [];
 
+  // --- STATEFUL PLAYBACK ---
+  // Process each changeset chronologically, updating our state at each step.
   for (let i = 0; i < changesetSequence.length; i++) {
     const changeset = changesetSequence[i];
-    const futureStructuralChanges = changesetSequence.slice(i + 1).flatMap((c) => c.structuralChanges || []);
 
-    changeset.modifiedCells.forEach(mod => { (mod as any).futureStructuralChanges = futureStructuralChanges; allModificationEvents.push(mod); });
-    changeset.addedRows.forEach(row => { const key = `${row.sheet}!${row.rowIndex}`; (row as any).futureStructuralChanges = futureStructuralChanges; rawAddedRows.set(key, row); });
-    changeset.deletedRows.forEach(row => { const key = `${row.sheet}!${row.rowIndex}`; rawDeletedRows.set(key, row); });
-    chronologicalStructuralChanges.push(...(changeset.structuralChanges || []));
+    debugService.addLogEntry(`Timeline Resolver: Processing Changeset ${i + 1}/${changesetSequence.length}`, {
+      changeset: {
+        modifiedCells: changeset.modifiedCells.map(c => c.address),
+        addedRows: changeset.addedRows.length,
+        deletedRows: changeset.deletedRows.length,
+        structuralChanges: changeset.structuralChanges,
+      }
+    });
+    
+    // --- REFACTORED (BUGFIX): The order of operations is now correct and critical. ---
+    // We must follow a strict "Terminate -> Transform -> Modify" sequence.
+
+    // STEP 1: TERMINATE HISTORY. Process deletions against the CURRENT state of the grid.
+    changeset.deletedRows.forEach(deletedRow => {
+      // --- MODIFIED (REFACTOR): No more cancellation. Just record the event.
+      chronologicalRowEvents.push({ type: 'delete', data: deletedRow });
+      
+      deletedRow.containedChanges = [];
+      const rowSheet = deletedRow.sheet;
+      const rowIndex = deletedRow.rowIndex;
+      
+      for (const [addressKey, history] of cellHistoryTracker.entries()) {
+        if (addressKey.startsWith(`${rowSheet}!`) && history.length > 0) {
+            const cellRowIndex = parseInt(addressKey.match(/\d+$/)![0], 10) - 1;
+            if (cellRowIndex === rowIndex) {
+                deletedRow.containedChanges.push(...history);
+                cellHistoryTracker.delete(addressKey);
+            }
+        }
+      }
+    });
+
+    // STEP 2: TRANSFORM STATE. Remap the addresses of all SURVIVING cells.
+    if (changeset.structuralChanges.length > 0) {
+      chronologicalStructuralChanges.push(...changeset.structuralChanges);
+
+      debugService.capture(`CellTracker_Before_Transform (Changeset ${i + 1})`, Array.from(cellHistoryTracker.entries()));
+
+      const newCellHistoryTracker = new Map<string, IChange[]>();
+      
+      for (const [currentAddress, history] of cellHistoryTracker.entries()) {
+        const newAddress = transformAddress(currentAddress, changeset.structuralChanges);
+        if (newAddress) {
+          newCellHistoryTracker.set(newAddress, history);
+        }
+      }
+      
+      debugService.capture(`CellTracker_After_Transform (Changeset ${i + 1})`, Array.from(newCellHistoryTracker.entries()));
+      
+      cellHistoryTracker = newCellHistoryTracker;
+    }
+
+    // STEP 3: APPLY NEW CHANGES. With a stable and correct address map, process modifications and additions.
+    changeset.modifiedCells.forEach(change => {
+      const addressKey = `${change.sheet}!${change.address}`;
+      if (!cellHistoryTracker.has(addressKey)) {
+        cellHistoryTracker.set(addressKey, []);
+      }
+      cellHistoryTracker.get(addressKey)!.push(change);
+    });
+
+    // --- MODIFIED (REFACTOR): No more cancellation. Just record the event.
+    changeset.addedRows.forEach(addedRow => {
+      chronologicalRowEvents.push({ type: 'add', data: addedRow });
+    });
   }
 
-  // --- STAGE 2: RESOLVE FATES AND GROUP ---
-  const finalChangeHistory = new Map<string, IChange[]>();
-
-  allModificationEvents.forEach(event => {
-    const originalAddressKey = `${event.sheet}!${event.address}`;
-    const finalAddress = transformAddress(originalAddressKey, (event as any).futureStructuralChanges);
-
-    if (finalAddress) {
-      if (!finalChangeHistory.has(finalAddress)) finalChangeHistory.set(finalAddress, []);
-      finalChangeHistory.get(finalAddress)!.push(event);
-    } else {
-      const coords = fromA1(originalAddressKey)!;
-      const originalRowKey = `${coords.sheet}!${coords.row}`;
-      const responsibleDeletion = rawDeletedRows.get(originalRowKey);
-      if (responsibleDeletion) {
-        if (!responsibleDeletion.containedChanges) responsibleDeletion.containedChanges = [];
-        responsibleDeletion.containedChanges.push(event);
-      }
-    }
-  });
-
-  const netAddedRows = new Map<string, IRowChange>();
-  rawAddedRows.forEach((row, key) => {
-    if (!rawDeletedRows.has(key)) {
-      netAddedRows.set(key, row);
-    }
-  });
-
-  const netDeletedRows = new Map<string, IRowChange>();
-  rawDeletedRows.forEach((row, key) => {
-    if (!rawAddedRows.has(key) || (row.containedChanges && row.containedChanges.length > 0)) {
-      netDeletedRows.set(key, row);
-    }
-  });
-
   return {
-    finalChangeHistory,
-    netAddedRows,
-    netDeletedRows,
+    finalChangeHistory: cellHistoryTracker,
+    chronologicalRowEvents, // Return the new ledger
     chronologicalStructuralChanges,
   };
 }

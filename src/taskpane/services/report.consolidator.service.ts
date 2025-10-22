@@ -1,45 +1,52 @@
 // src/taskpane/services/report.consolidator.service.ts
 
-import { IChange, IDiffResult, IResolvedTimeline, IWorkbookSnapshot, ICombinedChange } from "../types/types";
+import { IChange, IDiffResult, IResolvedTimeline, ICombinedChange, IRowChange } from "../types/types"; // MODIFIED: Import IRowChange
 import { fromA1, toA1 } from "./address.converter";
-import { transformAddress } from "./coordinate.transform.service";
+
 
 /**
- * A helper to safely get a cell's data from a snapshot.
- * Returns a default empty cell if the sheet, row, or cell doesn't exist.
+ * The "Formatter" of the synthesizer. Takes a clean, resolved timeline and
+ * consolidates it into the final, user-facing diff report.
+ * @param timeline The IResolvedTimeline object from the now-stateful resolver service.
+ * @returns The final, consolidated IDiffResult for the UI.
  */
-function getCellFromSnapshot(snapshot: IWorkbookSnapshot, sheet: string, row: number, col: number): { value: any, formula: any } {
-  const emptyCell = { value: "", formula: "" };
-  const sheetData = snapshot[sheet];
-  if (!sheetData) return emptyCell;
-  const rowData = sheetData.data[row];
-  if (!rowData) return emptyCell;
-  const cellData = rowData.cells[col];
-  return cellData || emptyCell;
-}
-
-
-/**
-
-The "Formatter" of the synthesizer. Takes a clean, resolved timeline and
-consolidates it into the final, user-facing diff report.
-@param timeline The IResolvedTimeline object from the resolver service.
-@param startVersionSnapshot The complete snapshot of the starting version for the comparison.
-@returns The final, consolidated IDiffResult for the UI.
-*/
-export function consolidateReport(timeline: IResolvedTimeline, startVersionSnapshot: IWorkbookSnapshot): IDiffResult {
+export function consolidateReport(timeline: IResolvedTimeline): IDiffResult {
     const finalModifiedCells: ICombinedChange[] = [];
 
-    // 1. Consolidate the history of all cells that survived and were modified at any point.
+    // This logic remains correct. It processes all cells that SURVIVE the timeline.
     timeline.finalChangeHistory.forEach((history, finalAddressKey) => {
+        if (history.length === 0) {
+            return;
+        }
+
+        // --- NEW (BUGFIX): Filter out changes that are only value changes on formula cells. ---
+        // These are typically side effects of recalculations, not direct user edits, and create noise.
+        const filteredHistory = history.filter(change => {
+            const isRecalculation = change.changeType === 'value' && isRealFormula(change.oldFormula);
+            return !isRecalculation;
+        });
+
+        // If all changes for a cell were filtered out (i.e., they were all recalculations),
+        // then we don't need to include this cell in the final report.
+        if (filteredHistory.length === 0) {
+            return;
+        }
+        // --- END BUGFIX ---
+
         const coords = fromA1(finalAddressKey)!;
-        const lastEvent = history[history.length - 1];
 
-        const startState = getCellFromSnapshot(startVersionSnapshot, coords.sheet!, coords.row, coords.col);
+        // --- MODIFIED (BUGFIX): Use the filtered history to determine the start and end states. ---
+        const firstEvent = filteredHistory[0];
+        const lastEvent = filteredHistory[filteredHistory.length - 1];
 
-        const hasValueChange = startState.value !== lastEvent.newValue;
-        const hasFormulaChange = isRealFormula(startState.formula) || isRealFormula(lastEvent.newFormula) 
-          && startState.formula !== lastEvent.newFormula;
+        const startValue = firstEvent.oldValue;
+        const startFormula = firstEvent.oldFormula;
+        const endValue = lastEvent.newValue;
+        const endFormula = lastEvent.newFormula;
+
+        const hasValueChange = String(startValue) !== String(endValue);
+        const hasFormulaChange = (isRealFormula(startFormula) || isRealFormula(endFormula)) 
+                                && String(startFormula) !== String(endFormula);
 
         let finalChangeType: IChange["changeType"] = "value";
         if (hasValueChange && hasFormulaChange) {
@@ -51,56 +58,35 @@ export function consolidateReport(timeline: IResolvedTimeline, startVersionSnaps
         finalModifiedCells.push({
             sheet: coords.sheet!,
             address: toA1(coords.row, coords.col),
-            startValue: startState.value,
-            startFormula: startState.formula,
-            endValue: lastEvent.newValue,
-            endFormula: lastEvent.newFormula,
+            startValue: startValue,
+            startFormula: startFormula,
+            endValue: endValue,
+            endFormula: endFormula,
             changeType: finalChangeType,
-            history: history,
+            // --- MODIFIED (BUGFIX): Assign the clean, filtered history. ---
+            history: filteredHistory,
             metadata: {},
         });
     });
 
-    // 2. Process net added rows to find "pure creations" not captured above.
-    timeline.netAddedRows.forEach((addedRow) => {
-        addedRow.rowData.cells.forEach((cell, colIndex) => {
-            if (cell.value === "" && cell.formula === "") return;
+    // --- MODIFIED (REFACTOR): Process the new chronological event ledger. ---
+    // We no longer read from 'net' maps. We iterate through the full, unfiltered history.
+    const finalAddedRows: IRowChange[] = [];
+    const finalDeletedRows: IRowChange[] = [];
 
-            const originalAddress = `${addedRow.sheet}!${toA1(addedRow.rowIndex, colIndex)}`;
-            const finalAddressStr = transformAddress(
-                originalAddress,
-                (addedRow as any).futureStructuralChanges,
-            );
-
-            if (finalAddressStr && !timeline.finalChangeHistory.has(finalAddressStr)) {
-                const finalCoords = fromA1(finalAddressStr)!;
-                const creationEvent: IChange = {
-                  sheet: finalCoords.sheet!,
-                  address: toA1(finalCoords.row, finalCoords.col),
-                  changeType: isRealFormula(cell.formula) ? 'both' : 'value',
-                  oldValue: "", newValue: cell.value,
-                  oldFormula: "", newFormula: cell.formula,
-                };
-
-                finalModifiedCells.push({
-                  sheet: finalCoords.sheet!,
-                  address: toA1(finalCoords.row, finalCoords.col),
-                  startValue: "",
-                  startFormula: "",
-                  endValue: cell.value,
-                  endFormula: cell.formula,
-                  changeType: creationEvent.changeType,
-                  history: [creationEvent],
-                  metadata: {},
-                });
-            }
-        });
-    });
+    for (const event of timeline.chronologicalRowEvents) {
+        if (event.type === 'add') {
+            finalAddedRows.push(event.data);
+        } else if (event.type === 'delete') {
+            finalDeletedRows.push(event.data);
+        }
+    }
 
     return {
       modifiedCells: finalModifiedCells,
-      addedRows: Array.from(timeline.netAddedRows.values()),
-      deletedRows: Array.from(timeline.netDeletedRows.values()),
+      // Pass through the full, unfiltered lists of row events.
+      addedRows: finalAddedRows,
+      deletedRows: finalDeletedRows,
       structuralChanges: timeline.chronologicalStructuralChanges,
     };
 }

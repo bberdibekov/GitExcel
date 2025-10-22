@@ -56,7 +56,8 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
     );
   };
 
-  const totalChanges = summary.highLevelChanges.length + summary.modifiedCells.length + summary.addedRows.length + summary.deletedRows.length;
+  // --- MODIFIED (BUGFIX): Calculate total based on the new authoritative structure.
+  const totalChanges = summary.highLevelChanges.length + summary.modifiedCells.length;
 
   return (
     <div style={{ marginTop: "10px" }}>
@@ -64,19 +65,38 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
       
       {totalChanges === 0 ? <p>No differences found.</p> :
         <div>
-          {/* Section for High-Level Summary */}
+          {/* --- REFACTORED: Unified section for all structural changes --- */}
           {summary.highLevelChanges.length > 0 && (
             <>
-              <h5>Summary</h5>
+              <h5>Structural Changes ({summary.highLevelChanges.length})</h5>
               <ul style={{ listStyleType: "none", padding: 0 }}>
-                {summary.highLevelChanges.map((change, index) => (
-                  <li
-                    key={`summary-${index}`}
-                    className={`${styles.listItem} ${styles.listItem_summary}`}
-                  >
-                    <strong>{change.sheet}!</strong> {change.description}
-                  </li>
-                ))}
+                {summary.highLevelChanges.map((change, index) => {
+                  const isDeleted = change.description.toLowerCase().includes("deleted");
+                  const itemStyle = isDeleted 
+                      ? `${styles.listItem} ${styles.listItem_deleted}`
+                      : `${styles.listItem} ${styles.listItem_added}`;
+                      
+                  return (
+                    <li key={`hlc-${index}`} className={itemStyle}>
+                      <strong>{change.sheet}!</strong> {change.description}
+
+                      {/* --- NEW: Logic to render details is now inside the high-level change --- */}
+                      {isDeleted && change.involvedRows?.map((rowChange, rIndex) => (
+                        rowChange.containedChanges && rowChange.containedChanges.length > 0 && (
+                          <div key={`row-detail-${rIndex}`} className={`${styles.detailBlock} ${styles.detailBlock_deleted}`}>
+                            <strong className={styles.detailBlock_title}>Changes within this row before deletion:</strong>
+                            {rowChange.containedChanges.map((contained, cIndex) => (
+                              <div key={`contained-${cIndex}`} style={{paddingTop: '5px'}}>
+                                <strong>{contained.address}:</strong>
+                                {renderLegacyChangeDetails(contained)}
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ))}
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}
@@ -97,51 +117,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
             </>
           )}
 
-          {/* Section for Added Rows */}
-          {summary.addedRows.length > 0 && (
-            <>
-              <h5>Added Rows ({summary.addedRows.length})</h5>
-              <ul style={{ listStyleType: "none", padding: 0 }}>
-                {summary.addedRows.map((rowChange, index) => (
-                  <li
-                    key={`add-${index}`}
-                    className={`${styles.listItem} ${styles.listItem_added}`}
-                  >
-                    <strong>{rowChange.sheet}!{rowChange.rowIndex + 1}</strong>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          {/* Section for Deleted Rows */}
-          {summary.deletedRows.length > 0 && (
-            <>
-              <h5>Deleted Rows ({summary.deletedRows.length})</h5>
-              <ul style={{ listStyleType: "none", padding: 0 }}>
-                {summary.deletedRows.map((rowChange, index) => (
-                  <li
-                    key={`del-${index}`}
-                    className={`${styles.listItem} ${styles.listItem_deleted}`}
-                  >
-                    <strong>{rowChange.sheet}!{rowChange.rowIndex + 1}</strong>
-                    
-                    {rowChange.containedChanges && rowChange.containedChanges.length > 0 && (
-                      <div className={`${styles.detailBlock} ${styles.detailBlock_deleted}`}>
-                        <strong className={styles.detailBlock_title}>Changes within this row before deletion:</strong>
-                        {rowChange.containedChanges.map((change, cIndex) => (
-                          <div key={`contained-${cIndex}`} style={{paddingTop: '5px'}}>
-                            <strong>{change.address}:</strong>
-                            {renderLegacyChangeDetails(change)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          {/* --- REMOVED: Redundant and now-broken sections for Added and Deleted Rows --- */}
         </div>
       }
     </div>
