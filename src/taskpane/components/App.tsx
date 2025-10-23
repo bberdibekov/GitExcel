@@ -3,19 +3,16 @@
 import * as React from "react";
 import { useEffect, useMemo } from "react";
 import { Button } from "@fluentui/react-components";
-
-// --- STEP 1: Import the central Zustand store ---
 import { useAppStore } from "../state/appStore";
 import { IVersionViewModel } from "../types/types";
 
-// --- All component imports remain the same ---
-import NotificationDialog from "./NotificationDialog";
-import { RestoreSelectionDialog } from "./RestoreSelectionDialog";
-import SaveVersionForm from "./SaveVersionForm";
-import VersionHistory from "./VersionHistory";
-import TaskPaneComparisonView from "./TaskPaneComparisonView";
-import DeveloperTools from "./DeveloperTools";
-import { useComparisonDialog } from "../hooks/useComparisonDialog";
+import NotificationDialog from "../shared/ui/NotificationDialog";
+import { RestoreSelectionDialog } from "../features/restore/components/RestoreSelectionDialog";
+import SaveVersionForm from "../features/restore/components/SaveVersionForm";
+import VersionHistory from "../features/restore/components/VersionHistory";
+import TaskPaneComparisonView from "../features/comparison/components/TaskPaneComparisonView";
+import DeveloperTools from "../features/developer/components/DeveloperTools";
+import { useComparisonDialog } from "../features/comparison/hooks/useComparisonDialog";
 
 const FREE_TIER_VERSION_LIMIT = 3;
 
@@ -50,7 +47,6 @@ const App = () => {
     fetchLicense();
   }, [fetchLicense]);
 
-  // The logic for this memoized selector remains the same.
   const versionsForView = useMemo((): IVersionViewModel[] => {
     const isPro = license?.tier === 'pro';
     const totalVersions = versions.length;
@@ -79,7 +75,6 @@ const App = () => {
     <div style={{ padding: "10px", fontFamily: "Segoe UI" }}>
       <NotificationDialog notification={notification} onDismiss={clearNotification} />
       
-      {/* --- CORRECTED INVOCATION --- */}
       {/* We conditionally render the dialog, but pass it NO PROPS. */}
       {/* It will manage its own state by reading from the store. */}
       {restoreTarget && (

@@ -1,13 +1,13 @@
 // src/taskpane/state/appStore.ts
 
-import { create } from 'zustand'; // <-- CORRECTED IMPORT
+import { create } from 'zustand';
 import { IVersion, IDiffResult } from '../types/types';
-import { INotification } from '../components/NotificationDialog';
-import { ILicense, authService } from '../services/AuthService';
-import { createWorkbookSnapshot } from '../services/excel.service';
-import { synthesizeChangesets } from '../services/synthesizer.service';
-import { excelWriterService, IRestoreOptions } from '../services/excel.writer.service';
-import { debugService } from '../services/debug.service';
+import { INotification } from '../shared/ui/NotificationDialog';
+import { ILicense, authService } from '../core/services/AuthService';
+import { createWorkbookSnapshot } from '../core/excel/excel.service';
+import { synthesizeChangesets } from '../features/comparison/services/synthesizer.service';
+import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
+import { debugService } from '../core/services/debug.service';
 
 /**
  * Interface defining the shape of our application's state.

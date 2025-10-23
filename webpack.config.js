@@ -26,7 +26,7 @@ module.exports = async (env, options) => {
       },
       commands: "./src/commands/commands.ts",
       dialog: {
-        import: ["./src/dialogs/index.tsx", "./src/dialogs/dialog.html"],
+        import: ["./src/dialog_app/index.tsx", "./src/dialog_app/dialog.html"],
         dependOn: "react",
       },
     },
@@ -96,7 +96,7 @@ module.exports = async (env, options) => {
       }),
       new HtmlWebpackPlugin({
         filename: "dialog.html",
-        template: "./src/dialogs/dialog.html",
+        template: "./src/dialog_app/dialog.html",
         chunks: ["polyfill", "react", "dialog"],
       }),
       new webpack.ProvidePlugin({
