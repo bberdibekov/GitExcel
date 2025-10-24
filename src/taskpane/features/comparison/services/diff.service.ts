@@ -15,6 +15,8 @@ import { toA1, fromA1 } from "../../../shared/lib/address.converter";
 import { generateRowHash } from "../../../shared/lib/hashing.service";
 import { ILicense } from "../../../core/services/AuthService";
 import { valueFilters, formulaFilters, IComparisonFilter } from "./comparison.filters";
+import { sheetDiffService } from "./sheet.diff.service";
+
 // A constant defining the number of changes to show to a free user on a partial result.
 const PARTIAL_RESULT_COUNT = 2;
 
@@ -61,7 +63,7 @@ function getProFilterIds(): Set<string> {
 
 
 function coalesceRowChanges(
-  sheetName: string,
+  sheetId: string, 
   rowChanges: IRowChange[],
   type: "row_insertion" | "row_deletion",
   startRowOffset: number // This is now correctly used.
@@ -70,12 +72,11 @@ function coalesceRowChanges(
   const structuralChanges: IStructuralChange[] = [];
   const sortedChanges = [...rowChanges].sort((a, b) => a.rowIndex - b.rowIndex);
   
-  // --- MODIFIED (BUGFIX) ---
   // The rowIndex for insertions is relative, so we MUST apply the offset.
   // The rowIndex for deletions is already absolute, so an offset of 0 is passed in.
   let currentBlock: IStructuralChange = {
     type,
-    sheet: sheetName,
+    sheet: sheetId, 
     index: sortedChanges[0].rowIndex + startRowOffset, // Apply offset
     count: 1,
   };
@@ -88,9 +89,8 @@ function coalesceRowChanges(
     }
     else {
       structuralChanges.push(currentBlock);
-      // --- MODIFIED (BUGFIX) ---
       // Apply offset to the start of the next block as well.
-      currentBlock = { type, sheet: sheetName, index: currentIndex + startRowOffset, count: 1 };
+      currentBlock = { type, sheet: sheetId, index: currentIndex + startRowOffset, count: 1 }; 
     }
   }
   structuralChanges.push(currentBlock);
@@ -108,7 +108,7 @@ function normalizeSheetData(data: IRowData[] | ICellData[][]): IRowData[] {
 }
 
 function compareCells(
-  sheetName: string,
+  sheetId: string,
   oldRow: IRowData,
   newRow: IRowData,
   result: IChangeset,
@@ -143,7 +143,7 @@ function compareCells(
       }
 
       result.modifiedCells.push({
-        sheet: sheetName,
+        sheet: sheetId,
         address: canonicalAddress, 
         changeType,
         oldValue: _oldCell.value,
@@ -156,7 +156,7 @@ function compareCells(
 }
 
 function diffSheetData(
-  sheetName: string,
+  sheetId: string, // <-- MODIFIED: This parameter represents the persistent sheet ID, not the name.
   oldSheet: ISheetSnapshot,
   newSheet: ISheetSnapshot,
   activeFilterIds: Set<string>
@@ -191,7 +191,7 @@ function diffSheetData(
     ) {
       for (let j = 0; j < part.count; j++) {
         compareCells(
-          sheetName,
+          sheetId,
           oldData[oldIdx],
           newData[newIdx],
           result,
@@ -205,7 +205,7 @@ function diffSheetData(
       for (let j = 0; j < part.count; j++) {
         const addedRowData = newData[newIdx];
         result.addedRows.push({
-          sheet: sheetName,
+          sheet: sheetId, 
           rowIndex: newIdx, // This remains relative for the "trueInsertions" filter logic.
           rowData: addedRowData,
         });
@@ -216,7 +216,7 @@ function diffSheetData(
 
           if (hasValue || hasFormula) {
             result.modifiedCells.push({
-              sheet: sheetName,
+              sheet: sheetId, 
               address: cell.address,
               changeType: isRealFormula(cell.formula) ? "both" : "value",
               oldValue: "",
@@ -231,7 +231,7 @@ function diffSheetData(
     } else if (part.removed) {
       for (let j = 0; j < part.count; j++) {
         result.deletedRows.push({
-          sheet: sheetName,
+          sheet: sheetId, 
           rowIndex: oldIdx + startRowOffset, // This is now an absolute worksheet index.
           rowData: oldData[oldIdx],
         });
@@ -240,7 +240,7 @@ function diffSheetData(
     } else {
       for (let j = 0; j < part.count; j++) {
         compareCells(
-          sheetName,
+          sheetId, 
           oldData[oldIdx],
           newData[newIdx],
           result,
@@ -256,41 +256,82 @@ function diffSheetData(
   const trueDeletions = result.deletedRows;
   
   // Pass startRowOffset for insertions (relative) and 0 for deletions (already absolute).
-  const insertionChanges = coalesceRowChanges(sheetName, trueInsertions, "row_insertion", startRowOffset);
-  const deletionChanges = coalesceRowChanges(sheetName, trueDeletions, "row_deletion", 0);
+  const insertionChanges = coalesceRowChanges(sheetId, trueInsertions, "row_insertion", startRowOffset); 
+  const deletionChanges = coalesceRowChanges(sheetId, trueDeletions, "row_deletion", 0); 
 
   result.structuralChanges.push(...insertionChanges, ...deletionChanges);
 
   return result;
 }
 
+// --- MODIFIED: The entire diffSnapshots function is refactored. ---
 export function diffSnapshots(
   oldSnapshot: IWorkbookSnapshot,
   newSnapshot: IWorkbookSnapshot,
   license: ILicense,
   activeFilterIds: Set<string>
 ): IChangeset {
+  // 1. Get the high-level workbook structure changes first.
+  const sheetDiffResult = sheetDiffService.diffSheets(oldSnapshot, newSnapshot);
+
+  // 2. Initialize the final changeset with these structural changes.
   const result: IChangeset = {
     modifiedCells: [],
     addedRows: [],
     deletedRows: [],
-    structuralChanges: [],
+    structuralChanges: sheetDiffResult.structuralChanges,
   };
-  const allSheetNames = new Set([
-    ...Object.keys(oldSnapshot),
-    ...Object.keys(newSnapshot),
-  ]);
-  for (const sheetName of Array.from(allSheetNames)) {
-    if (!oldSnapshot[sheetName] || !newSnapshot[sheetName]) continue;
-    
-    const oldSheet = oldSnapshot[sheetName];
-    const newSheet = newSnapshot[sheetName];
 
-    const sheetResult = diffSheetData(sheetName, oldSheet, newSheet, activeFilterIds);
-    result.modifiedCells.push(...sheetResult.modifiedCells);
-    result.addedRows.push(...sheetResult.addedRows);
-    result.deletedRows.push(...sheetResult.deletedRows);
-    result.structuralChanges.push(...sheetResult.structuralChanges);
+  // 3. --- START OF BUGFIX ---
+  // Process the content of newly ADDED sheets. This was the missing step.
+  const addedSheetChanges = sheetDiffResult.structuralChanges.filter(c => c.type === 'sheet_addition');
+
+  for (const addedSheet of addedSheetChanges) {
+    const sheetId = addedSheet.sheetId!;
+    const newSheet = newSnapshot[sheetId];
+    if (!newSheet || !newSheet.data) continue;
+
+    // Treat every row in the new sheet as an "added row".
+    newSheet.data.forEach((rowData, rowIndex) => {
+      result.addedRows.push({
+        sheet: sheetId,
+        rowIndex: rowIndex,
+        rowData: rowData,
+      });
+
+      // And treat every cell with content as a "modified cell" (from blank to new).
+      rowData.cells.forEach(cell => {
+        const hasContent = (cell.value !== "" && cell.value != null) || isRealFormula(cell.formula);
+        if (hasContent) {
+          result.modifiedCells.push({
+            sheet: sheetId,
+            address: cell.address,
+            changeType: isRealFormula(cell.formula) ? 'both' : 'value',
+            oldValue: "",
+            newValue: cell.value,
+            oldFormula: "",
+            newFormula: cell.formula,
+          });
+        }
+      });
+    });
+  }
+  // --- END OF BUGFIX ---
+
+
+  // 4. Now, perform a deep, cell-by-cell diff ONLY on sheets that existed in both versions.
+  for (const sheetId of sheetDiffResult.modifiedSheetIds) {
+    // We can safely assume the sheet exists in both snapshots because of where modifiedSheetIds comes from.
+    const oldSheet = oldSnapshot[sheetId];
+    const newSheet = newSnapshot[sheetId];
+
+    const sheetContentResult = diffSheetData(sheetId, oldSheet, newSheet, activeFilterIds);
+    
+    // 5. Merge the content changes from this sheet into our master result object.
+    result.modifiedCells.push(...sheetContentResult.modifiedCells);
+    result.addedRows.push(...sheetContentResult.addedRows);
+    result.deletedRows.push(...sheetContentResult.deletedRows);
+    result.structuralChanges.push(...sheetContentResult.structuralChanges); // Append row-level changes
   }
 
   // --- SERVICE-LAYER PAYWALL ENFORCEMENT ---

@@ -66,21 +66,28 @@ export function synthesizeChangesets(
 
   const resolvedTimeline = resolveTimeline(changesetSequence);
   
-  // --- MODIFIED (BUGFIX): Update logging to use the new data structure.
   debugService.addLogEntry(
     "Synthesizer Stage 1/2 (Timeline Resolution) Complete",
     {
       finalChangeHistoryKeys: Array.from(
         resolvedTimeline.finalChangeHistory.keys(),
       ),
-      chronologicalRowEventCount: resolvedTimeline.chronologicalRowEvents.length, // Log the count of new events
+      chronologicalRowEventCount: resolvedTimeline.chronologicalRowEvents.length,
     },
   );
-  // --- END MODIFICATION ---
 
-  const finalResult = consolidateReport(resolvedTimeline);
+  // Create a map of Sheet ID -> Final Sheet Name ---
+  // By iterating chronologically, the map will automatically contain the latest known name for every sheet ID.
+  const sheetIdToFinalNameMap = new Map<string, string>();
+  for (const version of relevantVersions) {
+    for (const sheetId in version.snapshot) {
+      sheetIdToFinalNameMap.set(sheetId, version.snapshot[sheetId].name);
+    }
+  }
+  // --- MODIFIED: Pass the new map to the consolidator ---
+  const finalResult = consolidateReport(resolvedTimeline, sheetIdToFinalNameMap);
   debugService.addLogEntry(
-    "Synthesizer Stage 3 (Report Consolidation) Complete",
+    "Synthesizer Stage 2/2 (Report Consolidation) Complete", // <-- Corrected stage number
     finalResult,
   );
 

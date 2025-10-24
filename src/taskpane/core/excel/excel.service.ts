@@ -3,15 +3,16 @@
 import { IWorkbookSnapshot, ICellData, IRowData } from "../../types/types";
 import { generateRowHash } from "../../shared/lib/hashing.service";
 import { excelFormatService } from "./excel.format.service"; 
-import { toA1 } from "../../shared/lib/address.converter"; // Ensure toA1 is imported
+import { toA1 } from "../../shared/lib/address.converter";
+import { sheetMetadataService } from "../../features/comparison/services/sheet.metadata.service";
 
 export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
   const workbookSnapshot: IWorkbookSnapshot = {};
   
   await Excel.run(async (context) => {
-    const sheets = context.workbook.worksheets;
-    sheets.load("items/name");
-    await context.sync();
+    // --- This is now the authoritative call for sheet identity ---
+    const sheetMap = await sheetMetadataService.reconcileAndGetSheetMap(context);
+    const allSheetIds = Object.keys(sheetMap);
 
     const cellPropertiesToLoad = [
       "address", 
@@ -19,23 +20,27 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
       "formulas", 
     ];
 
-    for (const sheet of sheets.items) {
-      console.log(`[excel.service] --- Starting snapshot for sheet: ${sheet.name} ---`);
+    for (const sheetId of allSheetIds) {
+      const sheetName = sheetMap[sheetId];
+      const sheet = context.workbook.worksheets.getItem(sheetName);
+      
+      // --- Load sheet position ---
+      sheet.load("position");
 
-      // MODIFIED: Load rowIndex and columnIndex to get the range's starting offset
+      console.log(`[excel.service] --- Starting snapshot for sheet: ${sheetName} (ID: ${sheetId}) ---`);
+
       const usedRange = sheet.getUsedRangeOrNullObject();
       usedRange.load("isNullObject, address, rowIndex, columnIndex");
       await context.sync();
 
       if (usedRange.isNullObject) {
-        console.warn(`[excel.service] Sheet ${sheet.name} is empty. Snapshot will be empty.`);
-        workbookSnapshot[sheet.name] = { address: null, data: [], mergedCells: [] };
+        console.warn(`[excel.service] Sheet ${sheetName} is empty. Snapshot will be empty.`);
+        workbookSnapshot[sheetId] = { name: sheetName, position: sheet.position, address: null, data: [], mergedCells: [] };
         continue;
       }
       
-      console.log(`[excel.service] Sheet: ${sheet.name}, Used Range Address: ${usedRange.address}`);
+      console.log(`[excel.service] Sheet: ${sheetName}, Used Range Address: ${usedRange.address}`);
       
-      // NEW: Store the offsets. These are the 0-based coordinates of the top-left cell.
       const startRow = usedRange.rowIndex;
       const startCol = usedRange.columnIndex;
 
@@ -79,7 +84,9 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
         sheetData.push(rowToSave);
       }
       
-      workbookSnapshot[sheet.name] = {
+      workbookSnapshot[sheetId] = {
+        name: sheetName,
+        position: sheet.position,
         address: actualRange.address,
         data: sheetData,
         mergedCells: mergedAreas.isNullObject ? [] : mergedAreas.address.split(', '),

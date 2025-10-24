@@ -26,7 +26,7 @@ export interface ICellData {
   address: string;
   value: string | number | boolean;
   formula: string | number | boolean;
-  format?: IFormat; // MODIFIED (FEAT-004)
+  format?: IFormat;
 }
 
 export interface IRowData {
@@ -35,6 +35,8 @@ export interface IRowData {
 }
 
 export interface ISheetSnapshot {
+  name: string;
+  position: number;
   address: string;
   data: IRowData[];
   rowHeights?: { [key: number]: number };
@@ -43,7 +45,7 @@ export interface ISheetSnapshot {
 }
 
 export interface IWorkbookSnapshot {
-  [sheetName: string]: ISheetSnapshot;
+  [persistentId: string]: ISheetSnapshot;
 }
 
 export type StructuralChangeType =
@@ -53,14 +55,23 @@ export type StructuralChangeType =
   | "column_deletion"
   | "sheet_rename"
   | "sheet_addition"
-  | "sheet_deletion";
+  | "sheet_deletion"
+  | "sheet_reorder";
 
 export interface IStructuralChange {
   type: StructuralChangeType;
   sheet: string;
+  
+  // Properties for row/column changes
   index?: number;
   count?: number;
+
+  // Properties for sheet changes
+  sheetId?: string;
+  oldName?: string;
   newName?: string;
+  oldPosition?: number;
+  newPosition?: number;
 }
 
 // Represents a single, atomic change event between two adjacent versions.
@@ -109,8 +120,8 @@ export interface IChangeset {
 // This type represents the FINAL, user-facing result from the synthesizer.
 export interface IDiffResult {
   modifiedCells: ICombinedChange[];
-  addedRows: IRowChange[];      // This will eventually be replaced by the consolidator.
-  deletedRows: IRowChange[];    // This will eventually be replaced by the consolidator.
+  addedRows: IRowChange[];
+  deletedRows: IRowChange[];
   structuralChanges: IStructuralChange[];
   isPartialResult?: boolean;
   hiddenChangeCount?: number;
