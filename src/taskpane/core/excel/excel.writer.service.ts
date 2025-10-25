@@ -53,13 +53,16 @@ class ExcelWriterService {
 
     // The core logic change is here: iterate over the specified list of sheets
     // instead of all sheets in the snapshot.
-    for (const sheetName of sheetsToRestore) {
-      const sheetSnapshot = workbookSnapshot[sheetName];
+    for (const sheetId of sheetsToRestore) {
+      const sheetSnapshot = workbookSnapshot[sheetId];
+      
       if (sheetSnapshot) {
-        debugService.capture(`Snapshot for ${sheetName}`, sheetSnapshot);
-        await this._restoreSheet(sheetSnapshot, sheetName, versionPrefix, options);
+        debugService.capture(`Snapshot for ${sheetSnapshot.name}`, sheetSnapshot);
+        // We now pass the correct original sheet NAME to the restore function,
+        // not the ID that was passed in.
+        await this._restoreSheet(sheetSnapshot, sheetSnapshot.name, versionPrefix, options);
       } else {
-        console.warn(`[WriterService] Sheet "${sheetName}" was requested for restore but not found in the snapshot.`);
+        console.warn(`[WriterService] Sheet with ID "${sheetId}" was requested for restore but not found in the snapshot.`);
       }
     }
 

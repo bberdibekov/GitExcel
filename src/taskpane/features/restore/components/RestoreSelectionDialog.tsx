@@ -42,6 +42,18 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = ()
   const tier = license?.tier ?? 'free';
   const availableSheets = restoreTarget ? Object.keys(restoreTarget.snapshot) : [];
 
+  // --- START OF FIX ---
+  // Create a lookup map to get the display name from the persistent sheet ID.
+  // This memo ensures the map is only recalculated when the restoreTarget changes.
+  const sheetIdToNameMap = React.useMemo(() => {
+    if (!restoreTarget) return {};
+    return Object.entries(restoreTarget.snapshot).reduce((acc, [id, sheet]) => {
+        acc[id] = sheet.name;
+        return acc;
+    }, {} as { [id: string]: string });
+  }, [restoreTarget]);
+  // --- END OF FIX ---
+
   // --- The component still uses its dedicated logic hook for its internal UI state ---
   // We feed the hook with data pulled from the central store.
   const {
@@ -80,18 +92,20 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = ()
           <Dropdown
             placeholder="Select a sheet to restore..."
             style={{ width: '100%' }}
-            value={selectedSheet || ''}
+            value={selectedSheet ? sheetIdToNameMap[selectedSheet] : ''}
             onOptionSelect={(_ev, data) => handleSheetSelect(data.optionValue as string)}
           >
-            {availableSheets.map(sheetName => (
-              <Option key={sheetName} value={sheetName}>
-                {sheetName}
+            {availableSheets.map(sheetId => (
+              // Use the ID for the key/value, but the mapped name for the display text.
+              <Option key={sheetId} value={sheetId}>
+                {sheetIdToNameMap[sheetId]}
               </Option>
             ))}
           </Dropdown>
           {selectedSheet && (
             <Text block style={{ marginTop: '10px', fontStyle: 'italic' }}>
-              This will restore the sheet named '{selectedSheet}'. All other sheets will not be affected.
+              {/* Use the map to show the correct sheet name in the confirmation text. */}
+              This will restore the sheet named '{sheetIdToNameMap[selectedSheet]}'. All other sheets will not be affected.
             </Text>
           )}
         </div>
@@ -105,12 +119,13 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = ()
             <Button size="small" onClick={handleDeselectAll}>Deselect All</Button>
           </div>
           <div className={styles.sheetListContainer}>
-            {availableSheets.map(sheetName => (
+            {availableSheets.map(sheetId => (
               <Checkbox
-                key={sheetName}
-                label={sheetName}
-                checked={selectedSheetsSet.has(sheetName)}
-                onChange={(_ev, data) => handleSheetSelect(sheetName, !!data.checked)}
+                key={sheetId}
+                // Use the mapped name for the label. The underlying logic still uses the ID.
+                label={sheetIdToNameMap[sheetId]}
+                checked={selectedSheetsSet.has(sheetId)}
+                onChange={(_ev, data) => handleSheetSelect(sheetId, !!data.checked)}
                 className={styles.sheetListItem}
               />
             ))}
