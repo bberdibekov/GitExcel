@@ -39,7 +39,6 @@ class SheetMetadataService {
         customProps.add(SHEET_ID_CUSTOM_PROPERTY_KEY, persistentId);
         console.log(`[MetadataService] New sheet detected: "${sheet.name}". Assigned and stored ID: ${persistentId}`);
       } else {
-        // This sheet already has an ID.
         persistentId = idProp.value;
       }
       

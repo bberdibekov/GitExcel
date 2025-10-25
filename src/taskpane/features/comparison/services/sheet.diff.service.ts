@@ -42,7 +42,7 @@ class SheetDiffService {
       if (!oldSheetIds.has(id)) {
         result.structuralChanges.push({
           type: "sheet_addition",
-          sheet: newSnapshot[id].name, // The new name
+          sheet: newSnapshot[id].name,
           sheetId: id,
         });
       }
