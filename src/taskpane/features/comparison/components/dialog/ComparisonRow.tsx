@@ -24,7 +24,7 @@ interface ComparisonRowProps {
 }
 
 /**
- * [REFACTORED] Renders a single, interactive row in the comparison report,
+ * Renders a single, interactive row in the comparison report,
  * meticulously structured into a multi-column layout that aligns with the report header.
  */
 const ComparisonRow: React.FC<ComparisonRowProps> = (props) => {

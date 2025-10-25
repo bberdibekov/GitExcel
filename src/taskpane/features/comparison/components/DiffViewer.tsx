@@ -65,7 +65,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
       
       {totalChanges === 0 ? <p>No differences found.</p> :
         <div>
-          {/* --- REFACTORED: Unified section for all structural changes --- */}
           {summary.highLevelChanges.length > 0 && (
             <>
               <h5>Structural Changes ({summary.highLevelChanges.length})</h5>

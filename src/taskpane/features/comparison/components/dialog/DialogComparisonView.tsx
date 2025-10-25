@@ -106,11 +106,6 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = ({ result, lic
       />
       
       <div style={{ overflowY: 'auto', flex: 1 }}>
-        {/* 
-          [CRITICAL FIX] 
-          We must render our new ComparisonReport component here.
-          The previous code was likely still rendering the old <DiffViewer />.
-        */}
         <ComparisonReport
           summary={filteredSummary}
           selectedChanges={selectedChanges}

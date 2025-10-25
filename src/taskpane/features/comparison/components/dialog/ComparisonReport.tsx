@@ -13,7 +13,7 @@ interface ComparisonReportProps {
 }
 
 /**
- * [REFACTORED] Renders the entire diff report, including a static header
+ * Renders the entire diff report, including a static header
  * and the list of modified/added/deleted items. It acts as a list manager,
  * delegating the rendering of each individual change to the ComparisonRow component.
  */
@@ -25,7 +25,7 @@ const ComparisonReport: React.FC<ComparisonReportProps> = (props) => {
     return <p style={{ padding: '0 16px' }}>Loading comparison...</p>;
   }
 
-  // --- MODIFIED (BUGFIX): Calculate total changes based on the new authoritative sources.
+  // ---  Calculate total changes based on the new authoritative sources.
   const totalChanges =
     summary.modifiedCells.length +
     summary.highLevelChanges.length;
@@ -67,7 +67,6 @@ const ComparisonReport: React.FC<ComparisonReportProps> = (props) => {
         </section>
       )}
 
-      {/* --- REFACTORED: Single section for all high-level structural changes --- */}
       {summary.highLevelChanges.length > 0 && (
         <section style={{ marginTop: "16px" }}>
           <h5>Structural Changes ({summary.highLevelChanges.length})</h5>

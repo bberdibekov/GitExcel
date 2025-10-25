@@ -83,7 +83,6 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         Mock Auth Control
       </p>
       <p className={styles.textSubtle} style={{ marginTop: '4px' }}>
-        {/* FIX #2: Use the corrected variable name here */}
         Current Tier: <strong>{isLicenseLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
       </p>
       <div className={styles.buttonGroup} style={{ marginTop: '8px' }}>
