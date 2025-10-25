@@ -1,5 +1,11 @@
 // src/taskpane/types/types.ts
 
+export type SheetId = string & { readonly __brand: 'SheetId' };
+export type SheetName = string;
+
+export interface IInteractionChange extends Omit<IChange, 'sheet'> {
+  sheet: SheetName;
+}
 /** Represents the formatting of a single cell. */
 export interface IFormat {
   font?: {
@@ -35,7 +41,7 @@ export interface IRowData {
 }
 
 export interface ISheetSnapshot {
-  name: string;
+  name: SheetName;
   position: number;
   address: string;
   data: IRowData[];
@@ -60,23 +66,23 @@ export type StructuralChangeType =
 
 export interface IStructuralChange {
   type: StructuralChangeType;
-  sheet: string;
+  sheet: SheetId;
   
   // Properties for row/column changes
   index?: number;
   count?: number;
 
   // Properties for sheet changes
-  sheetId?: string;
-  oldName?: string;
-  newName?: string;
+  sheetId?: SheetId;
+  oldName?: SheetName;
+  newName?: SheetName;
   oldPosition?: number;
   newPosition?: number;
 }
 
 // Represents a single, atomic change event between two adjacent versions.
 export interface IChange {
-  sheet: string;
+  sheet: SheetId;
   address: string;
   changeType: 'value' | 'formula' | 'both';
   oldValue: string | number | boolean;
@@ -87,7 +93,7 @@ export interface IChange {
 
 // Represents the consolidated, final report for a modified cell.
 export interface ICombinedChange {
-  sheet: string;
+  sheet: SheetName;
   address: string;
   startValue: string | number | boolean;
   endValue: string | number | boolean;
@@ -101,7 +107,7 @@ export interface ICombinedChange {
 }
 
 export interface IRowChange {
-  sheet: string;
+  sheet: SheetId;
   rowIndex: number;
   rowData: IRowData;
   containedChanges?: IChange[];
@@ -120,9 +126,9 @@ export interface IChangeset {
 // This type represents the FINAL, user-facing result from the synthesizer.
 export interface IDiffResult {
   modifiedCells: ICombinedChange[];
-  addedRows: IRowChange[];
-  deletedRows: IRowChange[];
-  structuralChanges: IStructuralChange[];
+  addedRows: IReportRowChange[];
+  deletedRows: IReportRowChange[];
+  structuralChanges: IReportStructuralChange[];
   isPartialResult?: boolean;
   hiddenChangeCount?: number;
 }
@@ -147,10 +153,10 @@ export interface IVersionViewModel extends IVersion {
 
 export interface IHighLevelChange {
   type: 'structural' | 'column_insertion' | 'column_deletion';
-  sheet: string;
+  sheet: SheetName;
   description: string;
   involvedCells: IChange[];
-  involvedRows?: IRowChange[];
+  involvedRows?: IReportRowChange[];
 }
 
 export interface ISummaryResult {
@@ -158,15 +164,25 @@ export interface ISummaryResult {
   modifiedCells: ICombinedChange[];
 }
 
-// +++ NEW (REFACTOR): Represents a single, chronological row event.
+// Represents a single, chronological row event.
 export interface IRowEvent {
   type: 'add' | 'delete';
   data: IRowChange;
 }
 
-// --- MODIFIED (REFACTOR): The timeline now produces a simple chronological ledger.
+// --- The timeline now produces a simple chronological ledger.
 export interface IResolvedTimeline {
   finalChangeHistory: Map<string, IChange[]>;
   chronologicalRowEvents: IRowEvent[]; // Replaces netAddedRows and netDeletedRows
   chronologicalStructuralChanges: IStructuralChange[];
+}
+
+export interface IReportRowChange extends Omit<IRowChange, 'sheet'> {
+    sheet: SheetName;
+}
+
+export interface IReportStructuralChange extends Omit<IStructuralChange, 'sheet' | 'oldName' | 'newName'> {
+    sheet: SheetName;
+    oldName?: SheetName;
+    newName?: SheetName;
 }

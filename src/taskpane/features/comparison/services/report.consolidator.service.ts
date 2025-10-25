@@ -1,6 +1,15 @@
 // src/taskpane/services/report.consolidator.service.ts
 
-import { IChange, IDiffResult, IResolvedTimeline, ICombinedChange, IRowChange, ICellData, IStructuralChange } from "../../../types/types";
+import { 
+    IChange, 
+    IDiffResult, 
+    IResolvedTimeline, 
+    ICombinedChange, 
+    IReportRowChange,
+    IReportStructuralChange,
+    SheetId,
+    SheetName,
+} from "../../../types/types";
 import { fromA1, toA1 } from "../../../shared/lib/address.converter";
 
 
@@ -13,7 +22,7 @@ import { fromA1, toA1 } from "../../../shared/lib/address.converter";
  */
 export function consolidateReport(
     timeline: IResolvedTimeline, 
-    sheetIdToFinalNameMap: Map<string, string>
+    sheetIdToFinalNameMap: Map<SheetId, SheetName>
 ): IDiffResult {
     const finalModifiedCells: ICombinedChange[] = [];
 
@@ -28,8 +37,8 @@ export function consolidateReport(
         if (filteredHistory.length === 0) return;
 
         const coords = fromA1(finalAddressKey)!;
-        const sheetId = coords.sheet!;
-        const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId; // Translate ID to Name
+        const sheetId = coords.sheet! as SheetId; // This is the internal ID
+        const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId; // This is the user-facing Name
 
         const firstEvent = filteredHistory[0];
         const lastEvent = filteredHistory[filteredHistory.length - 1];
@@ -57,7 +66,7 @@ export function consolidateReport(
         }
 
         finalModifiedCells.push({
-            sheet: finalSheetName, // <-- MODIFIED: Use the translated name
+            sheet: finalSheetName,
             address: toA1(coords.row, coords.col),
             startValue,
             startFormula,
@@ -69,17 +78,16 @@ export function consolidateReport(
         });
     });
 
-    const finalAddedRows: IRowChange[] = [];
-    const finalDeletedRows: IRowChange[] = [];
+    const finalAddedRows: IReportRowChange[] = [];
+    const finalDeletedRows: IReportRowChange[] = [];
 
     for (const event of timeline.chronologicalRowEvents) {
         const sheetId = event.data.sheet;
-        const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId; // Translate ID to Name
+        const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId;
         
-        // Create a new IRowChange object with the translated name for the final report
-        const finalRowChange: IRowChange = {
+        const finalRowChange: IReportRowChange = {
             ...event.data,
-            sheet: finalSheetName, // <-- MODIFIED: Use the translated name
+            sheet: finalSheetName, // translate the sheet property to a SheetName
         };
         
         if (event.type === 'add') {
@@ -89,23 +97,22 @@ export function consolidateReport(
         }
     }
 
-    // --- NEW: Translate sheet IDs in structural changes (for row/col insertions/deletions) ---
-    const finalStructuralChanges: IStructuralChange[] = timeline.chronologicalStructuralChanges.map(change => {
-        // Sheet add/delete/rename events already use the name, so we only need to translate the others.
-        if (change.type === 'row_insertion' || change.type === 'row_deletion' || change.type === 'column_insertion' || change.type === 'column_deletion') {
-            const sheetId = change.sheet;
-            const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId;
-            return { ...change, sheet: finalSheetName };
-        }
-        return change;
+    const finalStructuralChanges: IReportStructuralChange[] = timeline.chronologicalStructuralChanges.map(change => {
+        const sheetId = change.sheet;
+        const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId;
+        return { 
+            ...change, 
+            sheet: finalSheetName,
+            oldName: change.oldName,
+            newName: change.newName,
+        } as IReportStructuralChange;
     });
-    // --- END NEW ---
 
     return {
       modifiedCells: finalModifiedCells,
       addedRows: finalAddedRows,
       deletedRows: finalDeletedRows,
-      structuralChanges: finalStructuralChanges, // <-- MODIFIED: Use the translated changes
+      structuralChanges: finalStructuralChanges,
     };
 }
 

@@ -9,6 +9,8 @@ import {
   IRowData,
   IStructuralChange,
   ISheetSnapshot,
+  SheetId, 
+  SheetName
 } from "../../../types/types";
 import { fromA1 } from "../../../shared/lib/address.converter";
 import { generateRowHash } from "../../../shared/lib/hashing.service";
@@ -43,7 +45,7 @@ function normalizeSheetData(data: IRowData[] | ICellData[][]): IRowData[] {
 }
 
 function compareCells(
-  sheetId: string,
+  sheetId: SheetId,
   oldRow: IRowData,
   newRow: IRowData,
   result: IChangeset,
@@ -84,7 +86,7 @@ function compareCells(
 }
 
 function coalesceRowChanges(
-  sheetId: string,
+  sheetId: SheetId,
   rowChanges: IRowChange[],
   type: "row_insertion" | "row_deletion",
   startRowOffset: number
@@ -113,7 +115,7 @@ function coalesceRowChanges(
 }
 
 export function diffSheetContent(
-  sheetId: string,
+  sheetId: SheetId,
   oldSheet: ISheetSnapshot,
   newSheet: ISheetSnapshot,
   activeFilterIds: Set<string>
@@ -144,7 +146,6 @@ export function diffSheetContent(
         const addedRowData = newData[newIdx];
         result.addedRows.push({ sheet: sheetId, rowIndex: newIdx, rowData: addedRowData });
 
-        // --- START OF FIX ---
         // The original "fix" that removed this logic was incorrect. It prevented the
         // timeline resolver from ever learning about the *creation* of cells.
         // For the resolver to build a complete history, it MUST receive a
@@ -163,7 +164,6 @@ export function diffSheetContent(
             });
           }
         });
-        // --- END OF FIX ---
 
         newIdx++;
       }

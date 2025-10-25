@@ -42,7 +42,6 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = ()
   const tier = license?.tier ?? 'free';
   const availableSheets = restoreTarget ? Object.keys(restoreTarget.snapshot) : [];
 
-  // --- START OF FIX ---
   // Create a lookup map to get the display name from the persistent sheet ID.
   // This memo ensures the map is only recalculated when the restoreTarget changes.
   const sheetIdToNameMap = React.useMemo(() => {
@@ -52,9 +51,8 @@ export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = ()
         return acc;
     }, {} as { [id: string]: string });
   }, [restoreTarget]);
-  // --- END OF FIX ---
 
-  // --- The component still uses its dedicated logic hook for its internal UI state ---
+  // --- The component uses its dedicated logic hook for its internal UI state ---
   // We feed the hook with data pulled from the central store.
   const {
     isSingleSelectMode,

@@ -15,7 +15,7 @@ import { debugService } from "../../../core/services/debug.service";
  */
 export function resolveTimeline(
   changesetSequence: IChangeset[],
-  sheetIdToNameMap: Map<string, string> // <-- MODIFIED: Accept the name map
+  sheetIdToNameMap: Map<string, string> // Accept the name map
 ): IResolvedTimeline {
   let cellHistoryTracker = new Map<string, IChange[]>();
   const chronologicalRowEvents: IRowEvent[] = [];
@@ -24,7 +24,7 @@ export function resolveTimeline(
   for (let i = 0; i < changesetSequence.length; i++) {
     const changeset = changesetSequence[i];
 
-    // --- MODIFIED (LOGGING): Prepare a log-friendly version of the changeset ---
+    // --- Prepare a log-friendly version of the changeset ---
     const loggableChangeset = {
       modifiedCells: changeset.modifiedCells.map(c => {
         const sheetName = sheetIdToNameMap.get(c.sheet) || c.sheet;
@@ -41,7 +41,6 @@ export function resolveTimeline(
     debugService.addLogEntry(`Timeline Resolver: Processing Changeset ${i + 1}/${changesetSequence.length}`, {
       changeset: loggableChangeset,
     });
-    // --- END MODIFICATION ---
     
     // STEP 1: TERMINATE HISTORY.
     changeset.deletedRows.forEach(deletedRow => {
@@ -66,14 +65,13 @@ export function resolveTimeline(
     if (changeset.structuralChanges.length > 0) {
       chronologicalStructuralChanges.push(...changeset.structuralChanges);
 
-      // --- MODIFIED (LOGGING): Translate tracker keys for debug capture ---
+      // --- Translate tracker keys for debug capture ---
       const translatedBeforeEntries = Array.from(cellHistoryTracker.entries()).map(([key, value]) => {
           const [sheetId, cell] = key.split('!');
           const sheetName = sheetIdToNameMap.get(sheetId) || sheetId;
           return [`${sheetName}!${cell}`, value];
       });
       debugService.capture(`CellTracker_Before_Transform (Changeset ${i + 1})`, translatedBeforeEntries);
-      // --- END MODIFICATION ---
 
       const newCellHistoryTracker = new Map<string, IChange[]>();
       

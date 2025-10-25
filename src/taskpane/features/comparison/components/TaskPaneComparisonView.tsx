@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
-import { IChange, IDiffResult, ISummaryResult, ICombinedChange } from "../../../types/types";
+import { IChange, IDiffResult, ISummaryResult, ICombinedChange, IInteractionChange } from "../../../types/types";
 import { Button, Spinner } from "@fluentui/react-components";
 import { 
   showChangesOnSheet, 
@@ -21,7 +21,7 @@ import { crossWindowMessageBus } from "../../../core/dialog/CrossWindowMessageBu
 import { MessageType } from "../../../types/messaging.types";
 import { useAppStore } from "../../../state/appStore";
 
-function toSimpleChange(combinedChange: ICombinedChange): IChange {
+function toSimpleChange(combinedChange: ICombinedChange): IInteractionChange {
   return {
     sheet: combinedChange.sheet,
     address: combinedChange.address,

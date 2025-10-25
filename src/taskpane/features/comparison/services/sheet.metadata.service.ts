@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { SheetId, SheetName } from '../../../types/types';
 
 // This is now the key for the custom property stored ON the worksheet itself.
 const SHEET_ID_CUSTOM_PROPERTY_KEY = 'VersionControl.PersistentSheetId';
@@ -8,7 +9,7 @@ const SHEET_ID_CUSTOM_PROPERTY_KEY = 'VersionControl.PersistentSheetId';
  * e.g., { "abc-123-def-456": "Sales Data" }
  */
 export type SheetIdToNameMap = {
-  [persistentId: string]: string;
+  [persistentId: string]: SheetName;
 };
 
 class SheetMetadataService {
@@ -31,15 +32,15 @@ class SheetMetadataService {
       idProp.load("value, isNullObject");
       await context.sync();
       
-      let persistentId: string;
+      let persistentId: SheetId;
 
       if (idProp.isNullObject) {
         // This is a new sheet without an ID. Assign one and persist it.
-        persistentId = uuidv4();
+        persistentId = uuidv4() as SheetId;
         customProps.add(SHEET_ID_CUSTOM_PROPERTY_KEY, persistentId);
         console.log(`[MetadataService] New sheet detected: "${sheet.name}". Assigned and stored ID: ${persistentId}`);
       } else {
-        persistentId = idProp.value;
+        persistentId = idProp.value as SheetId;
       }
       
       sheetIdToNameMap[persistentId] = sheet.name;

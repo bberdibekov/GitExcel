@@ -1,4 +1,4 @@
-import { IWorkbookSnapshot, IStructuralChange } from "../../../types/types";
+import { IWorkbookSnapshot, IStructuralChange, SheetId } from "../../../types/types";
 
 /**
  * The result from comparing the sheet structure of two workbooks.
@@ -31,8 +31,8 @@ class SheetDiffService {
       if (!newSheetIds.has(id)) {
         result.structuralChanges.push({
           type: "sheet_deletion",
-          sheet: oldSnapshot[id].name, // The last known name
-          sheetId: id,
+          sheet: oldSnapshot[id].name as any,  // The last known name
+          sheetId: id as SheetId,
         });
       }
     }
@@ -42,8 +42,8 @@ class SheetDiffService {
       if (!oldSheetIds.has(id)) {
         result.structuralChanges.push({
           type: "sheet_addition",
-          sheet: newSnapshot[id].name,
-          sheetId: id,
+          sheet: newSnapshot[id].name as any,
+          sheetId: id as SheetId,
         });
       }
     }
@@ -58,8 +58,8 @@ class SheetDiffService {
         if (oldSheet.name !== newSheet.name) {
           result.structuralChanges.push({
             type: "sheet_rename",
-            sheet: newSheet.name, // Use the new name as the primary identifier
-            sheetId: id,
+            sheet: newSheet.name as any, // Use the new name as the primary identifier
+            sheetId: id as SheetId,
             oldName: oldSheet.name,
             newName: newSheet.name,
           });

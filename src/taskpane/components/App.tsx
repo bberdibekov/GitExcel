@@ -18,7 +18,7 @@ const FREE_TIER_VERSION_LIMIT = 3;
 
 /**
  * The root component of the task pane application.
- * After refactoring to Zustand, this component's primary responsibilities are:
+ * this component's primary responsibilities are:
  * 1. To orchestrate the overall layout of the application.
  * 2. To trigger initial data loading (like fetching the license).
  * 3. To read state from the central store for rendering major UI elements.

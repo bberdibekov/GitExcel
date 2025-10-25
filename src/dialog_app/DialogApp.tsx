@@ -20,7 +20,7 @@ interface IAppState {
 const renderView = (view: string, data: IDiffResult, licenseTier: 'free' | 'pro') => {
   switch (view) {
     case "diff-viewer":
-      // [MODIFIED] Pass the licenseTier prop to the component.
+      // pass the licenseTier prop to the component.
       return <DialogComparisonView result={data} licenseTier={licenseTier} />;
     default:
       return <p>Error: Unknown view '{view}' requested.</p>;

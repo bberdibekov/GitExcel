@@ -56,7 +56,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
     );
   };
 
-  // --- MODIFIED (BUGFIX): Calculate total based on the new authoritative structure.
+  // --- Calculate total based on the new authoritative structure.
   const totalChanges = summary.highLevelChanges.length + summary.modifiedCells.length;
 
   return (

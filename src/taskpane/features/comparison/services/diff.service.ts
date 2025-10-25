@@ -1,6 +1,6 @@
 // src/taskpane/features/comparison/services/diff.service.ts
 
-import { IChangeset, IWorkbookSnapshot } from "../../../types/types";
+import { IChangeset, IWorkbookSnapshot, SheetId} from "../../../types/types";
 import { ILicense } from "../../../core/services/AuthService";
 import { sheetDiffService } from "./sheet.diff.service";
 import { diffSheetContent } from "./sheet-content-diff.service";
@@ -58,7 +58,8 @@ export function diffSnapshots(
   }
 
   // 4. Perform a deep, cell-by-cell diff on sheets that existed in both versions.
-  for (const sheetId of sheetDiffResult.modifiedSheetIds) {
+  for (const sheetIdStr of sheetDiffService.diffSheets(oldSnapshot, newSnapshot).modifiedSheetIds) {
+    const sheetId = sheetIdStr as SheetId;
     const oldSheet = oldSnapshot[sheetId];
     const newSheet = newSnapshot[sheetId];
     

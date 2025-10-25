@@ -1,5 +1,5 @@
 // src/taskpane/services/synthesizer.service.ts
-import { IDiffResult, IVersion, IChangeset } from "../../../types/types";
+import { IDiffResult, IVersion, IChangeset, SheetId, SheetName } from "../../../types/types";
 import { debugService } from "../../../core/services/debug.service";
 import { resolveTimeline } from "./timeline.resolver.service";
 import { consolidateReport } from "./report.consolidator.service";
@@ -43,11 +43,11 @@ export function synthesizeChangesets(
     return { modifiedCells: [], addedRows: [], deletedRows: [], structuralChanges: [] };
   }
   
-  // --- MODIFIED: Create the name map BEFORE calling the resolver ---
-  const sheetIdToFinalNameMap = new Map<string, string>();
+  // --- Create the name map BEFORE calling the resolver ---
+  const sheetIdToFinalNameMap = new Map<SheetId, SheetName>();
   for (const version of relevantVersions) {
     for (const sheetId in version.snapshot) {
-      sheetIdToFinalNameMap.set(sheetId, version.snapshot[sheetId].name);
+      sheetIdToFinalNameMap.set(sheetId as SheetId, version.snapshot[sheetId].name);
     }
   }
 
@@ -55,13 +55,13 @@ export function synthesizeChangesets(
   const isPartial = lastChangeset.isPartialResult;
   const hiddenCount = lastChangeset.hiddenChangeCount;
 
-  // --- MODIFIED: Pass the name map into the resolver for better logging ---
+  // --- Pass the name map into the resolver for better logging ---
   const resolvedTimeline = resolveTimeline(changesetSequence, sheetIdToFinalNameMap);
   
-  // --- MODIFIED: Translate the keys for this log entry ---
+  // --- Translate the keys for this log entry ---
   const translatedKeys = Array.from(resolvedTimeline.finalChangeHistory.keys()).map(key => {
     const [sheetId, cell] = key.split('!');
-    const sheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId;
+    const sheetName = sheetIdToFinalNameMap.get(sheetId as SheetId) || sheetId;
     return `${sheetName}!${cell}`;
   });
 
