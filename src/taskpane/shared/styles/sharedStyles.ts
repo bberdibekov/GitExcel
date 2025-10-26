@@ -238,4 +238,52 @@ export const useSharedStyles = makeStyles({
     transition: `transform 0.2s ${tokens.curveEasyEase}`,
     color: tokens.colorNeutralForeground3,
   },
+
+  // --- [NEW] CHANGE DETAIL VIEWER STYLES ---
+  historyStep: {
+    ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke2),
+    ...shorthands.padding(tokens.spacingVerticalS, '0'),
+    ...shorthands.margin(tokens.spacingVerticalS, '0'),
+    ':first-child': {
+      borderTop: 'none',
+      marginTop: 0,
+      paddingTop: 0,
+    },
+  },
+  historyStepTitle: {
+    display: 'block',
+    marginBottom: tokens.spacingVerticalS,
+  },
+  transactionBlock: {
+    ...shorthands.padding(tokens.spacingVerticalNone, tokens.spacingHorizontalM),
+    ...shorthands.borderLeft('3px', 'solid', tokens.colorNeutralStroke2), // Default color
+    marginTop: tokens.spacingVerticalXS,
+  },
+  transactionBlock_added: {
+    borderLeftColor: tokens.colorPaletteGreenBorderActive,
+  },
+  transactionBlock_deleted: {
+    borderLeftColor: tokens.colorPaletteRedBorderActive,
+  },
+  transactionBlock_modified: {
+    borderLeftColor: tokens.colorNeutralStroke2,
+  },
+  transactionLine: {
+    ...shorthands.margin('0'),
+    ...shorthands.padding(tokens.spacingVerticalXS, tokens.spacingHorizontalS),
+    marginBottom: tokens.spacingVerticalXS,
+    ':last-child': {
+      marginBottom: 0,
+    },
+  },
+  diffSymbol: {
+    fontWeight: tokens.fontWeightSemibold,
+    marginRight: tokens.spacingHorizontalS,
+  },
+  diffSymbol_added: {
+    color: tokens.colorPaletteGreenForeground1,
+  },
+  diffSymbol_deleted: {
+    color: tokens.colorPaletteRedForeground1,
+  },
 });

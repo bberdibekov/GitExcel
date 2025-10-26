@@ -116,7 +116,8 @@ const ComparisonRow: React.FC<ComparisonRowProps> = (props) => {
             </div>
 
             {/* The expanded detail view appears below the row when active */}
-            {isExpanded && <ChangeDetailViewer change={change.history[change.history.length - 1]} />}
+            {/* CORRECT: Pass the entire 'change' object, which contains the full history. */}
+            {isExpanded && <ChangeDetailViewer change={change} />}
         </li>
     );
 };

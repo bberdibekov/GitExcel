@@ -1,4 +1,4 @@
-// src/taskpane/components/dialogs/DialogComparisonView.tsx
+// src/taskpane/features/comparison/components/dialog/DialogComparisonView.tsx
 
 import * as React from "react";
 import { useState, useMemo, useEffect } from "react";
@@ -90,6 +90,9 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = ({ result, lic
     return <Spinner label="Loading comparison data..." />;
   }
       
+  // --- ADDED FOR DIAGNOSTICS ---
+  // Log the exact data being passed to the report component. This will let us inspect
+  // the 'history' array for any problematic cells like A4.
   console.log("[DialogComparisonView] Data being passed to ComparisonReport:", JSON.stringify(filteredSummary, null, 2));
 
   
