@@ -43,8 +43,6 @@ export function useComparisonDialog() {
     }
     loggingService.log("[useComparisonDialog] openComparisonInDialog called.");
     
-    // --- THIS IS THE FIX ---
-    // The function from the store was aliased to 'openDialog'. We must call that alias.
     openDialog("diff-viewer", {
       diffResult: result,
       licenseTier: license?.tier ?? "free",

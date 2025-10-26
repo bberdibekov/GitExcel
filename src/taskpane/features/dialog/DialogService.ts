@@ -4,7 +4,7 @@
 import { crossWindowMessageBus } from '../../core/dialog/CrossWindowMessageBus';
 // Logging is essential for debugging this interaction
 import { loggingService } from "../../core/services/LoggingService";
-// --- MODIFIED: We now import the dedicated dialog store ---
+// We now import the dedicated dialog store ---
 import { useDialogStore } from '../../state/dialogStore';
 
 /**

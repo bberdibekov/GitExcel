@@ -21,7 +21,6 @@ import LockOverlay from '../../../shared/paywall/LockOverlay';
 import { crossWindowMessageBus } from "../../../core/dialog/CrossWindowMessageBus";
 import { MessageType } from "../../../types/messaging.types";
 import { useAppStore } from "../../../state/appStore";
-// --- NEW: Import the dialog store to read the global state ---
 import { useDialogStore } from "../../../state/dialogStore";
 
 

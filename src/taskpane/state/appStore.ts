@@ -8,8 +8,6 @@ import { createWorkbookSnapshot } from '../core/excel/excel.service';
 import { synthesizeChangesets } from '../features/comparison/services/synthesizer.service';
 import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
 import { debugService } from '../core/services/debug.service';
-
-// --- NEW: Import the dedicated dialog store to check its state when needed. ---
 import { useDialogStore } from './dialogStore';
 
 /**
@@ -17,18 +15,14 @@ import { useDialogStore } from './dialogStore';
  * This no longer includes any dialog-related properties.
  */
 export interface IAppState {
-  // From useVersions
   versions: IVersion[];
-  // From useComparison
   selectedVersions: number[];
   diffResult: IDiffResult | null;
   lastComparedIndices: { start: number; end: number } | null;
-  // From useAppActions
   isRestoring: boolean;
   activeFilters: Set<string>;
   notification: INotification | null;
   restoreTarget: IVersion | null;
-  // From UserContext
   license: ILicense | null;
   isLicenseLoading: boolean;
 }
@@ -135,7 +129,7 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
   },
 
   runComparison: (startIndex, endIndex) => {
-    // --- MODIFIED: Reads state from the dedicated dialogStore to decide its behavior ---
+    // Reads state from the dedicated dialogStore to decide its behavior ---
     const isDialogOpen = useDialogStore.getState().activeDialog !== null;
     const { versions, selectedVersions, license, activeFilters } = get();
     let finalStartIndex = startIndex;
@@ -156,7 +150,6 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
       const result = synthesizeChangesets(startVersion, endVersion, versions, license, activeFilters);
       debugService.addLogEntry(`Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`, result);
 
-      // --- MODIFIED LOGIC ---
       if (isDialogOpen) {
         // If a dialog is open, we tell the dialogStore to push an update to it.
         // The appStore itself does not change its own `diffResult`.
@@ -192,7 +185,6 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     }
     set({ activeFilters: newFilters });
 
-    // This logic now works perfectly whether the result is in the task pane or a dialog.
     const lastComparedIndices = get().lastComparedIndices;
     if (lastComparedIndices) {
       get().runComparison(lastComparedIndices.start, lastComparedIndices.end);

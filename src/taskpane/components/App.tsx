@@ -90,7 +90,7 @@ const App = () => {
 
       <h2>Version Control</h2>
       
-      {/* --- MODIFIED: Pass disabled prop based on dialog state --- */}
+      {/* Pass disabled prop based on dialog state --- */}
       {/* This prevents saving a new version while a comparison dialog is open. */}
       <SaveVersionForm disabled={isDialogOpen || isRestoring} />
 
@@ -98,7 +98,7 @@ const App = () => {
       
       <Button 
         appearance="primary" 
-        // --- MODIFIED: Add 'isDialogOpen' to the disabled condition ---
+        // Add 'isDialogOpen' to the disabled condition ---
         disabled={selectedVersions.length !== 2 || isLicenseLoading || isRestoring || isDialogOpen} 
         onClick={() => runComparison()}
         style={{ marginBottom: "10px" }}
@@ -106,7 +106,7 @@ const App = () => {
         {isLicenseLoading ? "Loading..." : isRestoring ? "Restoring..." : `Compare Selected (${selectedVersions.length}/2)`}
       </Button>
 
-      {/* --- MODIFIED: Pass disabled prop to VersionHistory --- */}
+      {/* Pass disabled prop to VersionHistory --- */}
       {/* This prevents selecting/deselecting versions while the dialog is open. */}
       <VersionHistory versions={versionsForView} disabled={isDialogOpen || isRestoring} />
       

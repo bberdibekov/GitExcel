@@ -8,7 +8,6 @@ import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import FeatureBadge from "../../../shared/paywall/FeatureBadge";
 import { useAppStore } from "../../../state/appStore";
 
-// --- FIX: Update the props interface to accept the 'disabled' prop ---
 interface VersionHistoryProps {
   versions: IVersionViewModel[];
   disabled?: boolean;
@@ -32,7 +31,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
   const reversedVersions = [...versions].reverse();
 
   const renderRestoreButton = (version: IVersionViewModel) => {
-    // --- FIX: Add the incoming 'disabled' prop to the condition ---
     const isDisabled = isRestoring || !version.isRestorable || disabled;
 
     const button = (
@@ -69,7 +67,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
               <Checkbox
                 checked={selectedVersions.includes(version.id)}
                 onChange={() => selectVersion(version.id)}
-                // --- FIX: Apply the incoming 'disabled' prop ---
                 disabled={isRestoring || disabled}
               />
               <div style={{ marginLeft: "10px" }}>
@@ -88,7 +85,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
                     appearance="subtle" 
                     icon={<BranchCompare20Filled />}
                     onClick={() => compareWithPrevious(version.id)}
-                    // --- FIX: Apply the incoming 'disabled' prop ---
                     disabled={isRestoring || disabled}
                   />
                 </Tooltip>
