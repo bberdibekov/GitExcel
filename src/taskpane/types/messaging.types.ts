@@ -14,9 +14,10 @@ export enum MessageType {
 
   // Dialog Lifecycle & Handshake Events
   DIALOG_INITIALIZED = "DIALOG_INITIALIZED",
-  DIALOG_CLOSED = "DIALOG_CLOSED",
+  // DIALOG_CLOSED = "DIALOG_CLOSED", // --- REMOVED ---
   DIALOG_READY_FOR_DATA = "DIALOG_READY_FOR_DATA",
   INITIALIZE_DATA = "INITIALIZE_DATA",
+  UPDATE_DATA = "UPDATE_DATA", 
 
   RUN_COMPARISON_WITH_FILTERS = "RUN_COMPARISON_WITH_FILTERS",
 }
@@ -38,6 +39,8 @@ export interface InitializeDataPayload {
   licenseTier: 'free' | 'pro';
 }
 
+export type UpdateDataPayload = InitializeDataPayload;
+
 export interface RunComparisonWithFiltersPayload {
     filterIds: string[];
 }
@@ -57,15 +60,17 @@ export type BusMessage =
   | {
       type: MessageType.DIALOG_INITIALIZED;
     }
-  | {
-      type: MessageType.DIALOG_CLOSED;
-    }
+  // --- REMOVED { type: MessageType.DIALOG_CLOSED } ---
   | {
       type: MessageType.DIALOG_READY_FOR_DATA;
     }
   | {
       type: MessageType.INITIALIZE_DATA;
       payload: InitializeDataPayload;
+    }
+  | {
+      type: MessageType.UPDATE_DATA;
+      payload: UpdateDataPayload;
     }
   | {
       type: MessageType.RUN_COMPARISON_WITH_FILTERS;

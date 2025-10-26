@@ -1,16 +1,21 @@
-// NEW src/taskpane/components/SaveVersionForm.tsx
+// src/taskpane/features/restore/components/SaveVersionForm.tsx
 import * as React from "react";
 import { useState } from "react";
 import { Button, Input } from "@fluentui/react-components";
 import { useAppStore } from "../../../state/appStore";
 
-const SaveVersionForm: React.FC = () => {
+// --- FIX: Define the props interface to accept the 'disabled' prop ---
+interface SaveVersionFormProps {
+  disabled?: boolean;
+}
+
+const SaveVersionForm: React.FC<SaveVersionFormProps> = ({ disabled }) => {
   const [comment, setComment] = useState("");
   // Get state and actions directly from the store
   const { addVersion, isRestoring } = useAppStore();
 
   const handleSave = () => {
-    addVersion(comment); // Call the action from the store
+    addVersion(comment);
     setComment("");
   };
 
@@ -21,9 +26,15 @@ const SaveVersionForm: React.FC = () => {
         value={comment}
         onChange={(_e, data) => setComment(data.value)}
         style={{ width: "100%", marginBottom: "5px" }}
-        disabled={isRestoring} // Use state from the store
+        // --- FIX: Apply the incoming 'disabled' prop ---
+        disabled={isRestoring || disabled}
       />
-      <Button appearance="primary" onClick={handleSave} disabled={isRestoring}>
+      <Button 
+        appearance="primary" 
+        onClick={handleSave} 
+        // --- FIX: Apply the incoming 'disabled' prop ---
+        disabled={isRestoring || disabled}
+      >
         Save New Version
       </Button>
     </div>

@@ -1,8 +1,11 @@
-// src/taskpane/services/dialog/DialogService.ts
+// src/taskpane/core/dialog/DialogService.ts
 
+// The message bus is still the primary communication channel
 import { crossWindowMessageBus } from '../../core/dialog/CrossWindowMessageBus';
-import { MessageType } from "../../types/messaging.types";
+// Logging is essential for debugging this interaction
 import { loggingService } from "../../core/services/LoggingService";
+// --- MODIFIED: We now import the dedicated dialog store ---
+import { useDialogStore } from '../../state/dialogStore';
 
 /**
  * Represents the configuration options for opening a new dialog.
@@ -13,6 +16,7 @@ export interface IDialogOptions {
   displayInIframe?: boolean;
 }
 
+// This remains a module-level variable to track the active Office.js Dialog object.
 let activeDialog: Office.Dialog | null = null;
 
 const DEFAULT_OPTIONS: IDialogOptions = {
@@ -22,9 +26,32 @@ const DEFAULT_OPTIONS: IDialogOptions = {
 };
 
 /**
+ * A standalone cleanup function that is not dependent on the 'this' context of the class.
+ * This makes it more robust when used as an event handler. It now has the single
+ * responsibility of resetting the physical dialog state and notifying the new dialogStore.
+ */
+function cleanupDialog() {
+  loggingService.log(`[DialogService] cleanupDialog() called. State of 'activeDialog' BEFORE cleanup:`, activeDialog);
+  if (activeDialog) {
+    // Clear the message bus's reference to the dialog object.
+    crossWindowMessageBus.__internal_setActiveDialog(null);
+    // Clear our own module-level reference.
+    activeDialog = null;
+    loggingService.log("[DialogService] Physical dialog object has been cleaned up.");
+    
+    // --- CRITICAL CHANGE: Notify the dedicated dialogStore that the dialog has closed. ---
+    // This updates the global application state from the single source of truth.
+    useDialogStore.getState().close(); 
+  }
+  loggingService.log(`[DialogService] cleanupDialog() finished. State of 'activeDialog' AFTER cleanup:`, activeDialog);
+}
+
+
+/**
  * Handles the lifecycle and communication for Office.js dialogs.
- * This service is now a pure "window manager" and has no knowledge of the
- * data being transacted.
+ * This service acts as a "window manager" and an adapter between the Office.js API
+ * and our application's state management (via the dialogStore). It has no knowledge
+ * of the specific data being transacted.
  */
 class DialogService {
   /**
@@ -37,7 +64,7 @@ class DialogService {
   public open(view: string, options?: Partial<IDialogOptions>): Promise<void> {
     return new Promise((resolve, reject) => {
       if (activeDialog) {
-        loggingService.warn("[DialogService] A dialog is already open.");
+        loggingService.warn("[DialogService] An 'open' call was ignored because a dialog is already active.");
         reject(new Error("A dialog is already open."));
         return;
       }
@@ -49,14 +76,19 @@ class DialogService {
       Office.context.ui.displayDialogAsync(dialogUrl, finalOptions, (asyncResult) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
           loggingService.logError(asyncResult.error, "[DialogService] Failed to open dialog");
+          // Ensure state is clean if the open fails.
+          cleanupDialog();
           reject(asyncResult.error);
           return;
         }
 
-        loggingService.log("[DialogService] Dialog opened successfully.");
+        loggingService.log("[DialogService] Dialog opened successfully. Registering handlers.");
         activeDialog = asyncResult.value;
 
+        // Register the dialog with the message bus so the task pane can send messages to it.
         crossWindowMessageBus.__internal_setActiveDialog(activeDialog);
+        
+        // Register platform event handlers for messages and lifecycle events.
         activeDialog.addEventHandler(Office.EventType.DialogMessageReceived, this.handleDialogMessage);
         activeDialog.addEventHandler(Office.EventType.DialogEventReceived, this.handleDialogEvent);
 
@@ -65,51 +97,35 @@ class DialogService {
     });
   }
 
+  /**
+   * This handler is called by the Office.js platform when a message arrives from the dialog.
+   * It forwards the raw message to our cross-window message bus for processing.
+   */
   private handleDialogMessage(arg: { message: string; origin: any }) {
-    // This is the most critical log. It will tell us if the message from the
-    // dialog's broadcast() is successfully reaching the task pane's context.
     loggingService.log(`[DialogService] Raw message received from dialog:`, arg.message);
-
-    // forward messages to the bus.
+    // Forward the message to the bus for listeners to process.
     crossWindowMessageBus.__internal_receive(arg.message);
   }
 
-  private handleDialogEvent = (arg: { error: number }) =>{
+  /**
+   * This handler is called by the Office.js platform for lifecycle events, most importantly
+   * when the user closes the dialog window via the 'X' button.
+   */
+  private handleDialogEvent = (arg: { error: number }) => {
     loggingService.log(`[DialogService] handleDialogEvent FIRING! Event Code: ${arg.error}`);
     
-    loggingService.log(`[DialogService] Inside handleDialogEvent, 'this' is:`, this);
-    loggingService.log(`[DialogService] Type of 'this.cleanup' is:`, typeof this.cleanup);
-
     switch (arg.error) {
-      case 12006:
-        loggingService.log("[DialogService] Dialog was closed by the user. Attempting to call cleanup...");
-        try {
-          this.cleanup();
-        } catch (error) {
-          loggingService.logError(error, "[DialogService] CRITICAL: An error occurred while trying to call this.cleanup()");
-        }
+      case 12006: // This is the official code for "Dialog closed by user".
+        loggingService.log("[DialogService] Dialog was closed by the user. Calling cleanup...");
+        cleanupDialog();
         break;
       default:
-        loggingService.warn(`[DialogService] Unhandled dialog event received. Code: ${arg.error}`);
-        this.cleanup();
+        loggingService.warn(`[DialogService] Unhandled dialog event received. Code: ${arg.error}. Forcing cleanup.`);
+        cleanupDialog();
         break;
     }
-  }
-
-
-  private cleanup() {
-    loggingService.log(`[DialogService] cleanup() called. State of 'activeDialog' BEFORE cleanup:`, activeDialog);
-    if (activeDialog) {
-      crossWindowMessageBus.__internal_setActiveDialog(null);
-      activeDialog = null;
-      loggingService.log("[DialogService] Active dialog has been cleaned up.");
-      // Broadcast a generic "closed" message. The logic for what to do with this
-      // can be handled by individual hooks or components.
-      crossWindowMessageBus.broadcast({ type: MessageType.DIALOG_CLOSED });
-    }
-    loggingService.log(`[DialogService] cleanup() finished. State of 'activeDialog' AFTER cleanup:`, activeDialog);
   }
 }
 
-// Export a singleton instance.
+// Export a singleton instance for use throughout the application.
 export const dialogService = new DialogService();

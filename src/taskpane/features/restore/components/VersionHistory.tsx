@@ -1,4 +1,4 @@
-// src/taskpane/components/VersionHistory.tsx
+// src/taskpane/features/restore/components/VersionHistory.tsx
 
 import * as React from "react";
 import { IVersionViewModel } from "../../../types/types";
@@ -6,20 +6,15 @@ import { Checkbox, Button, Tooltip } from "@fluentui/react-components";
 import { BranchCompare20Filled, ArrowClockwise20Filled } from "@fluentui/react-icons";
 import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import FeatureBadge from "../../../shared/paywall/FeatureBadge";
-
-// --- STEP 1: Import the central Zustand store ---
 import { useAppStore } from "../../../state/appStore";
 
-/**
- * The props for this component are simplified. It only receives the pre-calculated
- * view model data. All interactive state and actions are now sourced from the store.
- */
+// --- FIX: Update the props interface to accept the 'disabled' prop ---
 interface VersionHistoryProps {
   versions: IVersionViewModel[];
+  disabled?: boolean;
 }
 
-const VersionHistory: React.FC<VersionHistoryProps> = ({ versions }) => {
-  // --- STEP 2: Select all necessary state and actions from the store ---
+const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) => {
   const {
     selectedVersions,
     isRestoring,
@@ -36,21 +31,16 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions }) => {
 
   const reversedVersions = [...versions].reverse();
 
-  /**
-   * Renders the restore button with its tooltip and conditional PRO badge.
-   * calls the `initiateRestore` action from the store.
-   */
   const renderRestoreButton = (version: IVersionViewModel) => {
-    // The button is disabled if the app is globally restoring,
-    // or if this specific item is not restorable per the view model logic.
-    const isDisabled = isRestoring || !version.isRestorable;
+    // --- FIX: Add the incoming 'disabled' prop to the condition ---
+    const isDisabled = isRestoring || !version.isRestorable || disabled;
 
     const button = (
       <Button
         size="small"
         appearance="subtle"
         icon={<ArrowClockwise20Filled />}
-        onClick={() => initiateRestore(version.id)} // Call action from store
+        onClick={() => initiateRestore(version.id)}
         disabled={isDisabled}
       />
     );
@@ -65,7 +55,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions }) => {
     );
   };
 
-  // --- STEP 3: The JSX now uses state and actions directly from the store ---
   return (
     <div>
       {reversedVersions.map((version, index) => {
@@ -78,9 +67,10 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions }) => {
           >
             <div className={styles.flexRow}>
               <Checkbox
-                checked={selectedVersions.includes(version.id)} // Use state from store
-                onChange={() => selectVersion(version.id)}      // Call action from store
-                disabled={isRestoring}                           // Use state from store
+                checked={selectedVersions.includes(version.id)}
+                onChange={() => selectVersion(version.id)}
+                // --- FIX: Apply the incoming 'disabled' prop ---
+                disabled={isRestoring || disabled}
               />
               <div style={{ marginLeft: "10px" }}>
                 <strong>{version.comment}</strong>
@@ -97,8 +87,9 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions }) => {
                     size="small"
                     appearance="subtle" 
                     icon={<BranchCompare20Filled />}
-                    onClick={() => compareWithPrevious(version.id)} // Call action from store
-                    disabled={isRestoring}                          // Use state from store
+                    onClick={() => compareWithPrevious(version.id)}
+                    // --- FIX: Apply the incoming 'disabled' prop ---
+                    disabled={isRestoring || disabled}
                   />
                 </Tooltip>
               )}

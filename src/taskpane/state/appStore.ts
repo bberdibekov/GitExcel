@@ -9,8 +9,12 @@ import { synthesizeChangesets } from '../features/comparison/services/synthesize
 import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
 import { debugService } from '../core/services/debug.service';
 
+// --- NEW: Import the dedicated dialog store to check its state when needed. ---
+import { useDialogStore } from './dialogStore';
+
 /**
- * Interface defining the shape of our application's state.
+ * Interface defining the shape of our application's core data state.
+ * This no longer includes any dialog-related properties.
  */
 export interface IAppState {
   // From useVersions
@@ -30,7 +34,7 @@ export interface IAppState {
 }
 
 /**
- * Interface defining all the actions that can modify the state.
+ * Interface defining all the actions that can modify the core application state.
  */
 export interface IAppActions {
   fetchLicense: () => Promise<void>;
@@ -50,7 +54,7 @@ export interface IAppActions {
 }
 
 /**
- * The initial, default state of the application.
+ * The initial, default state of the application's core data.
  */
 const initialState: IAppState = {
   versions: [],
@@ -66,10 +70,8 @@ const initialState: IAppState = {
 };
 
 /**
- * The Zustand store.
+ * The Zustand store for the main application state.
  * It combines the state and actions into a single hook.
- * `set` is used to update state.
- * `get` is used to access the current state within an action.
  */
 export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
   ...initialState,
@@ -133,6 +135,8 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
   },
 
   runComparison: (startIndex, endIndex) => {
+    // --- MODIFIED: Reads state from the dedicated dialogStore to decide its behavior ---
+    const isDialogOpen = useDialogStore.getState().activeDialog !== null;
     const { versions, selectedVersions, license, activeFilters } = get();
     let finalStartIndex = startIndex;
     let finalEndIndex = endIndex;
@@ -149,10 +153,24 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     const endVersion = versions[finalEndIndex!];
 
     if (startVersion && endVersion && license) {
-      set({ diffResult: null }); // Show loading state immediately
       const result = synthesizeChangesets(startVersion, endVersion, versions, license, activeFilters);
       debugService.addLogEntry(`Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`, result);
-      set({ diffResult: result, lastComparedIndices: { start: finalStartIndex!, end: finalEndIndex! } });
+
+      // --- MODIFIED LOGIC ---
+      if (isDialogOpen) {
+        // If a dialog is open, we tell the dialogStore to push an update to it.
+        // The appStore itself does not change its own `diffResult`.
+        useDialogStore.getState().updateData({
+          diffResult: result,
+          licenseTier: license.tier,
+        });
+      } else {
+        // If no dialog is open, update the local task pane view as normal.
+        set({ diffResult: result });
+      }
+      
+      // We still track the last comparison indices for re-running with new filters.
+      set({ lastComparedIndices: { start: finalStartIndex!, end: finalEndIndex! } });
     }
   },
 
@@ -174,7 +192,7 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     }
     set({ activeFilters: newFilters });
 
-    // If a comparison is already active, re-run it with the new filter.
+    // This logic now works perfectly whether the result is in the task pane or a dialog.
     const lastComparedIndices = get().lastComparedIndices;
     if (lastComparedIndices) {
       get().runComparison(lastComparedIndices.start, lastComparedIndices.end);
@@ -209,9 +227,9 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
         );
       }
       
-      // Placeholder for "as new workbook" PRO feature
       if (selection.destinations.asNewWorkbook) {
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate generation
+        // PRO feature placeholder
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
       set({ notification: { severity: 'success', title: 'Restore Complete', message: 'The selected sheets have been restored as new worksheets.' } });
@@ -229,18 +247,15 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
 }));
 
 // --- Initial Data Hydration ---
-// This runs once when the app loads, pulling saved versions from localStorage.
+// This logic is unchanged and correctly hydrates the core version state.
 const savedVersionsJSON = localStorage.getItem("excelVersions");
 if (savedVersionsJSON) {
   try {
     const parsedVersions = JSON.parse(savedVersionsJSON);
-    // Simple migration: if old versions have a 'changeset', remove it.
-    // This ensures data consistency with the new on-demand diffing strategy.
     const migratedVersions = parsedVersions.map(v => {
       delete v.changeset;
       return v;
     });
-    // Set the initial state of the store
     useAppStore.setState({ versions: migratedVersions });
     console.log("[AppStore] Hydrated versions from localStorage.", migratedVersions);
   } catch (error) {

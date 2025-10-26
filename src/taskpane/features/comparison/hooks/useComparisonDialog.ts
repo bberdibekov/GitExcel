@@ -1,66 +1,54 @@
 // src/taskpane/hooks/useComparisonDialog.ts
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { IDiffResult } from "../../../types/types";
-import { dialogService } from "../../../core/dialog/DialogService";
 import { crossWindowMessageBus } from "../../../core/dialog/CrossWindowMessageBus";
 import { MessageType } from "../../../types/messaging.types";
 import { loggingService } from "../../../core/services/LoggingService";
-
-// --- STEP 1: Import the Zustand store ---
-import { useAppStore } from "../../../state/appStore"; 
-
-// --- STEP 2: Remove the old context import ---
-// import { useUser } from "../context/UserContext"; // This is no longer needed
+import { useAppStore } from "../../../state/appStore";
+import { useDialogStore } from "../../../state/dialogStore";
 
 /**
  * A custom hook to manage the state and communication lifecycle for the
- * Comparison View dialog. It handles the entire "data handshake" protocol.
+ * Comparison View dialog. It orchestrates between the UI and the stores.
  */
 export function useComparisonDialog() {
-  const [dataToSend, setDataToSend] = useState<IDiffResult | null>(null);
-  
-  // --- STEP 3: Select the license state directly from the Zustand store ---
+  // Select state and actions from the new dialog store
+  const openDialog = useDialogStore((state) => state.open);
+  const handshakeReady = useDialogStore((state) => state.__internal_handshakeReady);
+  const activeDialog = useDialogStore((state) => state.activeDialog);
+
+  // Select required state from the app store
   const license = useAppStore((state) => state.license);
 
+  // This effect runs once to set up the handshake listener.
   useEffect(() => {
-    if (!dataToSend) {
-      return () => {};
-    }
-
-    loggingService.log("[useComparisonDialog] Data is ready. Setting up handshake listener...");
+    loggingService.log("[useComparisonDialog] Setting up handshake listener...");
 
     const unsubscribe = crossWindowMessageBus.listen(MessageType.DIALOG_READY_FOR_DATA, () => {
-      loggingService.log("[useComparisonDialog] Received DIALOG_READY_FOR_DATA. Sending data payload...");
-      
-      crossWindowMessageBus.broadcast({
-        type: MessageType.INITIALIZE_DATA,
-        payload: {
-          diffResult: dataToSend,
-          // Use the license tier from the store's state
-          licenseTier: license?.tier ?? 'free',
-        },
-      });
-
-      setDataToSend(null);
-      unsubscribe();
-    });
-
-    dialogService.open("diff-viewer").catch((error) => {
-      loggingService.logError(error, "[useComparisonDialog] Failed to open dialog");
-      setDataToSend(null);
-      unsubscribe();
+      loggingService.log("[useComparisonDialog] Received DIALOG_READY_FOR_DATA.");
+      handshakeReady();
     });
 
     return () => {
       loggingService.log("[useComparisonDialog] Cleaning up handshake listener due to unmount.");
       unsubscribe();
     };
-  }, [dataToSend, license]);
+  }, [handshakeReady]);
 
   const openComparisonInDialog = (result: IDiffResult) => {
-    loggingService.log("[useComparisonDialog] openComparisonInDialog called. Staging data for handshake.");
-    setDataToSend(result);
+    if (activeDialog) {
+      loggingService.warn("[useComparisonDialog] openComparisonInDialog called, but a dialog is already active.");
+      return;
+    }
+    loggingService.log("[useComparisonDialog] openComparisonInDialog called.");
+    
+    // --- THIS IS THE FIX ---
+    // The function from the store was aliased to 'openDialog'. We must call that alias.
+    openDialog("diff-viewer", {
+      diffResult: result,
+      licenseTier: license?.tier ?? "free",
+    });
   };
 
   return {
