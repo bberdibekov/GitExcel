@@ -3,6 +3,11 @@
 export type SheetId = string & { readonly __brand: 'SheetId' };
 export type SheetName = string;
 
+export interface IFormulaPrecedent {
+  sheetId: SheetId; // The persistent ID of the sheet the precedent is on.
+  address: string;  // The A1-style address of the precedent cell(s) (e.g., "A1", "C2:D4").
+}
+
 export interface IInteractionChange extends Omit<IChange, 'sheet'> {
   sheet: SheetName;
 }
@@ -33,6 +38,7 @@ export interface ICellData {
   value: string | number | boolean;
   formula: string | number | boolean;
   format?: IFormat;
+  precedents?: IFormulaPrecedent[];
 }
 
 export interface IRowData {
@@ -89,6 +95,7 @@ export interface IChange {
   newValue: string | number | boolean;
   oldFormula: string | number | boolean;
   newFormula: string | number | boolean;
+  metadata?: { [key: string]: any; };
 }
 
 // Represents the consolidated, final report for a modified cell.

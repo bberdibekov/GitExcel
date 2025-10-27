@@ -1,4 +1,4 @@
-// src/taskpane/services/summary.service.ts
+// src/taskpane/features/comparison/services/summary.service.ts
 
 import {
   IDiffResult,
@@ -6,6 +6,7 @@ import {
   ISummaryResult,
   IReportStructuralChange,
   IReportRowChange,
+  ICombinedChange,
 } from "../../../types/types";
 
 /**
@@ -40,6 +41,36 @@ function describeStructuralChanges(structuralChanges: IReportStructuralChange[])
         description,
         involvedCells: [],
       });
+    }
+  }
+
+  return highLevelChanges;
+}
+
+/**
+ * Creates human-readable descriptions for consequential changes, like #REF! errors
+ * caused by sheet deletions, by inspecting cell metadata.
+ */
+function describeConsequentialChanges(modifiedCells: ICombinedChange[]): IHighLevelChange[] {
+  const highLevelChanges: IHighLevelChange[] = [];
+
+  for (const change of modifiedCells) {
+    if (change.metadata?.isConsequential) {
+      let description = "";
+      if (change.metadata.reason === 'ref_error_sheet_deleted') {
+        // This can be enhanced in the future by parsing the oldFormula to find the exact sheet name.
+        // For now, this provides significant value over a simple formula change.
+        description = `Cell ${change.address} now shows a #REF! error because a sheet it depended on was deleted.`;
+      }
+
+      if (description) {
+        highLevelChanges.push({
+          type: "structural", // Group with other high-level structural events in the UI.
+          sheet: change.sheet,
+          description,
+          involvedCells: [], // This could be populated with the change itself if the UI needs it.
+        });
+      }
     }
   }
 
@@ -87,13 +118,18 @@ for display in the UI.
 */
 export function generateSummary(result: IDiffResult): ISummaryResult {
 
-  // 1. The primary source for the summary is the high-level structural changes.
-  const highLevelChanges = describeStructuralChanges(result.structuralChanges);
+  // 1. Get descriptions from row/column insertions and deletions.
+  const structuralSummaries = describeStructuralChanges(result.structuralChanges);
+
+  // 2. Get descriptions for consequential changes (like #REF! errors).
+  const consequentialSummaries = describeConsequentialChanges(result.modifiedCells);
+
+  // 3. Combine all high-level changes into a single list.
+  const highLevelChanges = [...structuralSummaries, ...consequentialSummaries];
   
-  // 2. We then supplement these high-level changes with the actual data of deleted rows.
+  // 4. We then supplement these high-level changes with the actual data of deleted rows.
   // This allows the UI to show "Row 3 was deleted. It contained [25]".
   associateDeletedRowData(highLevelChanges, result.deletedRows);
-
 
   return {
     highLevelChanges,

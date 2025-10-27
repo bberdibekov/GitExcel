@@ -9,7 +9,7 @@ import { synthesizeChangesets } from '../features/comparison/services/synthesize
 import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
 import { debugService } from '../core/services/debug.service';
 import { useDialogStore } from './dialogStore';
-
+import { excelSnapshotService } from "../core/excel/excel.snapshot.service";
 /**
  * Interface defining the shape of our application's core data state.
  * This no longer includes any dialog-related properties.
@@ -88,7 +88,9 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
   addVersion: async (comment) => {
     if (!comment) return;
     try {
-      const newSnapshot = await createWorkbookSnapshot();
+      const newSnapshot = await Excel.run(async (context) => {
+          return await excelSnapshotService.createWorkbookSnapshot(context);
+      });
       const newVersion: IVersion = {
         id: Date.now(),
         timestamp: new Date().toLocaleString(),

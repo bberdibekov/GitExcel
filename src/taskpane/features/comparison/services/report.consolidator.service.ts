@@ -1,10 +1,10 @@
-// src/taskpane/services/report.consolidator.service.ts
+// src/taskpane/features/comparison/services/report.consolidator.service.ts
 
-import { 
-    IChange, 
-    IDiffResult, 
-    IResolvedTimeline, 
-    ICombinedChange, 
+import {
+    IChange,
+    IDiffResult,
+    IResolvedTimeline,
+    ICombinedChange,
     IReportRowChange,
     IReportStructuralChange,
     SheetId,
@@ -21,7 +21,7 @@ import { fromA1, toA1 } from "../../../shared/lib/address.converter";
  * @returns The final, consolidated IDiffResult for the UI.
  */
 export function consolidateReport(
-    timeline: IResolvedTimeline, 
+    timeline: IResolvedTimeline,
     sheetIdToFinalNameMap: Map<SheetId, SheetName>
 ): IDiffResult {
     const finalModifiedCells: ICombinedChange[] = [];
@@ -49,7 +49,7 @@ export function consolidateReport(
         const endFormula = lastEvent.newFormula;
 
         const hasValueChange = String(startValue) !== String(endValue);
-        const hasFormulaChange = (isRealFormula(startFormula) || isRealFormula(endFormula)) 
+        const hasFormulaChange = (isRealFormula(startFormula) || isRealFormula(endFormula))
                                 && String(startFormula) !== String(endFormula);
 
         let finalChangeType: IChange["changeType"] = "value";
@@ -63,6 +63,12 @@ export function consolidateReport(
         const isCreation = startValue === "" && startFormula === "";
         if (isCreation) {
             metadata.isCreation = true;
+        }
+
+        // Check the last event for any special metadata from the diff engine
+        // (like 'isConsequential') and merge it into the final metadata object.
+        if (lastEvent.metadata) {
+          Object.assign(metadata, lastEvent.metadata);
         }
 
         finalModifiedCells.push({
@@ -100,8 +106,8 @@ export function consolidateReport(
     const finalStructuralChanges: IReportStructuralChange[] = timeline.chronologicalStructuralChanges.map(change => {
         const sheetId = change.sheet;
         const finalSheetName = sheetIdToFinalNameMap.get(sheetId) || sheetId;
-        return { 
-            ...change, 
+        return {
+            ...change,
             sheet: finalSheetName,
             oldName: change.oldName,
             newName: change.newName,

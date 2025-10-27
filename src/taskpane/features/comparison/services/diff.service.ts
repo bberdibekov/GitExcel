@@ -1,8 +1,8 @@
 // src/taskpane/features/comparison/services/diff.service.ts
 
-import { IChangeset, IWorkbookSnapshot, SheetId} from "../../../types/types";
+import { IChangeset, IWorkbookSnapshot, SheetId, IStructuralChange } from "../../../types/types";
 import { ILicense } from "../../../core/services/AuthService";
-import { sheetDiffService } from "./sheet.diff.service";
+import { sheetDiffService, ISheetRename } from "./sheet.diff.service";
 import { diffSheetContent } from "./sheet-content-diff.service";
 import { applyPaywall } from "./comparison-paywall.service";
 
@@ -23,6 +23,15 @@ export function diffSnapshots(
 ): IChangeset {
   // 1. Get high-level workbook structure changes (add/delete/rename).
   const sheetDiffResult = sheetDiffService.diffSheets(oldSnapshot, newSnapshot);
+
+  // Isolate the rename events to pass down for formula normalization.
+  const renames = sheetDiffResult.structuralChanges.filter(
+    (c): c is ISheetRename => c.type === 'sheet_rename'
+  );
+
+  const deletions = sheetDiffResult.structuralChanges.filter(
+    (c): c is IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId } => c.type === 'sheet_deletion'
+  );
 
   // 2. Initialize the master changeset with the structural changes.
   const result: IChangeset = {
@@ -58,13 +67,13 @@ export function diffSnapshots(
   }
 
   // 4. Perform a deep, cell-by-cell diff on sheets that existed in both versions.
-  for (const sheetIdStr of sheetDiffService.diffSheets(oldSnapshot, newSnapshot).modifiedSheetIds) {
+  for (const sheetIdStr of sheetDiffResult.modifiedSheetIds) {
     const sheetId = sheetIdStr as SheetId;
     const oldSheet = oldSnapshot[sheetId];
     const newSheet = newSnapshot[sheetId];
     
-    // Delegate the complex work to the specialized service.
-    const sheetContentResult = diffSheetContent(sheetId, oldSheet, newSheet, activeFilterIds);
+    // Delegate the complex work to the specialized service, now with rename context.
+    const sheetContentResult = diffSheetContent(sheetId, oldSheet, newSheet, activeFilterIds, renames, deletions);
     
     // Merge the granular results into the master changeset.
     result.modifiedCells.push(...sheetContentResult.modifiedCells);

@@ -1,4 +1,4 @@
-import { IWorkbookSnapshot, IStructuralChange, SheetId } from "../../../types/types";
+import { IWorkbookSnapshot, IStructuralChange, SheetId, SheetName } from "../../../types/types";
 
 /**
  * The result from comparing the sheet structure of two workbooks.
@@ -8,6 +8,16 @@ export interface ISheetDiffResult {
   structuralChanges: IStructuralChange[];
   /** A list of persistent IDs for sheets that exist in both snapshots and may have content changes. */
   modifiedSheetIds: string[];
+}
+
+/**
+ * A type-safe representation of a sheet rename structural change.
+ */
+export interface ISheetRename extends IStructuralChange {
+  type: "sheet_rename";
+  sheetId: SheetId;
+  oldName: SheetName;
+  newName: SheetName;
 }
 
 class SheetDiffService {

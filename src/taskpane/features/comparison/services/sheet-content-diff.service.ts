@@ -9,12 +9,13 @@ import {
   IRowData,
   IStructuralChange,
   ISheetSnapshot,
-  SheetId, 
+  SheetId,
   SheetName
 } from "../../../types/types";
 import { fromA1 } from "../../../shared/lib/address.converter";
 import { generateRowHash } from "../../../shared/lib/hashing.service";
 import { valueFilters, formulaFilters, IComparisonFilter } from "./comparison.filters";
+import { ISheetRename } from "./sheet.diff.service";
 
 // This file contains the low-level, specialized logic for comparing the
 // cell-by-cell content of two ISheetSnapshot objects.
@@ -29,7 +30,7 @@ function applyFilters(
   activeFilterIds: Set<string>,
   filterRegistry: IComparisonFilter[]
 ): boolean {
-  return filterRegistry.some(filter => 
+  return filterRegistry.some(filter =>
     activeFilterIds.has(filter.id) && filter.apply(oldValue, newValue)
   );
 }
@@ -44,12 +45,37 @@ function normalizeSheetData(data: IRowData[] | ICellData[][]): IRowData[] {
   return data as IRowData[];
 }
 
+/**
+ * Rewrites a formula string based on a list of sheet rename events.
+ * This allows for comparing formulas across snapshots where sheets have been renamed.
+ * e.g., turns "=OldName!A1" into "=NewName!A1" before comparison.
+ */
+function normalizeFormula(formula: string, renames: ISheetRename[]): string {
+  if (!isRealFormula(formula) || renames.length === 0) {
+    return formula;
+  }
+
+  let normalizedFormula = formula;
+  for (const rename of renames) {
+    // This regex handles both quoted ('Sheet Name'!) and unquoted (SheetName!) references.
+    const searchForQuoted = new RegExp(`'${rename.oldName}'!`, 'g');
+    const searchForUnquoted = new RegExp(`(?<!')\\b${rename.oldName}\\b!`, 'g'); // Word boundary to not match "OldNameExtended!"
+    const replaceWith = `'${rename.newName}'!`;
+
+    normalizedFormula = normalizedFormula.replace(searchForQuoted, replaceWith);
+    normalizedFormula = normalizedFormula.replace(searchForUnquoted, replaceWith);
+  }
+  return normalizedFormula;
+}
+
 function compareCells(
   sheetId: SheetId,
   oldRow: IRowData,
   newRow: IRowData,
   result: IChangeset,
-  activeFilterIds: Set<string>
+  activeFilterIds: Set<string>,
+  renames: ISheetRename[],
+  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[]
 ) {
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
   for (let c = 0; c < maxCols; c++) {
@@ -59,22 +85,46 @@ function compareCells(
     const canonicalAddress = (newCell?.address || oldCell?.address);
     if (!canonicalAddress) continue;
 
-    const _oldCell = oldCell || { value: "", formula: "" };
+    const _oldCell = oldCell || { value: "", formula: "", precedents: [] };
     const _newCell = newCell || { value: "", formula: "" };
 
-    const valueChanged = 
-      !applyFilters(_oldCell.value, _newCell.value, activeFilterIds, valueFilters) 
+    // Check for consequential #REF! error before doing a standard string comparison.
+    if (isRealFormula(_oldCell.formula) && String(_newCell.formula).includes("#REF!")) {
+      const deletedSheetIds = new Set(deletions.map(d => d.sheetId!));
+      if (_oldCell.precedents?.some(p => deletedSheetIds.has(p.sheetId))) {
+        // This is a consequential change directly caused by a sheet deletion.
+        result.modifiedCells.push({
+          sheet: sheetId,
+          address: canonicalAddress,
+          changeType: "formula",
+          oldValue: _oldCell.value,
+          newValue: _newCell.value,
+          oldFormula: _oldCell.formula,
+          newFormula: _newCell.formula,
+          metadata: {
+            isConsequential: true,
+            reason: "ref_error_sheet_deleted",
+          },
+        });
+        continue; // Skip the normal diff logic for this cell
+      }
+    }
+
+    const valueChanged =
+      !applyFilters(_oldCell.value, _newCell.value, activeFilterIds, valueFilters)
       && String(_oldCell.value) !== String(_newCell.value);
-      
+
+    const normalizedOldFormula = normalizeFormula(String(_oldCell.formula), renames);
+
     const formulaChanged =
       (isRealFormula(_oldCell.formula) || isRealFormula(_newCell.formula)) &&
-      !applyFilters(_oldCell.formula, _newCell.formula, activeFilterIds, formulaFilters)
-      && (String(_oldCell.formula) !== String(_newCell.formula));
+      !applyFilters(normalizedOldFormula, _newCell.formula, activeFilterIds, formulaFilters)
+      && (normalizedOldFormula !== String(_newCell.formula));
 
     if (valueChanged || formulaChanged) {
       result.modifiedCells.push({
         sheet: sheetId,
-        address: canonicalAddress, 
+        address: canonicalAddress,
         changeType: formulaChanged ? (valueChanged ? "both" : "formula") : "value",
         oldValue: _oldCell.value,
         newValue: _newCell.value,
@@ -94,7 +144,7 @@ function coalesceRowChanges(
   if (rowChanges.length === 0) return [];
   const structuralChanges: IStructuralChange[] = [];
   const sortedChanges = [...rowChanges].sort((a, b) => a.rowIndex - b.rowIndex);
-  
+
   let currentBlock: IStructuralChange = {
     type,
     sheet: sheetId,
@@ -118,7 +168,9 @@ export function diffSheetContent(
   sheetId: SheetId,
   oldSheet: ISheetSnapshot,
   newSheet: ISheetSnapshot,
-  activeFilterIds: Set<string>
+  activeFilterIds: Set<string>,
+  renames: ISheetRename[],
+  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[]
 ): IChangeset {
   const result: IChangeset = { modifiedCells: [], addedRows: [], deletedRows: [], structuralChanges: [] };
   const oldCoords = oldSheet.address ? fromA1(oldSheet.address) : null;
@@ -136,7 +188,7 @@ export function diffSheetContent(
 
     if (part.removed && nextPart && nextPart.added && part.count === nextPart.count) {
       for (let j = 0; j < part.count; j++) {
-        compareCells(sheetId, oldData[oldIdx], newData[newIdx], result, activeFilterIds);
+        compareCells(sheetId, oldData[oldIdx], newData[newIdx], result, activeFilterIds, renames, deletions);
         oldIdx++;
         newIdx++;
       }
@@ -146,8 +198,6 @@ export function diffSheetContent(
         const addedRowData = newData[newIdx];
         result.addedRows.push({ sheet: sheetId, rowIndex: newIdx, rowData: addedRowData });
 
-        // The original "fix" that removed this logic was incorrect. It prevented the
-        // timeline resolver from ever learning about the *creation* of cells.
         // For the resolver to build a complete history, it MUST receive a
         // modifiedCells event for any cell that is created with content.
         addedRowData.cells.forEach(cell => {
@@ -174,7 +224,7 @@ export function diffSheetContent(
       }
     } else {
       for (let j = 0; j < part.count; j++) {
-        compareCells(sheetId, oldData[oldIdx], newData[newIdx], result, activeFilterIds);
+        compareCells(sheetId, oldData[oldIdx], newData[newIdx], result, activeFilterIds, renames, deletions);
         oldIdx++;
         newIdx++;
       }
