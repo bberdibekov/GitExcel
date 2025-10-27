@@ -11,14 +11,14 @@ import { testSteps } from "../../../features/developer/services/test.cases";
 
 import { useAppStore } from "../../../state/appStore";
 
-interface DevToolsProps {}
+interface DevToolsProps { }
 
 const DeveloperTools: React.FC<DevToolsProps> = () => {
   // --- Select state and actions from the store ---
   const {
     versions,
     license,
-    isLicenseLoading, // <-- FIX #1: Use the correct property name from the store
+    isLicenseLoading,
     addVersion,
     clearVersions,
     runComparison,
@@ -44,6 +44,11 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         onClearHistory: clearVersions,
         onCompare: runComparison,
         onStatusUpdate: setStatus,
+      }, {
+        upToStep: 10,
+        //run steps 5 through 12
+        //startFromStep: 5, 
+        //upToStep: 12
       });
       setStatus("Test run completed successfully!");
     } catch (error) {
@@ -52,7 +57,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
       setIsRunning(false);
     }
   };
-  
+
   const handleSaveLog = () => {
     setStatus("Manually saving debug session...");
     debugService.saveLogSession('manual_debug_log.json');
@@ -63,7 +68,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
     const currentTier = license?.tier || 'free';
     const nextTier = currentTier === 'free' ? 'pro' : 'free';
     authService.setMockTier(nextTier);
-    window.location.reload(); 
+    window.location.reload();
   };
 
   const handleClearMock = () => {
@@ -89,7 +94,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         <Button
           appearance="primary"
           onClick={handleToggleTier}
-          disabled={isLicenseLoading} // <-- FIX #3: And here
+          disabled={isLicenseLoading}
         >
           {`Switch to ${license?.tier === 'pro' ? 'Free' : 'Pro'}`}
         </Button>
@@ -101,16 +106,16 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         </Button>
       </div>
       <Divider style={{ margin: "12px 0" }} />
-      
-      <Button 
-        appearance="primary" 
-        onClick={handleRunTest} 
+
+      <Button
+        appearance="primary"
+        onClick={handleRunTest}
         disabled={isRunning}
         style={{ marginTop: "10px", width: "100%" }}
       >
         {isRunning ? "Running..." : `Run Formatted v1-v${testSteps.length} Test Case`}
       </Button>
-      
+
       <Button
         appearance="secondary"
         onClick={handleSaveLog}
