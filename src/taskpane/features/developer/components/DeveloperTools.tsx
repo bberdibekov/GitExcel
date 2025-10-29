@@ -1,4 +1,4 @@
-// src/taskpane/components/DeveloperTools.tsx
+// src/taskpane/features/developer/components/DeveloperTools.tsx
 
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
@@ -8,20 +8,19 @@ import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import { authService } from "../../../core/services/AuthService";
 import { devHarnessService } from "../../../features/developer/services/dev.harness.service";
 import { testSteps } from "../../../features/developer/services/test.cases";
-
 import { useAppStore } from "../../../state/appStore";
+import { comparisonWorkflowService } from "../../comparison/services/comparison.workflow.service";
+
 
 interface DevToolsProps { }
 
 const DeveloperTools: React.FC<DevToolsProps> = () => {
-  // --- Select state and actions from the store ---
   const {
     versions,
     license,
     isLicenseLoading,
     addVersion,
     clearVersions,
-    runComparison,
   } = useAppStore();
 
   const styles = useSharedStyles();
@@ -42,7 +41,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         getVersions: () => versionsRef.current,
         onSaveVersion: addVersion,
         onClearHistory: clearVersions,
-        onCompare: runComparison,
+        onCompare: comparisonWorkflowService.runComparison,
         onStatusUpdate: setStatus,
       }, {
         upToStep: 10,

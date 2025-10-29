@@ -8,17 +8,21 @@ import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import FeatureBadge from "../../../shared/paywall/FeatureBadge";
 import { useAppStore } from "../../../state/appStore";
 
+// --- STEP 1: Import the new orchestrator service ---
+import { comparisonWorkflowService } from "../../comparison/services/comparison.workflow.service";
+
 interface VersionHistoryProps {
   versions: IVersionViewModel[];
   disabled?: boolean;
 }
 
 const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) => {
+  // --- STEP 2: Select only the state and actions needed from the store. ---
+  // `compareWithPrevious` is no longer needed here.
   const {
     selectedVersions,
     isRestoring,
     selectVersion,
-    compareWithPrevious,
     initiateRestore,
   } = useAppStore();
 
@@ -80,11 +84,12 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
 
               {!isFirstVersion && (
                 <Tooltip content="Compare to Previous" relationship="label">
+                  {/* --- STEP 3: The onClick handler now calls the new service --- */}
                   <Button 
                     size="small"
                     appearance="subtle" 
                     icon={<BranchCompare20Filled />}
-                    onClick={() => compareWithPrevious(version.id)}
+                    onClick={() => comparisonWorkflowService.compareWithPrevious(version.id)}
                     disabled={isRestoring || disabled}
                   />
                 </Tooltip>

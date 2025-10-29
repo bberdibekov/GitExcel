@@ -36,20 +36,18 @@ function toSimpleChange(combinedChange: ICombinedChange): IInteractionChange {
   };
 }
 
+// --- FIX: The onOpenInWindow prop is no longer needed. ---
 interface TaskPaneComparisonViewProps {
-  onOpenInWindow: (result: IDiffResult) => void;
+  // onOpenInWindow: (result: IDiffResult) => void; // This is now handled by the workflow service
 }
 
-const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ onOpenInWindow }) => {
+const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = (/* --- props removed --- */) => {
   
   const result = useAppStore((state) => state.diffResult);
   const activeFilters = useAppStore((state) => state.activeFilters);
   const onFilterChange = useAppStore((state) => state.handleFilterChange);
   
-  // --- MODIFIED: Read the dialog state directly from the global store ---
   const isDialogOpen = useDialogStore((state) => state.activeDialog !== null);
-
-  // --- REMOVED: The local state and useEffect that listened for a non-existent message are gone. ---
 
   const styles = useSharedStyles();
   const [showOnSheet, setShowOnSheet] = useState(false);
@@ -114,16 +112,13 @@ const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ onOpenI
     }
   };
 
-  const handleViewInWindow = () => {
-    // --- SIMPLIFIED: No need to set local state anymore. Just call the prop. ---
-    onOpenInWindow(result);
-  };
+  // --- REMOVED: The handleViewInWindow function is no longer needed. ---
 
   const isPartialResult = result.isPartialResult ?? false;
   const hiddenChangeCount = result.hiddenChangeCount ?? 0;
   const visibleChangeCount = result.modifiedCells.length;
   
-  // This placeholder component now correctly reacts to the global state.
+  // This placeholder component correctly reacts to the global state.
   if (isDialogOpen) {
     return (
       <div style={{ marginTop: '20px', padding: '30px 10px', textAlign: 'center', border: '1px dashed #ccc', borderRadius: '4px' }}>
@@ -136,17 +131,17 @@ const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = ({ onOpenI
     );
   }
 
-
+  // This part of the component will now likely never be seen, as `isDialogOpen` will be true
+  // whenever `diffResult` is populated. However, we keep it for logical completeness.
   return (
-    // This is the original JSX, now rendered conditionally
     <div style={{ marginTop: "20px" }}>
       <DiffFilterOptions 
         activeFilters={activeFilters}
         onFilterChange={onFilterChange}
       />
       
+      {/* --- FIX: Removed the "View in Window" button --- */}
       <div className={styles.buttonGroup}>
-        <Button onClick={handleViewInWindow}>View in Window</Button>
         <Button onClick={handleShowOnSheet} disabled={showOnSheet}>Show on Sheet</Button>
         <Button onClick={handleClearFromSheet} disabled={!showOnSheet}>Clear from Sheet</Button>
       </div>
