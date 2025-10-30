@@ -8,6 +8,9 @@ import {
   IReportRowChange,
   ICombinedChange,
 } from "../../../types/types";
+// --- ADDED: Import the address converter to get column letters from indices ---
+import { toA1 } from "../../../shared/lib/address.converter";
+
 
 /**
  * A dedicated function to create human-readable descriptions from the high-level
@@ -31,7 +34,31 @@ function describeStructuralChanges(structuralChanges: IReportStructuralChange[])
           ? `Rows ${change.index! + 1}-${change.index! + change.count!} were deleted.`
           : `Row ${change.index! + 1} was deleted.`;
         break;
-      // TBD: Add cases for column_insertion / column_deletion if needed.
+      
+      // --- START: ADDED COLUMN DESCRIPTION LOGIC ---
+      case "column_insertion":
+        {
+          const startColLetter = toA1(0, change.index!).replace(/[0-9]/g, '');
+          if (change.count! > 1) {
+            const endColLetter = toA1(0, change.index! + change.count! - 1).replace(/[0-9]/g, '');
+            description = `Columns ${startColLetter}-${endColLetter} were inserted.`;
+          } else {
+            description = `Column ${startColLetter} was inserted.`;
+          }
+        }
+        break;
+      case "column_deletion":
+        {
+          const startColLetter = toA1(0, change.index!).replace(/[0-9]/g, '');
+          if (change.count! > 1) {
+            const endColLetter = toA1(0, change.index! + change.count! - 1).replace(/[0-9]/g, '');
+            description = `Columns ${startColLetter}-${endColLetter} were deleted.`;
+          } else {
+            description = `Column ${startColLetter} was deleted.`;
+          }
+        }
+        break;
+      // --- END: ADDED COLUMN DESCRIPTION LOGIC ---
     }
 
     if (description) {

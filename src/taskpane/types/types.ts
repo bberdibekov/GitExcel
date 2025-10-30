@@ -52,7 +52,7 @@ export interface ISheetSnapshot {
   address: string;
   data: IRowData[];
   rowHeights?: { [key: number]: number };
-  columnWidths?: { [key: number]: number };
+  columnWidths?: number[];
   mergedCells?: string[];
 }
 

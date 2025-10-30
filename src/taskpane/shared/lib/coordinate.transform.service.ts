@@ -46,25 +46,51 @@ export function transformAddress(initialAddress: string, changes: IStructuralCha
         break;
 
       case "row_deletion":
-        const delStartIndex = change.index!;
-        const delCount = change.count || 1;
-        const delEndIndex = delStartIndex + delCount;
+        {
+          const delStartIndex = change.index!;
+          const delCount = change.count || 1;
+          const delEndIndex = delStartIndex + delCount;
 
-        // Case 1: The cell is *inside* the deleted range. It's gone.
-        if (currentCoords.row >= delStartIndex && currentCoords.row < delEndIndex) {
-          return null;
-        }
+          // Case 1: The cell is *inside* the deleted range. It's gone.
+          if (currentCoords.row >= delStartIndex && currentCoords.row < delEndIndex) {
+            return null;
+          }
 
-        // Case 2: The deletion happened *before* the cell. Shift the cell up.
-        if (delStartIndex < currentCoords.row) {
-          currentCoords.row -= delCount;
+          // Case 2: The deletion happened *before* the cell. Shift the cell up.
+          if (delStartIndex < currentCoords.row) {
+            currentCoords.row -= delCount;
+          }
         }
         break;
       
-      // NOTE: Column and sheet logic would follow the same pattern.
-      // We are focusing on rows first as it solves the primary bug.
-      // case "column_insertion": ...
-      // case "column_deletion": ...
+      // --- START: ADDED COLUMN LOGIC ---
+      case "column_insertion":
+        // If a column is inserted at or before the cell's current position, shift the cell right.
+        if (change.index! <= currentCoords.col) {
+          currentCoords.col += change.count || 1;
+        }
+        break;
+
+      case "column_deletion":
+        {
+          const delStartIndex = change.index!;
+          const delCount = change.count || 1;
+          const delEndIndex = delStartIndex + delCount;
+          
+          // Case 1: The cell is *inside* the deleted range. It's gone.
+          if (currentCoords.col >= delStartIndex && currentCoords.col < delEndIndex) {
+            return null;
+          }
+
+          // Case 2: The deletion happened *before* the cell. Shift the cell left.
+          if (delStartIndex < currentCoords.col) {
+            currentCoords.col -= delCount;
+          }
+        }
+        break;
+      // --- END: ADDED COLUMN LOGIC ---
+      
+      // NOTE: Sheet logic would follow a similar pattern if needed.
       // case "sheet_rename": ...
     }
   }

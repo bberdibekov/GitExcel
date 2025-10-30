@@ -42,29 +42,42 @@ class ExcelSnapshotService {
         continue;
       }
       
-      // --- FIX 1: Optimize batching by loading more properties upfront ---
       const usedRange = sheet.getUsedRangeOrNullObject();
       const mergedAreas = usedRange.getMergedAreasOrNullObject();
-      usedRange.load("isNullObject, address, rowIndex, columnIndex, values, formulas");
+      
+      // --- START: CORRECT AND FINAL FIX ---
+      // Load the top-level properties of the range first, including columnCount.
+      usedRange.load("isNullObject, address, rowIndex, columnIndex, values, formulas, columnCount");
       mergedAreas.load("isNullObject, address");
       
       await context.sync();
 
       if (usedRange.isNullObject) {
-        workbookSnapshot[sheetId] = { name: sheet.name, position: sheet.position, address: "", data: [], mergedCells: [] };
+        workbookSnapshot[sheetId] = { name: sheet.name, position: sheet.position, address: "", data: [], mergedCells: [], columnWidths: [] };
         continue;
       }
+
+      // Now that we have the column count, we can iterate to get each column's width.
+      // This requires a second batch call and sync, which is a necessary performance trade-off
+      // due to the structure of the Excel JS API.
+      const columnRanges = [];
+      for (let i = 0; i < usedRange.columnCount; i++) {
+        const column = usedRange.getColumn(i);
+        column.load("format/columnWidth");
+        columnRanges.push(column);
+      }
+      await context.sync();
+
+      const columnWidths: number[] = columnRanges.map(col => col.format.columnWidth);
+      // --- END: CORRECT AND FINAL FIX ---
       
       const formulas = usedRange.formulas as (string | number | boolean)[][];
 
-      // --- FIX 2: Add resilience with a try...catch block ---
-      // Precedent fetching is treated as an enhancement. If it fails, we still get the core snapshot.
       let precedentsMap = new Map<string, IFormulaPrecedent[]>();
       try {
         precedentsMap = await this.getPrecedentsForSheet(context, sheet, formulas, usedRange.rowIndex, usedRange.columnIndex, nameToSheetIdMap);
       } catch (error) {
         loggingService.logError(error, `[SnapshotService] Failed to get precedents for sheet "${sheet.name}". Continuing without them.`);
-        // The process continues with an empty precedentsMap, which is perfectly fine.
       }
       
       const sheetSnapshot: ISheetSnapshot = {
@@ -79,6 +92,7 @@ class ExcelSnapshotService {
             usedRange.columnIndex
         ),
         mergedCells: mergedAreas.isNullObject ? [] : mergedAreas.address.split(', '),
+        columnWidths: columnWidths,
       };
       
       workbookSnapshot[sheetId] = sheetSnapshot;
@@ -136,12 +150,7 @@ class ExcelSnapshotService {
     for (let r = 0; r < formulas.length; r++) {
       for (let c = 0; c < formulas[r].length; c++) {
         const formula = formulas[r][c];
-
-        // ---> START FIX: Add a defensive check for #REF! errors <---
-        // If the formula string contains #REF!, do not attempt to get precedents,
-        // as the API call will fail.
         if (isRealFormula(formula) && !String(formula).includes("#REF!")) {
-        // ---> END FIX <---
           const address = toA1(startRow + r, startCol + c);
           const range = sheet.getRange(address);
           const precedents = range.getPrecedents();
