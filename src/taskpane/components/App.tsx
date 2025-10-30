@@ -4,14 +4,15 @@ import * as React from "react";
 import { useEffect, useMemo } from "react";
 import { Button } from "@fluentui/react-components";
 import { useAppStore } from "../state/appStore";
+import { useDialogStore } from "../state/dialogStore"; // <-- ADD THIS IMPORT
 import { IVersionViewModel } from "../types/types";
 import NotificationDialog from "../shared/ui/NotificationDialog";
 import { RestoreSelectionDialog } from "../features/restore/components/RestoreSelectionDialog";
 import SaveVersionForm from "../features/restore/components/SaveVersionForm";
 import VersionHistory from "../features/restore/components/VersionHistory";
-import TaskPaneComparisonView from "../features/comparison/components/TaskPaneComparisonView";
 import DeveloperTools from "../features/developer/components/DeveloperTools";
 import { comparisonWorkflowService } from "../features/comparison/services/comparison.workflow.service";
+import ComparisonDialogPlaceholder from "../features/comparison/components/ComparisonDialogPlaceholder"; // <-- ADD THIS IMPORT
 
 const FREE_TIER_VERSION_LIMIT = 3;
 
@@ -23,18 +24,19 @@ const FREE_TIER_VERSION_LIMIT = 3;
  * 3. To read state from the central stores to render major UI elements.
  */
 const App = () => {
-  // --- Select ALL required state from the main app store ---
+  // --- Select ALL required state from the central stores ---
   const {
     versions,
     license,
     isLicenseLoading,
     selectedVersions,
-    diffResult,
     isRestoring,
     notification,
     restoreTarget,
   } = useAppStore();
-
+  
+  const activeDialog = useDialogStore((state) => state.activeDialog); // <-- SUBSCRIBE TO DIALOG STORE
+  
   const fetchLicense = useAppStore((state) => state.fetchLicense);
   const clearNotification = useAppStore((state) => state.clearNotification);
 
@@ -66,6 +68,35 @@ const App = () => {
     });
   }, [versions, license]);
 
+  // --- Main Render Logic ---
+  const renderContent = () => {
+    // Priority 1: If the dialog is open, show the placeholder.
+    if (activeDialog === 'diff-viewer') {
+      return <ComparisonDialogPlaceholder />;
+    }
+
+    // Priority 2: Otherwise, show the main version history view.
+    return (
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div>
+          <h2 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Version Control</h2>
+          <SaveVersionForm disabled={isRestoring} />
+          <h3 style={{ margin: '8px 0 6px 0', fontSize: '14px', fontWeight: 600 }}>Version History</h3>
+          <Button
+            appearance="primary"
+            disabled={selectedVersions.length !== 2 || isLicenseLoading || isRestoring}
+            onClick={() => comparisonWorkflowService.runComparison()}
+            style={{ marginBottom: "8px" }}
+            size="small"
+          >
+            {isLicenseLoading ? "Loading..." : `Compare (${selectedVersions.length}/2)`}
+          </Button>
+        </div>
+        <VersionHistory versions={versionsForView} disabled={isRestoring} />
+      </div>
+    );
+  };
+
   return (
     <div style={{ 
       padding: "8px", 
@@ -78,30 +109,8 @@ const App = () => {
       <NotificationDialog notification={notification} onDismiss={clearNotification} />
       {restoreTarget && <RestoreSelectionDialog />}
 
-      {diffResult ? (
-        <TaskPaneComparisonView />
-      ) : (
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          {/* Compact header section */}
-          <div>
-            <h2 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Version Control</h2>
-            <SaveVersionForm disabled={isRestoring} />
-            <h3 style={{ margin: '8px 0 6px 0', fontSize: '14px', fontWeight: 600 }}>Version History</h3>
-            <Button 
-              appearance="primary" 
-              disabled={selectedVersions.length !== 2 || isLicenseLoading || isRestoring} 
-              onClick={() => comparisonWorkflowService.runComparison()}
-              style={{ marginBottom: "8px" }}
-              size="small"
-            >
-              {isLicenseLoading ? "Loading..." : `Compare (${selectedVersions.length}/2)`}
-            </Button>
-          </div>
-          
-          {/* Version History - displays all versions naturally */}
-          <VersionHistory versions={versionsForView} disabled={isRestoring} />
-        </div>
-      )}
+      {/* The new render logic is called here */}
+      {renderContent()}
 
       {/* Developer tools at the bottom - only in development */}
       {process.env.NODE_ENV === 'development' && (

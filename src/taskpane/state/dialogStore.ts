@@ -6,6 +6,7 @@ import { dialogService } from '../core/dialog/DialogService';
 import { crossWindowMessageBus } from '../core/dialog/CrossWindowMessageBus';
 import { MessageType } from '../types/messaging.types';
 import { loggingService } from '../core/services/LoggingService';
+import { useAppStore } from './appStore';
 
 type DialogView = 'diff-viewer' | 'settings';
 
@@ -49,6 +50,7 @@ export const useDialogStore = create<IDialogState & IDialogActions>((set, get) =
 
   close: () => {
     loggingService.log("[DialogStore] close() action called. Resetting state.");
+    useAppStore.getState().clearComparison();
     set({ ...initialState });
   },
 

@@ -1,4 +1,4 @@
-// src/taskpane/services/synthesizer.service.ts
+// src/taskpane/features/comparison/services/synthesizer.service.ts
 import { IDiffResult, IVersion, IChangeset, SheetId, SheetName } from "../../../types/types";
 import { debugService } from "../../../core/services/debug.service";
 import { resolveTimeline } from "./timeline.resolver.service";
@@ -22,12 +22,23 @@ export function synthesizeChangesets(
 
   const changesetSequence: IChangeset[] = [];
   for (let i = 0; i < relevantVersions.length - 1; i++) {
+    const fromVersion = relevantVersions[i];
+    const toVersion = relevantVersions[i+1];
     const changeset = diffSnapshots(
-      relevantVersions[i].snapshot, 
-      relevantVersions[i + 1].snapshot, 
-      license, 
+      fromVersion.snapshot,
+      toVersion.snapshot,
+      license,
       activeFilterIds
     );
+    // --- START: ADDED DEBUG LOGGING ---
+    console.log(`[SYNTHESIZER] CHANGESET LOG: ${fromVersion.comment} -> ${toVersion.comment}`, {
+        modifiedCells: changeset.modifiedCells.length,
+        addedRows: changeset.addedRows.length,
+        deletedRows: changeset.deletedRows.length,
+        structuralChanges: changeset.structuralChanges, // <-- VERY IMPORTANT
+        isPartial: changeset.isPartialResult
+    });
+    // --- END: ADDED DEBUG LOGGING ---
     changesetSequence.push(changeset);
   }
   
@@ -58,6 +69,15 @@ export function synthesizeChangesets(
   // --- Pass the name map into the resolver for better logging ---
   const resolvedTimeline = resolveTimeline(changesetSequence, sheetIdToFinalNameMap);
   
+  // --- START: ADDED DEBUG LOGGING ---
+  console.log('[SYNTHESIZER] TIMELINE LOG:', {
+      finalChangeHistoryCount: resolvedTimeline.finalChangeHistory.size,
+      finalChangeHistoryKeys: Array.from(resolvedTimeline.finalChangeHistory.keys()), // See what cells are being tracked
+      chronologicalRowEventCount: resolvedTimeline.chronologicalRowEvents.length,
+      chronologicalStructuralChangeCount: resolvedTimeline.chronologicalStructuralChanges.length,
+  });
+  // --- END: ADDED DEBUG LOGGING ---
+  
   // --- Translate the keys for this log entry ---
   const translatedKeys = Array.from(resolvedTimeline.finalChangeHistory.keys()).map(key => {
     const [sheetId, cell] = key.split('!');
@@ -74,6 +94,15 @@ export function synthesizeChangesets(
   );
 
   const finalResult = consolidateReport(resolvedTimeline, sheetIdToFinalNameMap);
+
+  // --- START: ADDED DEBUG LOGGING ---
+  console.log('[SYNTHESIZER] FINAL RESULT LOG:', {
+    modifiedCells: finalResult.modifiedCells.length,
+    addedRows: finalResult.addedRows.length,
+    deletedRows: finalResult.deletedRows.length,
+    structuralChanges: finalResult.structuralChanges.length,
+  });
+  // --- END: ADDED DEBUG LOGGING ---
   
   debugService.addLogEntry(
     "Synthesizer Stage 2/2 (Report Consolidation) Complete",

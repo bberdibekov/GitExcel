@@ -26,25 +26,40 @@ class ComparisonWorkflowService {
       return;
     }
 
-    // --- NEW LOGIC: Determine the two versions to compare ---
-    const [selectionA, selectionB] = selectedVersions;
+    // --- START: REVISED LOGIC ---
+    // Correctly determine the start and end versions regardless of selection order.
+    const [selection1, selection2] = selectedVersions;
+    let startSelectionId: number | string;
+    let endSelectionId: number | string;
 
-    // The "end" version is always the later one. If "current" is selected, it's always the end version.
-    const endSelection = selectionA === 'current' ? selectionA : selectionB;
-    const startSelection = selectionA === 'current' ? selectionB : selectionA;
+    if (selection1 === 'current' || selection2 === 'current') {
+      // "Safety Check" mode: 'current' is always the end version.
+      endSelectionId = 'current';
+      startSelectionId = (selection1 === 'current') ? selection2 : selection1;
+    } else {
+      // "Audit Trail" mode: Compare the numeric IDs (timestamps) to find the true start and end.
+      if (selection1 > selection2) {
+        endSelectionId = selection1;
+        startSelectionId = selection2;
+      } else {
+        endSelectionId = selection2;
+        startSelectionId = selection1;
+      }
+    }
+    // --- END: REVISED LOGIC ---
 
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
     
     // --- Part 1: Resolve the Start Version (must be historical) ---
-    startVersion = versions.find(v => v.id === startSelection);
+    startVersion = versions.find(v => v.id === startSelectionId);
     if (!startVersion) {
         console.error("Comparison failed: Could not resolve start version.");
         return;
     }
 
     // --- Part 2: Resolve the End Version (could be historical or live) ---
-    if (endSelection === 'current') {
+    if (endSelectionId === 'current') {
       // --- "SAFETY CHECK" MODE ---
       console.log("[ComparisonWorkflow] Running in 'Safety Check' mode (Live vs. Historical)");
       try {
@@ -65,7 +80,7 @@ class ComparisonWorkflowService {
     } else {
       // --- "AUDIT TRAIL" MODE ---
       console.log("[ComparisonWorkflow] Running in 'Audit Trail' mode (Historical vs. Historical)");
-      endVersion = versions.find(v => v.id === endSelection);
+      endVersion = versions.find(v => v.id === endSelectionId);
     }
     
     if (!endVersion) {
