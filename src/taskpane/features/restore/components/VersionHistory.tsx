@@ -1,14 +1,11 @@
 // src/taskpane/features/restore/components/VersionHistory.tsx
-
 import * as React from "react";
 import { IVersionViewModel } from "../../../types/types";
 import { Checkbox, Button, Tooltip } from "@fluentui/react-components";
-import { BranchCompare20Filled, ArrowClockwise20Filled } from "@fluentui/react-icons";
+import { BranchCompare20Filled, ArrowClockwise20Filled, Desktop20Filled } from "@fluentui/react-icons";
 import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import FeatureBadge from "../../../shared/paywall/FeatureBadge";
 import { useAppStore } from "../../../state/appStore";
-
-// --- STEP 1: Import the new orchestrator service ---
 import { comparisonWorkflowService } from "../../comparison/services/comparison.workflow.service";
 
 interface VersionHistoryProps {
@@ -17,15 +14,13 @@ interface VersionHistoryProps {
 }
 
 const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) => {
-  // --- STEP 2: Select only the state and actions needed from the store. ---
-  // `compareWithPrevious` is no longer needed here.
   const {
     selectedVersions,
     isRestoring,
     selectVersion,
     initiateRestore,
   } = useAppStore();
-
+  
   const styles = useSharedStyles();
 
   if (versions.length === 0) {
@@ -36,7 +31,6 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
 
   const renderRestoreButton = (version: IVersionViewModel) => {
     const isDisabled = isRestoring || !version.isRestorable || disabled;
-
     const button = (
       <Button
         size="small"
@@ -59,32 +53,60 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
 
   return (
     <div>
+      {/* Current workbook item */}
+      <div 
+        className={`${styles.card} ${styles.flexRowSpaceBetween}`} 
+        style={{ 
+          flexShrink: 0,
+          padding: '8px',
+          marginBottom: '6px'
+        }}
+      >
+        <div className={styles.flexRow}>
+          <Checkbox
+            checked={selectedVersions.includes('current')}
+            onChange={() => selectVersion('current')}
+            disabled={isRestoring || disabled}
+          />
+          <div style={{ marginLeft: "8px", display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Desktop20Filled style={{ fontSize: '16px' }} />
+            <strong style={{ fontSize: '13px' }}>Current Workbook</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Historical versions */}
       {reversedVersions.map((version, index) => {
         const isFirstVersion = index === reversedVersions.length - 1;
-
         return (
           <div
             key={version.id}
             className={`${styles.card} ${styles.flexRowSpaceBetween}`}
+            style={{ 
+              flexShrink: 0,
+              padding: '8px',
+              marginBottom: '6px'
+            }}
           >
-            <div className={styles.flexRow}>
+            <div className={styles.flexRow} style={{ flex: 1, minWidth: 0 }}>
               <Checkbox
                 checked={selectedVersions.includes(version.id)}
                 onChange={() => selectVersion(version.id)}
                 disabled={isRestoring || disabled}
               />
-              <div style={{ marginLeft: "10px" }}>
-                <strong>{version.comment}</strong>
-                <div className={styles.textSubtle}>{version.timestamp}</div>
+              <div style={{ marginLeft: "8px", minWidth: 0, flex: 1 }}>
+                <strong style={{ fontSize: '13px', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {version.comment}
+                </strong>
+                <div className={styles.textSubtle} style={{ fontSize: '11px', marginTop: '2px' }}>
+                  {version.timestamp}
+                </div>
               </div>
             </div>
-            
-            <div className={styles.flexRow} style={{ gap: '8px' }}>
+            <div className={styles.flexRow} style={{ gap: '4px', flexShrink: 0 }}>
               {renderRestoreButton(version)}
-
               {!isFirstVersion && (
                 <Tooltip content="Compare to Previous" relationship="label">
-                  {/* --- STEP 3: The onClick handler now calls the new service --- */}
                   <Button 
                     size="small"
                     appearance="subtle" 

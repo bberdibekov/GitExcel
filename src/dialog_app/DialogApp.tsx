@@ -6,22 +6,32 @@ import { Spinner } from "@fluentui/react-components";
 import { crossWindowMessageBus } from "../taskpane/core/dialog/CrossWindowMessageBus";
 import { MessageType, InitializeDataPayload } from "../taskpane/types/messaging.types";
 import DialogComparisonView from "../taskpane/features/comparison/components/dialog/DialogComparisonView";
-import { IDiffResult } from "../taskpane/types/types";
+import { IDiffResult, IWorkbookSnapshot } from "../taskpane/types/types"; // Import IWorkbookSnapshot
 import { loggingService } from "../taskpane/core/services/LoggingService";
 
 interface IAppState {
   view: string | null;
-  initialData: IDiffResult | null;
+  // --- UPDATED: The shape of our initial data has changed ---
+  initialData: {
+    diffResult: IDiffResult;
+    startSnapshot: IWorkbookSnapshot;
+    endSnapshot: IWorkbookSnapshot;
+  } | null;
   licenseTier: 'free' | 'pro';
   isLoading: boolean;
   error: string | null;
 }
 
-const renderView = (view: string, data: IDiffResult, licenseTier: 'free' | 'pro') => {
+const renderView = (view: string, data: IAppState['initialData'], licenseTier: 'free' | 'pro') => {
+  if (!data) return <p>Error: Data is missing.</p>;
   switch (view) {
     case "diff-viewer":
-      // pass the licenseTier prop to the component.
-      return <DialogComparisonView result={data} licenseTier={licenseTier} />;
+      return <DialogComparisonView 
+                result={data.diffResult} 
+                startSnapshot={data.startSnapshot}
+                endSnapshot={data.endSnapshot}
+                licenseTier={licenseTier} 
+             />;
     default:
       return <p>Error: Unknown view '{view}' requested.</p>;
   }
@@ -58,7 +68,12 @@ const DialogApp: React.FC = () => {
         loggingService.log("[DialogApp] Received INITIALIZE_DATA message with payload:", payload);
         setState({
           view,
-          initialData: payload.diffResult,
+          // --- UPDATED: Store the entire payload object ---
+          initialData: {
+            diffResult: payload.diffResult,
+            startSnapshot: payload.startSnapshot,
+            endSnapshot: payload.endSnapshot,
+          },
           licenseTier: payload.licenseTier,
           isLoading: false,
           error: null,

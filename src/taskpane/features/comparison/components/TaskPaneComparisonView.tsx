@@ -1,164 +1,76 @@
 // src/taskpane/features/comparison/components/TaskPaneComparisonView.tsx
 
-import * as React from "react";
-import { useState, useEffect } from "react";
-import { IChange, IDiffResult, ISummaryResult, ICombinedChange, IInteractionChange } from "../../../types/types";
-import { Button, Spinner, Text } from "@fluentui/react-components";
-import { Window20Filled } from "@fluentui/react-icons";
-import { 
-  showChangesOnSheet, 
-  clearChangesFromSheet, 
-  setupSelectionListener, 
-  removeSelectionListener,
-  navigateToCell
-} from "../../../core/excel/excel.interaction.service";
-import { generateSummary } from "../../../features/comparison/services/summary.service";
-import SelectionDetailViewer from "./SelectionDetailViewer";
-import DiffViewer from "./DiffViewer";
-import { useSharedStyles } from "../../../shared/styles/sharedStyles";
-import DiffFilterOptions from "./DiffFilterOptions";
-import LockOverlay from '../../../shared/paywall/LockOverlay';
-import { crossWindowMessageBus } from "../../../core/dialog/CrossWindowMessageBus";
-import { MessageType } from "../../../types/messaging.types";
-import { useAppStore } from "../../../state/appStore";
-import { useDialogStore } from "../../../state/dialogStore";
+import * as React from 'react';
+import { useAppStore } from '../../../state/appStore';
+import { useDialogStore } from '../../../state/dialogStore';
+import { Button, Subtitle1, Body1 } from '@fluentui/react-components';
+import { ArrowLeft16Filled } from '@fluentui/react-icons';
+import SideBySideDiffViewer from './dialog/ComparisonReport'; // Our powerful grid viewer component
 
-
-function toSimpleChange(combinedChange: ICombinedChange): IInteractionChange {
-  return {
-    sheet: combinedChange.sheet,
-    address: combinedChange.address,
-    changeType: combinedChange.changeType,
-    oldValue: combinedChange.startValue,
-    newValue: combinedChange.endValue,
-    oldFormula: combinedChange.startFormula,
-    newFormula: combinedChange.endFormula,
-  };
-}
-
-// --- FIX: The onOpenInWindow prop is no longer needed. ---
-interface TaskPaneComparisonViewProps {
-  // onOpenInWindow: (result: IDiffResult) => void; // This is now handled by the workflow service
-}
-
-const TaskPaneComparisonView: React.FC<TaskPaneComparisonViewProps> = (/* --- props removed --- */) => {
+/**
+ * This component acts as the "Results Screen". It reads the current comparison
+ * result from the global state and decides HOW to display it based on the mode.
+ */
+export const TaskPaneComparisonView: React.FC = () => {
+  // --- FIX: Use individual selectors for each piece of state and action. ---
+  // This is a more robust and performant pattern for consuming the store.
+  const diffResult = useAppStore((state) => state.diffResult);
+  const startSnapshot = useAppStore((state) => state.startSnapshot);
+  const endSnapshot = useAppStore((state) => state.endSnapshot);
+  const selectedVersions = useAppStore((state) => state.selectedVersions);
+  const clearComparison = useAppStore((state) => state.clearComparison);
   
-  const result = useAppStore((state) => state.diffResult);
-  const activeFilters = useAppStore((state) => state.activeFilters);
-  const onFilterChange = useAppStore((state) => state.handleFilterChange);
+  const openDialog = useDialogStore((s) => s.open);
   
-  const isDialogOpen = useDialogStore((state) => state.activeDialog !== null);
+  const isLiveComparison = selectedVersions.includes('current');
 
-  const styles = useSharedStyles();
-  const [showOnSheet, setShowOnSheet] = useState(false);
-  const [selectedChange, setSelectedChange] = useState<IChange | null>(null);
-  const [summary, setSummary] = useState<ISummaryResult | null>(null);
-  
-  if (!result) {
-    return <Spinner label="Loading comparison data..." />;
-  }
-
-  useEffect(() => {
-    if (result) {
-      const generatedSummary = generateSummary(result);
-      setSummary(generatedSummary);
-    }
-  }, [result]);
-
-  useEffect(() => {
-    if (showOnSheet && summary) {
-      const simpleChanges = summary.modifiedCells.map(toSimpleChange);
-      
-      const selectionCallback = (change: IChange | null) => {
-          setSelectedChange(change);
-          if (change) {
-              crossWindowMessageBus.broadcast({
-                  type: MessageType.GRID_SELECTION_CHANGED,
-                  payload: { sheet: change.sheet, address: change.address }
-              });
-          }
-      };
-      
-      setupSelectionListener(simpleChanges, selectionCallback);
-    }
-    return () => {
-      removeSelectionListener();
-    };
-  }, [showOnSheet, summary]);
-
-  const handleShowOnSheet = () => {
-    if (summary) {
-      const simpleChanges = summary.modifiedCells.map(toSimpleChange);
-      showChangesOnSheet(simpleChanges);
-      setShowOnSheet(true);
-    }
-  };
-
-  const handleClearFromSheet = () => {
-    if (summary) {
-      removeSelectionListener();
-      const simpleChanges = summary.modifiedCells.map(toSimpleChange);
-      clearChangesFromSheet(simpleChanges);
-      setShowOnSheet(false);
-      setSelectedChange(null);
-    }
-  };
-
-  const handleNavigate = (sheet: string, address: string) => {
-    try {
-      navigateToCell(sheet, address);
-    } catch (error) {
-      console.error("Failed to navigate:", error);
-    }
-  };
-
-  // --- REMOVED: The handleViewInWindow function is no longer needed. ---
-
-  const isPartialResult = result.isPartialResult ?? false;
-  const hiddenChangeCount = result.hiddenChangeCount ?? 0;
-  const visibleChangeCount = result.modifiedCells.length;
-  
-  // This placeholder component correctly reacts to the global state.
-  if (isDialogOpen) {
+  if (!diffResult || !startSnapshot || !endSnapshot) {
     return (
-      <div style={{ marginTop: '20px', padding: '30px 10px', textAlign: 'center', border: '1px dashed #ccc', borderRadius: '4px' }}>
-        <Window20Filled style={{ fontSize: '32px', color: '#666' }} />
-        <Text block weight="semibold" style={{ marginTop: '10px' }}>Comparison Active</Text>
-        <Text block className={styles.textSubtle}>
-          The detailed comparison view is open in a separate window.
-        </Text>
-      </div>
+        <div>
+            <Button icon={<ArrowLeft16Filled />} onClick={clearComparison}>Back</Button>
+            <Body1>Error: Comparison data is missing or incomplete.</Body1>
+        </div>
     );
   }
 
-  // This part of the component will now likely never be seen, as `isDialogOpen` will be true
-  // whenever `diffResult` is populated. However, we keep it for logical completeness.
-  return (
-    <div style={{ marginTop: "20px" }}>
-      <DiffFilterOptions 
-        activeFilters={activeFilters}
-        onFilterChange={onFilterChange}
-      />
-      
-      {/* --- FIX: Removed the "View in Window" button --- */}
-      <div className={styles.buttonGroup}>
-        <Button onClick={handleShowOnSheet} disabled={showOnSheet}>Show on Sheet</Button>
-        <Button onClick={handleClearFromSheet} disabled={!showOnSheet}>Clear from Sheet</Button>
-      </div>
-      
-      {showOnSheet && <SelectionDetailViewer change={selectedChange} />}
-      
-      <div style={{ position: 'relative' }}>
-        {summary && <DiffViewer summary={summary} onNavigate={handleNavigate} />}
+  const handleOpenInWindow = () => {
+    openDialog('diff-viewer', {
+      diffResult,
+      startSnapshot,
+      endSnapshot,
+      licenseTier: useAppStore.getState().license?.tier ?? 'free'
+    });
+  };
 
-        {isPartialResult && (
-          <LockOverlay 
-            title="Unlock Full Comparison"
-            message={`Showing ${visibleChangeCount} of ${visibleChangeCount + hiddenChangeCount} changes. Upgrade to Pro to see all results.`}
-            onUpgradeClick={() => { console.log("Upgrade action triggered!"); }}
-          />
-        )}
-      </div>
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <header style={{ padding: '8px 16px', borderBottom: '1px solid #e0e0e0', flexShrink: 0, marginBottom: '10px' }}>
+        <Button icon={<ArrowLeft16Filled />} onClick={clearComparison} appearance="transparent">
+          Back to Version History
+        </Button>
+      </header>
+      
+      {isLiveComparison ? (
+        // --- "Safety Check" Mode: Render the grid directly inside the task pane ---
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+           <SideBySideDiffViewer
+              result={diffResult}
+              startSnapshot={startSnapshot}
+              endSnapshot={endSnapshot}
+           />
+        </div>
+      ) : (
+        // --- "Audit Trail" Mode: Show a summary and a button to pop out the dialog ---
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
+            <Subtitle1>Comparison Summary</Subtitle1>
+            <Body1>
+                Found {diffResult.modifiedCells.length} modified cell(s).
+            </Body1>
+            <Button appearance="primary" onClick={handleOpenInWindow}>
+                Review Changes in New Window
+            </Button>
+        </div>
+      )}
     </div>
   );
 };

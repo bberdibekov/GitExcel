@@ -1,27 +1,27 @@
-// src/taskpane/hooks/useComparisonDialog.ts
+// src/taskpane/features/restore/hooks/useComparisonDialog.ts
 
 import { useState, useEffect } from "react";
-import { IDiffResult } from "../../../types/types";
+// --- FIX: Import the necessary types ---
+import { IDiffResult, IWorkbookSnapshot } from "../../../types/types";
 import { dialogService } from "../../../core/dialog/DialogService";
 import { crossWindowMessageBus } from "../../../core/dialog/CrossWindowMessageBus";
-import { MessageType } from "../../../types/messaging.types";
+// --- FIX: Import the payload type we will be using ---
+import { MessageType, InitializeDataPayload } from "../../../types/messaging.types";
 import { loggingService } from "../../../core/services/LoggingService";
-
-// --- STEP 1: Import the Zustand store ---
 import { useAppStore } from "../../../state/appStore"; 
-
-// --- STEP 2: Remove the old context import ---
-// import { useUser } from "../context/UserContext"; // This is no longer needed
 
 /**
  * A custom hook to manage the state and communication lifecycle for the
  * Comparison View dialog. It handles the entire "data handshake" protocol.
+ * @deprecated This hook is architecturally superseded by comparison.workflow.service.ts
  */
 export function useComparisonDialog() {
-  const [dataToSend, setDataToSend] = useState<IDiffResult | null>(null);
+  // --- FIX: The state now holds the entire payload, not just the diffResult ---
+  const [dataToSend, setDataToSend] = useState<InitializeDataPayload | null>(null);
   
-  // --- STEP 3: Select the license state directly from the Zustand store ---
   const license = useAppStore((state) => state.license);
+  // --- FIX: We need access to the versions to retrieve the snapshots ---
+  const versions = useAppStore((state) => state.versions);
 
   useEffect(() => {
     if (!dataToSend) {
@@ -35,11 +35,7 @@ export function useComparisonDialog() {
       
       crossWindowMessageBus.broadcast({
         type: MessageType.INITIALIZE_DATA,
-        payload: {
-          diffResult: dataToSend,
-          // Use the license tier from the store's state
-          licenseTier: license?.tier ?? 'free',
-        },
+        payload: dataToSend,
       });
 
       setDataToSend(null);
@@ -56,11 +52,30 @@ export function useComparisonDialog() {
       loggingService.log("[useComparisonDialog] Cleaning up handshake listener due to unmount.");
       unsubscribe();
     };
-  }, [dataToSend, license]);
+  }, [dataToSend]); // No longer need license in dependency array as it's part of dataToSend
 
-  const openComparisonInDialog = (result: IDiffResult) => {
+  /**
+   * --- FIX: The function signature now requires the indices of the compared versions ---
+   * This is necessary to look up the snapshots from the main app state.
+   */
+  const openComparisonInDialog = (result: IDiffResult, indices: { start: number, end: number }) => {
     loggingService.log("[useComparisonDialog] openComparisonInDialog called. Staging data for handshake.");
-    setDataToSend(result);
+    
+    const startVersion = versions[indices.start];
+    const endVersion = versions[indices.end];
+
+    if (!startVersion || !endVersion) {
+        loggingService.logError(new Error("Could not find start or end version for comparison dialog."), "Invalid Indices Provided");
+        return;
+    }
+
+    // --- FIX: Build the complete payload object ---
+    setDataToSend({
+        diffResult: result,
+        licenseTier: license?.tier ?? 'free',
+        startSnapshot: startVersion.snapshot,
+        endSnapshot: endVersion.snapshot,
+    });
   };
 
   return {

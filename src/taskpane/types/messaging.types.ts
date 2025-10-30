@@ -1,6 +1,6 @@
 // src/taskpane/types/messaging.types.ts
 
-import { IDiffResult } from "./types"; // Import the type for our payload
+import { IDiffResult, IWorkbookSnapshot } from "./types"; // Import IWorkbookSnapshot
 
 /**
  * Defines the distinct types of messages that can be sent across the window boundary.
@@ -37,6 +37,9 @@ export interface GridSelectionChangedPayload {
 export interface InitializeDataPayload {
   diffResult: IDiffResult;
   licenseTier: 'free' | 'pro';
+  // --- ADDED: Pass the full snapshots for the grid view ---
+  startSnapshot: IWorkbookSnapshot;
+  endSnapshot: IWorkbookSnapshot;
 }
 
 export type UpdateDataPayload = InitializeDataPayload;

@@ -1,12 +1,10 @@
 // src/taskpane/state/appStore.ts
 
 import { create } from 'zustand';
-import { IVersion, IDiffResult } from '../types/types';
+import { IVersion, IDiffResult, IWorkbookSnapshot } from '../types/types';
 import { INotification } from '../shared/ui/NotificationDialog';
 import { ILicense, authService } from '../core/services/AuthService';
 import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
-import { debugService } from '../core/services/debug.service';
-import { useDialogStore } from './dialogStore';
 import { excelSnapshotService } from "../core/excel/excel.snapshot.service";
 
 /**
@@ -14,8 +12,10 @@ import { excelSnapshotService } from "../core/excel/excel.snapshot.service";
  */
 export interface IAppState {
   versions: IVersion[];
-  selectedVersions: number[];
+  selectedVersions: (number | string)[];
   diffResult: IDiffResult | null;
+  startSnapshot: IWorkbookSnapshot | null;
+  endSnapshot: IWorkbookSnapshot | null;
   lastComparedIndices: { start: number; end: number } | null;
   isRestoring: boolean;
   activeFilters: Set<string>;
@@ -32,26 +32,23 @@ export interface IAppActions {
   fetchLicense: () => Promise<void>;
   addVersion: (comment: string) => Promise<void>;
   clearVersions: () => void;
-  selectVersion: (versionId: number) => void;
+  selectVersion: (versionId: number | string) => void;
   handleFilterChange: (filterId: string) => void;
   initiateRestore: (versionId: number) => void;
   cancelRestore: () => void;
-  executeRestore: (selection: {
-    sheets: string[];
-    destinations: { asNewSheets: boolean; asNewWorkbook: boolean };
-  }) => Promise<void>;
+  executeRestore: (selection: { sheets: string[]; destinations: { asNewSheets: boolean; asNewWorkbook: boolean }; }) => Promise<void>;
   clearNotification: () => void;
-  // --- FIX: Add the new internal action to the interface ---
-  _setComparisonResult: (result: IDiffResult, indices: { start: number; end: number }) => void;
+  _setComparisonResult: (payload: { result: IDiffResult; startSnapshot: IWorkbookSnapshot; endSnapshot: IWorkbookSnapshot; }) => void;
+  clearComparison: () => void;
 }
 
-/**
- * The initial, default state of the application's core data.
- */
+
 const initialState: IAppState = {
   versions: [],
   selectedVersions: [],
   diffResult: null,
+  startSnapshot: null,
+  endSnapshot: null,
   lastComparedIndices: null,
   isRestoring: false,
   activeFilters: new Set(),
@@ -103,30 +100,39 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
   },
 
   clearVersions: () => {
-    localStorage.removeItem("excelVersions");
-    set({ versions: [], selectedVersions: [], diffResult: null, lastComparedIndices: null });
+    set({ versions: [], selectedVersions: [], diffResult: null, startSnapshot: null, endSnapshot: null, lastComparedIndices: null });
     console.log("[AppStore] Version history cleared.");
   },
 
   selectVersion: (versionId) => {
     const currentSelection = get().selectedVersions;
+    if (get().diffResult) {
+      set({ diffResult: null, startSnapshot: null, endSnapshot: null, lastComparedIndices: null });
+    }
     const newSelection = [...currentSelection];
     const index = newSelection.indexOf(versionId);
 
-    if (index === -1) {
-      newSelection.push(versionId);
-    } else {
-      newSelection.splice(index, 1);
-    }
-    if (newSelection.length > 2) {
-      newSelection.shift();
-    }
-    set({ selectedVersions: newSelection, diffResult: null, lastComparedIndices: null });
+    if (index === -1) { newSelection.push(versionId); } else { newSelection.splice(index, 1); }
+    if (newSelection.length > 2) { newSelection.shift(); }
+    set({ selectedVersions: newSelection });
   },
 
-  // --- FIX: This is the new, simple state setter ---
-  _setComparisonResult: (result, indices) => {
-    set({ diffResult: result, lastComparedIndices: indices });
+  _setComparisonResult: (payload) => {
+    set({
+      diffResult: payload.result,
+      startSnapshot: payload.startSnapshot,
+      endSnapshot: payload.endSnapshot,
+      lastComparedIndices: null, // This concept is deprecated for now
+    });
+  },
+
+  clearComparison: () => {
+    set({
+        diffResult: null,
+        startSnapshot: null,
+        endSnapshot: null,
+        selectedVersions: []
+    });
   },
 
   handleFilterChange: (filterId) => {

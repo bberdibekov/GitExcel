@@ -5,8 +5,6 @@ import { useEffect, useMemo } from "react";
 import { Button } from "@fluentui/react-components";
 import { useAppStore } from "../state/appStore";
 import { IVersionViewModel } from "../types/types";
-import { useDialogStore } from "../state/dialogStore";
-
 import NotificationDialog from "../shared/ui/NotificationDialog";
 import { RestoreSelectionDialog } from "../features/restore/components/RestoreSelectionDialog";
 import SaveVersionForm from "../features/restore/components/SaveVersionForm";
@@ -15,19 +13,14 @@ import TaskPaneComparisonView from "../features/comparison/components/TaskPaneCo
 import DeveloperTools from "../features/developer/components/DeveloperTools";
 import { comparisonWorkflowService } from "../features/comparison/services/comparison.workflow.service";
 
-// --- FIX: Import and use the hook that contains the handshake listener ---
-import { useComparisonDialog } from "../features/comparison/hooks/useComparisonDialog";
-
-
 const FREE_TIER_VERSION_LIMIT = 3;
 
 /**
  * The root component of the task pane application.
- * this component's primary responsibilities are:
- * 1. To orchestrate the overall layout of the application.
+ * This component's primary responsibilities are:
+ * 1. To act as a router, showing the "home" screen or the "results" screen.
  * 2. To trigger initial data loading (like fetching the license).
- * 3. To read state from the central stores to render major UI elements
- *    and manage the global enabled/disabled state of the UI.
+ * 3. To read state from the central stores to render major UI elements.
  */
 const App = () => {
   // --- Select ALL required state from the main app store ---
@@ -45,18 +38,12 @@ const App = () => {
   const fetchLicense = useAppStore((state) => state.fetchLicense);
   const clearNotification = useAppStore((state) => state.clearNotification);
 
-  const isDialogOpen = useDialogStore((state) => state.activeDialog !== null);
-
-  // --- FIX: This hook MUST be called to register the message listener. ---
-  // Its only job is to run its internal useEffect.
-  useComparisonDialog();
-
   // --- Trigger initial data fetch on component mount ---
   useEffect(() => {
     fetchLicense();
   }, [fetchLicense]);
 
-  // This memoized calculation is unchanged.
+  // --- This memoized calculation maps raw versions to view models for the UI ---
   const versionsForView = useMemo((): IVersionViewModel[] => {
     const isPro = license?.tier === 'pro';
     const totalVersions = versions.length;
@@ -79,39 +66,48 @@ const App = () => {
     });
   }, [versions, license]);
 
-  console.log("[App.tsx] State of 'versions' from store before render:", versions);
-
   return (
-    <div style={{ padding: "10px", fontFamily: "Segoe UI" }}>
+    <div style={{ 
+      padding: "8px", 
+      fontFamily: "Segoe UI", 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
       <NotificationDialog notification={notification} onDismiss={clearNotification} />
-      
-      {restoreTarget && (
-        <RestoreSelectionDialog />
-      )}
+      {restoreTarget && <RestoreSelectionDialog />}
 
-      <h2>Version Control</h2>
-      
-      <SaveVersionForm disabled={isDialogOpen || isRestoring} />
-
-      <h3>Version History</h3>
-      
-      <Button 
-        appearance="primary" 
-        disabled={selectedVersions.length !== 2 || isLicenseLoading || isRestoring || isDialogOpen} 
-        onClick={() => comparisonWorkflowService.runComparison()}
-        style={{ marginBottom: "10px" }}
-      >
-        {isLicenseLoading ? "Loading..." : isRestoring ? "Restoring..." : `Compare Selected (${selectedVersions.length}/2)`}
-      </Button>
-
-      <VersionHistory versions={versionsForView} disabled={isDialogOpen || isRestoring} />
-      
-      {diffResult && (
+      {diffResult ? (
         <TaskPaneComparisonView />
+      ) : (
+        <div style={{ overflowY: 'auto', flex: 1 }}>
+          {/* Compact header section */}
+          <div>
+            <h2 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>Version Control</h2>
+            <SaveVersionForm disabled={isRestoring} />
+            <h3 style={{ margin: '8px 0 6px 0', fontSize: '14px', fontWeight: 600 }}>Version History</h3>
+            <Button 
+              appearance="primary" 
+              disabled={selectedVersions.length !== 2 || isLicenseLoading || isRestoring} 
+              onClick={() => comparisonWorkflowService.runComparison()}
+              style={{ marginBottom: "8px" }}
+              size="small"
+            >
+              {isLicenseLoading ? "Loading..." : `Compare (${selectedVersions.length}/2)`}
+            </Button>
+          </div>
+          
+          {/* Version History - displays all versions naturally */}
+          <VersionHistory versions={versionsForView} disabled={isRestoring} />
+        </div>
       )}
 
+      {/* Developer tools at the bottom - only in development */}
       {process.env.NODE_ENV === 'development' && (
-        <DeveloperTools />
+        <div style={{ flexShrink: 0, marginTop: '8px' }}>
+          <DeveloperTools />
+        </div>
       )}
     </div>
   );

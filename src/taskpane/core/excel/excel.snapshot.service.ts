@@ -4,6 +4,7 @@ import { IWorkbookSnapshot, ISheetSnapshot, ICellData, IFormulaPrecedent, SheetI
 import { sheetMetadataService } from "../../features/comparison/services/sheet.metadata.service";
 import { generateRowHash } from "../../shared/lib/hashing.service";
 import { toA1 } from "../../shared/lib/address.converter";
+import { loggingService } from "../services/LoggingService";
 
 // A small helper to identify formulas, consistent with other services.
 function isRealFormula(formula: any): boolean {
@@ -41,8 +42,12 @@ class ExcelSnapshotService {
         continue;
       }
       
+      // --- FIX 1: Optimize batching by loading more properties upfront ---
       const usedRange = sheet.getUsedRangeOrNullObject();
+      const mergedAreas = usedRange.getMergedAreasOrNullObject();
       usedRange.load("isNullObject, address, rowIndex, columnIndex, values, formulas");
+      mergedAreas.load("isNullObject, address");
+      
       await context.sync();
 
       if (usedRange.isNullObject) {
@@ -51,11 +56,16 @@ class ExcelSnapshotService {
       }
       
       const formulas = usedRange.formulas as (string | number | boolean)[][];
-      const precedentsMap = await this.getPrecedentsForSheet(context, sheet, formulas, usedRange.rowIndex, usedRange.columnIndex, nameToSheetIdMap);
 
-      const mergedAreas = usedRange.getMergedAreasOrNullObject(); 
-      mergedAreas.load("isNullObject, address");
-      await context.sync();
+      // --- FIX 2: Add resilience with a try...catch block ---
+      // Precedent fetching is treated as an enhancement. If it fails, we still get the core snapshot.
+      let precedentsMap = new Map<string, IFormulaPrecedent[]>();
+      try {
+        precedentsMap = await this.getPrecedentsForSheet(context, sheet, formulas, usedRange.rowIndex, usedRange.columnIndex, nameToSheetIdMap);
+      } catch (error) {
+        loggingService.logError(error, `[SnapshotService] Failed to get precedents for sheet "${sheet.name}". Continuing without them.`);
+        // The process continues with an empty precedentsMap, which is perfectly fine.
+      }
       
       const sheetSnapshot: ISheetSnapshot = {
         name: sheet.name,

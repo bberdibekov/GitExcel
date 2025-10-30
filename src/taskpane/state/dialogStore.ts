@@ -7,35 +7,17 @@ import { crossWindowMessageBus } from '../core/dialog/CrossWindowMessageBus';
 import { MessageType } from '../types/messaging.types';
 import { loggingService } from '../core/services/LoggingService';
 
-type DialogView = 'diff-viewer' | 'settings'; // Scalable for future dialogs
+type DialogView = 'diff-viewer' | 'settings';
 
-/**
- * Interface defining the shape of our dialog state.
- */
 export interface IDialogState {
   activeDialog: DialogView | null;
-  dataForDialog: any | null; // A temporary staging area for the initial payload
+  dataForDialog: any | null;
 }
 
-/**
- * Interface defining all actions that can modify the dialog state.
- */
 export interface IDialogActions {
-  /**
-   * Opens a new dialog and stages the data for the handshake.
-   */
   open: (view: DialogView, data: any) => Promise<void>;
-  /**
-   * Called by the DialogService when the window is physically closed. Resets the state.
-   */
   close: () => void;
-  /**
-   * Pushes a new data payload to an already-open dialog.
-   */
   updateData: (data: any) => void;
-  /**
-   * An internal action that completes the handshake, sending the staged data.
-   */
   __internal_handshakeReady: () => void;
 }
 
@@ -48,23 +30,19 @@ export const useDialogStore = create<IDialogState & IDialogActions>((set, get) =
   ...initialState,
 
   open: async (view, data) => {
-    // Prevent opening a dialog if one is already active.
     if (get().activeDialog) {
       loggingService.warn("[DialogStore] An open() call was ignored because a dialog is already active.");
       return;
     }
-
     loggingService.log(`[DialogStore] Staging data for dialog view: ${view}`, data);
     set({ dataForDialog: data });
 
     try {
       await dialogService.open(view);
-      // Once the window is open, we can update our state.
       set({ activeDialog: view });
       loggingService.log(`[DialogStore] Dialog view '${view}' is now open and active.`);
     } catch (error) {
       loggingService.logError(error, `[DialogStore] Failed to open dialog view: ${view}`);
-      // If opening fails, clean up the state.
       set({ ...initialState });
     }
   },
@@ -93,13 +71,23 @@ export const useDialogStore = create<IDialogState & IDialogActions>((set, get) =
       return;
     }
 
-    loggingService.log("[DialogStore] Handshake ready. Sending INITIALIZE_DATA payload.");
+    loggingService.log("[DialogStore] Handshake ready. Sending INITIALIZE_DATA payload to dialog.");
     crossWindowMessageBus.broadcast({
       type: MessageType.INITIALIZE_DATA,
       payload: dataForDialog,
     });
 
-    // Clear the staged data after sending it.
     set({ dataForDialog: null });
   },
 }));
+
+
+// --- FIX: Add the permanent listener for the handshake ---
+// This code runs once when the module is loaded, setting up the connection
+// between the message bus and the store for the entire application lifecycle.
+loggingService.log("[DialogStore] Setting up permanent listener for DIALOG_READY_FOR_DATA.");
+crossWindowMessageBus.listen(MessageType.DIALOG_READY_FOR_DATA, () => {
+  loggingService.log("[DialogStore] Received DIALOG_READY_FOR_DATA from a dialog window. Triggering handshake.");
+  // Get the current state's internal action and call it.
+  useDialogStore.getState().__internal_handshakeReady();
+});

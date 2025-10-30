@@ -11,7 +11,6 @@ import { testSteps } from "../../../features/developer/services/test.cases";
 import { useAppStore } from "../../../state/appStore";
 import { comparisonWorkflowService } from "../../comparison/services/comparison.workflow.service";
 
-
 interface DevToolsProps { }
 
 const DeveloperTools: React.FC<DevToolsProps> = () => {
@@ -45,9 +44,6 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         onStatusUpdate: setStatus,
       }, {
         upToStep: 10,
-        //run steps 5 through 12
-        //startFromStep: 5, 
-        //upToStep: 12
       });
       setStatus("Test run completed successfully!");
     } catch (error) {
@@ -76,55 +72,66 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
   };
 
   return (
-    <div className={styles.card_dev_tools}>
-      <h4>Developer Tools</h4>
-      <p className={styles.textSubtle} style={{ margin: 0 }}>
-        This panel is only visible in development mode.
-      </p>
+    <div style={{
+      backgroundColor: '#fff3f3',
+      border: '2px dashed #d13438',
+      borderRadius: '4px',
+      padding: '8px',
+      marginTop: '8px'
+    }}>
+      <h4 style={{ margin: '0 0 6px 0', fontSize: '13px' }}>Developer Tools</h4>
+      
+      <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
+        Tier: <strong>{isLicenseLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
+      </div>
 
-      <Divider style={{ margin: "12px 0" }} />
-      <p className={styles.textSubtle} style={{ margin: 0, fontWeight: "bold" }}>
-        Mock Auth Control
-      </p>
-      <p className={styles.textSubtle} style={{ marginTop: '4px' }}>
-        Current Tier: <strong>{isLicenseLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
-      </p>
-      <div className={styles.buttonGroup} style={{ marginTop: '8px' }}>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
         <Button
           appearance="primary"
+          size="small"
           onClick={handleToggleTier}
           disabled={isLicenseLoading}
+          style={{ flex: 1 }}
         >
-          {`Switch to ${license?.tier === 'pro' ? 'Free' : 'Pro'}`}
+          {`→ ${license?.tier === 'pro' ? 'Free' : 'Pro'}`}
         </Button>
         <Button
           appearance="secondary"
+          size="small"
           onClick={handleClearMock}
+          style={{ flex: 1 }}
         >
-          Clear Mock & Revert
+          Clear
         </Button>
       </div>
-      <Divider style={{ margin: "12px 0" }} />
 
-      <Button
-        appearance="primary"
-        onClick={handleRunTest}
-        disabled={isRunning}
-        style={{ marginTop: "10px", width: "100%" }}
-      >
-        {isRunning ? "Running..." : `Run Formatted v1-v${testSteps.length} Test Case`}
-      </Button>
+      <Divider style={{ margin: "6px 0" }} />
 
-      <Button
-        appearance="secondary"
-        onClick={handleSaveLog}
-        disabled={isRunning}
-        style={{ marginTop: "8px", width: "100%" }}
-      >
-        Save Debug Session to File
-      </Button>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+        <Button
+          appearance="primary"
+          size="small"
+          onClick={handleRunTest}
+          disabled={isRunning}
+          style={{ flex: 1 }}
+        >
+          {isRunning ? "Running..." : `Test v1-${testSteps.length}`}
+        </Button>
 
-      <p className={styles.textSubtle} style={{ marginTop: '10px', fontStyle: 'italic' }}>Status: {status}</p>
+        <Button
+          appearance="secondary"
+          size="small"
+          onClick={handleSaveLog}
+          disabled={isRunning}
+          style={{ flex: 1 }}
+        >
+          Save Log
+        </Button>
+      </div>
+
+      <div style={{ fontSize: '10px', color: '#666', fontStyle: 'italic', marginTop: '4px' }}>
+        {status}
+      </div>
     </div>
   );
 };
