@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { useState, useMemo } from "react";
-import { IWorkbookSnapshot, ISheetSnapshot, ICombinedChange, IDiffResult } from "../../../../types/types";
-import { Tab, TabList, Body1 } from "@fluentui/react-components";
+// --- ADDED: Import summary generator and types ---
+import { generateSummary } from "../../services/summary.service";
+import { IWorkbookSnapshot, ISheetSnapshot, ICombinedChange, IDiffResult, IHighLevelChange } from "../../../../types/types";
+import { Tab, TabList, Body1, Subtitle2 } from "@fluentui/react-components"; // --- ADDED: Subtitle2 for headers ---
 import DiffCell from "./ComparisonRow";
 
 // --- DEVELOPER NOTE ---
@@ -22,12 +24,38 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
   return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
 };
 
-const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, startSnapshot, endSnapshot }) => {
-  const modifiedSheetNames = useMemo(() => {
-    return [...new Set(result.modifiedCells.map(c => c.sheet))];
-  }, [result]);
+// --- ADDED: A dedicated component to render high-level changes ---
+const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[] }> = ({ changes }) => {
+    if (changes.length === 0) return null;
 
-  const [selectedSheetName, setSelectedSheetName] = useState<string>(modifiedSheetNames[0] ?? "");
+    return (
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #e0e0e0' }}>
+            <Subtitle2>Structural Changes</Subtitle2>
+            <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                {changes.map((change, index) => (
+                    <li key={index}>
+                        <strong>{change.sheet}:</strong> {change.description}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+
+const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, startSnapshot, endSnapshot }) => {
+  // --- START: MODIFIED LOGIC ---
+  const summary = useMemo(() => generateSummary(result), [result]);
+  
+  const affectedSheetNames = useMemo(() => {
+    const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
+    const sheetsFromStructure = summary.highLevelChanges.map(c => c.sheet);
+    return [...new Set([...sheetsFromCells, ...sheetsFromStructure])];
+  }, [result, summary]);
+
+  const [selectedSheetName, setSelectedSheetName] = useState<string>(affectedSheetNames[0] ?? "");
+  // --- END: MODIFIED LOGIC ---
+
 
   const changeMap = useMemo(() => {
     const map = new Map<string, ICombinedChange>();
@@ -39,7 +67,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, sta
     return map;
   }, [result, selectedSheetName]);
 
-  // Memoize the sheet data to prevent re-calculations on every render
   const { startSheet, endSheet } = useMemo(() => {
     const startSheetId = getSheetIdByName(startSnapshot, selectedSheetName);
     const endSheetId = getSheetIdByName(endSnapshot, selectedSheetName);
@@ -49,7 +76,8 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, sta
     };
   }, [selectedSheetName, startSnapshot, endSnapshot]);
 
-  if (!result || modifiedSheetNames.length === 0) {
+  // --- MODIFIED: Update the condition to check all changes ---
+  if (!result || affectedSheetNames.length === 0) {
     return <Body1 style={{padding: '16px'}}>No changes detected between these versions.</Body1>;
   }
 
@@ -84,9 +112,12 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, sta
   };
   
   return (
+    // --- MODIFIED: Add a container and render the HighLevelChangesList ---
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 50px)' /* Adjust for action bar */ }}>
+      <HighLevelChangesList changes={summary.highLevelChanges} />
+      
       <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
-        {modifiedSheetNames.map(name => <Tab key={name} value={name}>{name}</Tab>)}
+        {affectedSheetNames.map(name => <Tab key={name} value={name}>{name}</Tab>)}
       </TabList>
       <div style={{ display: 'flex', flex: 1, gap: '8px', padding: '8px', backgroundColor: '#f5f5f5' }}>
         {renderGrid(startSheet)}
