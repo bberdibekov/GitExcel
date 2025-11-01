@@ -286,4 +286,93 @@ export const useSharedStyles = makeStyles({
   diffSymbol_deleted: {
     color: tokens.colorPaletteRedForeground1,
   },
-});
+
+  gridContainer: {
+    flex: "1 1 0%", // Use flex shorthand
+    overflow: "hidden",
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  
+  gridCell: {
+    ...shorthands.padding("2px", "6px"),
+    ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    fontFamily: "Calibri, sans-serif", // Maintain Excel look
+    fontSize: "11pt",
+    boxSizing: 'border-box',
+  },
+  
+  gridCell_blank: {
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+
+  gridCell_changed: {
+    backgroundColor: tokens.colorPaletteYellowBackground1, // Use a Fluent token
+    fontWeight: tokens.fontWeightSemibold,
+  },
+
+  gridOuterWrapper: {
+    display: 'grid',
+    gridTemplateRows: '22px 1fr',
+    gridTemplateColumns: '50px 1fr',
+    flex: '1 1 0%',
+    height: 'calc(100vh - 150px)',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  gridTopLeftCorner: {
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  gridHeaderCell: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.colorNeutralBackground3,
+    color: tokens.colorNeutralForeground3,
+    fontWeight: tokens.fontWeightSemibold,
+    borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    boxSizing: 'border-box',
+  },
+  // These containers now hold the List/Grid components
+  gridComponentContainer: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+
+
+  // --- STYLES FOR FORMULA BADGE ---
+  cellContentWrapper: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    // Prevent the wrapper from shrinking when the content is long
+    minWidth: 0,
+  },
+
+  cellText: {
+    flexGrow: 1,
+    minWidth: 0, 
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+
+  fxBadge: {
+    position: 'absolute',
+    top: '0px',
+    right: '0px',
+    fontSize: '9px',
+    lineHeight: '9px',
+    color: tokens.colorNeutralForeground4, // A subtle, muted color
+    fontStyle: 'italic',
+    userSelect: 'none', // Can't be selected with the mouse
+  },
+  // --- END STYLES ---
+
+  });

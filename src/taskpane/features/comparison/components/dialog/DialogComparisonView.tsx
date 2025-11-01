@@ -9,7 +9,7 @@ import { MessageType } from "../../../../types/messaging.types";
 import { loggingService } from "../../../../core/services/LoggingService";
 
 import ComparisonActionBar, { ViewFilter } from "./ComparisonActionBar";
-import SideBySideDiffViewer from "./ComparisonReport";
+import SideBySideDiffViewer from "./SideBySideDiffViewer";
 
 interface DialogComparisonViewProps {
   result: IDiffResult | null;

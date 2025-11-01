@@ -43,7 +43,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         onCompare: comparisonWorkflowService.runComparison,
         onStatusUpdate: setStatus,
       }, {
-        upToStep: 10,
+        upToStep: 18,
       });
       setStatus("Test run completed successfully!");
     } catch (error) {
