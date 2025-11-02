@@ -138,7 +138,9 @@ function compareCells(
   newRow: IRowData,
   activeFilterIds: Set<string>,
   renames: ISheetRename[],
-  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[]
+  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[],
+  fromVersionComment: string,
+  toVersionComment: string
 ): IChange[] {
   const modifiedCells: IChange[] = [];
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
@@ -159,6 +161,8 @@ function compareCells(
           sheet: sheetId, address: canonicalAddress, changeType: "formula",
           oldValue: _oldCell.value, newValue: _newCell.value,
           oldFormula: _oldCell.formula, newFormula: _newCell.formula,
+          fromVersionComment,
+          toVersionComment,
           metadata: { isConsequential: true, reason: "ref_error_sheet_deleted" },
         });
         continue;
@@ -175,6 +179,8 @@ function compareCells(
         changeType: formulaChanged ? (valueChanged ? "both" : "formula") : "value",
         oldValue: _oldCell.value, newValue: _newCell.value,
         oldFormula: _oldCell.formula, newFormula: _newCell.formula,
+        fromVersionComment,
+        toVersionComment,
       });
     }
   }
@@ -215,7 +221,9 @@ export function diffSheetContent(
   newSheet: ISheetSnapshot,
   activeFilterIds: Set<string>,
   renames: ISheetRename[],
-  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[]
+  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[],
+  fromVersionComment: string,
+  toVersionComment: string
 ): IChangeset {
   const result: IChangeset = { modifiedCells: [], addedRows: [], deletedRows: [], structuralChanges: [] };
   const oldCoords = oldSheet.address ? fromA1(oldSheet.address) : null;
@@ -271,7 +279,7 @@ export function diffSheetContent(
         }
         
         // Buffer the detailed changes in case this is a fallback scenario.
-        bufferedModifiedCells.push(...compareCells(sheetId, oldRow, newRow, activeFilterIds, renames, deletions));
+        bufferedModifiedCells.push(...compareCells(sheetId, oldRow, newRow, activeFilterIds, renames, deletions, fromVersionComment, toVersionComment));
         
         oldIdx++;
         newIdx++;
@@ -287,6 +295,8 @@ export function diffSheetContent(
             result.modifiedCells.push({
               sheet: sheetId, address: cell.address, changeType: isRealFormula(cell.formula) ? 'both' : 'value',
               oldValue: "", newValue: cell.value, oldFormula: "", newFormula: cell.formula,
+              fromVersionComment,
+              toVersionComment,
             });
           }
         });

@@ -99,8 +99,25 @@ export const useComparisonDialogStyles = makeStyles({
     },
     historyStepTitle: {
         fontSize: tokens.fontSizeBase300,
-        fontWeight: tokens.fontWeightSemibold,
+        display: 'flex',
+        alignItems: 'center',
+        gap: tokens.spacingHorizontalS,
+        flexWrap: 'wrap',
     },
+    historyStepTitleText: {
+        fontWeight: tokens.fontWeightRegular,
+        color: tokens.colorNeutralForeground2,
+    },
+    historyStepVersionComment: {
+        backgroundColor: tokens.colorNeutralBackground2,
+        ...shorthands.borderRadius(tokens.borderRadiusSmall),
+        ...shorthands.padding('2px', '6px'),
+        fontWeight: tokens.fontWeightSemibold,
+        color: tokens.colorNeutralForeground1,
+        fontFamily: 'monospace',
+        whiteSpace: 'nowrap',
+    },
+
     diffContainer: {
         ...shorthands.padding('10px'),
         ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke2),

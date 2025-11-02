@@ -21,6 +21,27 @@ interface ChangeDetailModalProps {
     change: ICombinedChange | null;
 }
 
+const MAX_COMMENT_LENGTH = 25;
+
+/**
+ * A helper function to truncate a string to a maximum length without splitting words.
+ * @param text The string to truncate.
+ * @param maxLength The maximum character length.
+ * @returns The truncated string, with an ellipsis if shortened.
+ */
+const truncateComment = (text: string | undefined, maxLength: number): string => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    
+    const truncated = text.substring(0, maxLength);
+    const lastSpaceIndex = truncated.lastIndexOf(' ');
+    
+    const finalTruncated = lastSpaceIndex > 0 ? truncated.substring(0, lastSpaceIndex) : truncated;
+
+    return finalTruncated + '...';
+};
+
+
 export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, onClose, change }) => {
     const styles = useComparisonDialogStyles();
 
@@ -36,12 +57,56 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
         const isFormula = item.changeType === 'formula' || item.changeType === 'both';
         const before = isFormula ? item.oldFormula : item.oldValue;
         const after = isFormula ? item.newFormula : item.newValue;
+        const wasAdded = !hasContent(before);
+        const wasRemoved = !hasContent(after);
 
-        let titleAction = "Changed";
-        if (!hasContent(before)) titleAction = "Added";
-        if (!hasContent(after)) titleAction = "Removed";
-        const titleObject = isFormula ? "Formula" : "Value";
-        const title = `Step ${index + 1}: ${titleObject} ${titleAction}`;
+        const renderTitle = () => {
+            if (item.fromVersionComment && item.toVersionComment) {
+                const truncatedFrom = truncateComment(item.fromVersionComment, MAX_COMMENT_LENGTH);
+                const truncatedTo = truncateComment(item.toVersionComment, MAX_COMMENT_LENGTH);
+
+                if (wasAdded) {
+                    return (
+                        <>
+                            <span className={styles.historyStepTitleText}>Content Added in:</span>
+                            <Tooltip content={item.toVersionComment} relationship="label">
+                                <span className={styles.historyStepVersionComment}>{truncatedTo}</span>
+                            </Tooltip>
+                        </>
+                    );
+                }
+                if (wasRemoved) {
+                     return (
+                        <>
+                            <span className={styles.historyStepTitleText}>Content Removed between</span>
+                            <Tooltip content={item.fromVersionComment} relationship="label">
+                                <span className={styles.historyStepVersionComment}>{truncatedFrom}</span>
+                            </Tooltip>
+                            <span className={styles.historyStepTitleText}>and</span>
+                            <Tooltip content={item.toVersionComment} relationship="label">
+                                <span className={styles.historyStepVersionComment}>{truncatedTo}</span>
+                            </Tooltip>
+                        </>
+                    );
+                }
+                return (
+                    <>
+                        <span className={styles.historyStepTitleText}>Change between</span>
+                        <Tooltip content={item.fromVersionComment} relationship="label">
+                            <span className={styles.historyStepVersionComment}>{truncatedFrom}</span>
+                        </Tooltip>
+                        <span className={styles.historyStepTitleText}>and</span>
+                        <Tooltip content={item.toVersionComment} relationship="label">
+                            <span className={styles.historyStepVersionComment}>{truncatedTo}</span>
+                        </Tooltip>
+                    </>
+                );
+            }
+            // Fallback for safety
+            const titleObject = isFormula ? "Formula" : "Value";
+            let titleAction = wasAdded ? "Added" : wasRemoved ? "Removed" : "Changed";
+            return <strong className={styles.historyStepTitleText}>{`Step ${index + 1}: ${titleObject} ${titleAction}`}</strong>;
+        };
         
         const diffs = diffChars(String(before ?? ""), String(after ?? ""));
 
@@ -59,7 +124,7 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
         return (
             <div key={index} className={styles.historyStep}>
                 <div className={styles.historyStepHeader}>
-                    <strong className={styles.historyStepTitle}>{title}</strong>
+                    <div className={styles.historyStepTitle}>{renderTitle()}</div>
                     {isFormula && <Badge appearance="tint" color="informative" size="small">Formula</Badge>}
                 </div>
                 

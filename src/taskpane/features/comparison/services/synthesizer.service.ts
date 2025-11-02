@@ -20,15 +20,16 @@ export function synthesizeChangesets(
     v.id >= startVersion.id && v.id <= endVersion.id
   );
 
-  // --- START: ADDED DEBUG LOGGING ---
   const description = `Synthesizing v"${startVersion.id}" vs v"${endVersion.id}"`;
   debugService.addLogEntry(description, {
     startVersion: startVersion.comment,
     endVersion: endVersion.comment,
     relevantVersionCount: relevantVersions.length,
-    activeFilterIds: Array.from(activeFilterIds),
+    activeFilterIds: Array.from(activeFilterIds,
+
+
+    ),
   });
-  // --- END: ADDED DEBUG LOGGING ---
 
   const changesetSequence: IChangeset[] = [];
   for (let i = 0; i < relevantVersions.length - 1; i++) {
@@ -38,9 +39,10 @@ export function synthesizeChangesets(
       fromVersion.snapshot,
       toVersion.snapshot,
       license,
-      activeFilterIds
+      activeFilterIds,
+      fromVersion.comment,
+      toVersion.comment
     );
-    // --- START: ADDED DEBUG LOGGING ---
     debugService.addLogEntry(`[Synthesizer] Generated Changeset ${i + 1}/${relevantVersions.length - 1} (${fromVersion.comment} -> ${toVersion.comment})`, {
         summary: {
             modifiedCells: changeset.modifiedCells.length,
@@ -51,7 +53,6 @@ export function synthesizeChangesets(
         structuralChangeDetails: changeset.structuralChanges,
         isPartial: changeset.isPartialResult
     });
-    // --- END: ADDED DEBUG LOGGING ---
     changesetSequence.push(changeset);
   }
   

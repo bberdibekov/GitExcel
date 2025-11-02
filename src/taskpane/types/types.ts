@@ -98,6 +98,8 @@ export interface IChange {
   oldFormula: string | number | boolean;
   newFormula: string | number | boolean;
   metadata?: { [key: string]: any; };
+  fromVersionComment?: string;
+  toVersionComment?: string;
 }
 
 // Represents the consolidated, final report for a modified cell.

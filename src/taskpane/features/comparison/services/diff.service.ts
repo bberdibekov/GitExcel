@@ -19,7 +19,9 @@ export function diffSnapshots(
   oldSnapshot: IWorkbookSnapshot,
   newSnapshot: IWorkbookSnapshot,
   license: ILicense,
-  activeFilterIds: Set<string>
+  activeFilterIds: Set<string>,
+  fromVersionComment: string,
+  toVersionComment: string
 ): IChangeset {
   // 1. Get high-level workbook structure changes (add/delete/rename).
   const sheetDiffResult = sheetDiffService.diffSheets(oldSnapshot, newSnapshot);
@@ -60,6 +62,8 @@ export function diffSnapshots(
             changeType: isRealFormula(cell.formula) ? 'both' : 'value',
             oldValue: "", newValue: cell.value,
             oldFormula: "", newFormula: cell.formula,
+            fromVersionComment,
+            toVersionComment,
           });
         }
       });
@@ -73,7 +77,7 @@ export function diffSnapshots(
     const newSheet = newSnapshot[sheetId];
     
     // Delegate the complex work to the specialized service, now with rename context.
-    const sheetContentResult = diffSheetContent(sheetId, oldSheet, newSheet, activeFilterIds, renames, deletions);
+    const sheetContentResult = diffSheetContent(sheetId, oldSheet, newSheet, activeFilterIds, renames, deletions, fromVersionComment, toVersionComment);
     
     // Merge the granular results into the master changeset.
     result.modifiedCells.push(...sheetContentResult.modifiedCells);
