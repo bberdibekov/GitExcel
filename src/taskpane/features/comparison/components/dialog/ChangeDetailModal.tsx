@@ -1,16 +1,22 @@
 // src/taskpane/features/comparison/components/dialog/ChangeDetailModal.tsx
 
 import * as React from 'react';
-import { 
-    Dialog, 
-    DialogSurface, 
-    DialogBody, 
+import { useState, useMemo } from 'react';
+import {
+    Dialog,
+    DialogSurface,
+    DialogBody,
     Button,
     Badge,
     Tooltip,
     mergeClasses,
 } from '@fluentui/react-components';
-import { Dismiss24Regular, Copy16Filled } from '@fluentui/react-icons';
+import {
+    Dismiss24Regular,
+    Copy16Filled,
+    ArrowSortDownLines24Regular,
+    ArrowSortUpLines24Regular
+} from '@fluentui/react-icons';
 import { ICombinedChange, IChange } from '../../../../types/types';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
 import { diffChars, Change as DiffChange } from "diff";
@@ -19,6 +25,7 @@ interface ChangeDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     change: ICombinedChange | null;
+    licenseTier: 'free' | 'pro';
 }
 
 const MAX_COMMENT_LENGTH = 25;
@@ -32,20 +39,34 @@ const MAX_COMMENT_LENGTH = 25;
 const truncateComment = (text: string | undefined, maxLength: number): string => {
     if (!text) return '';
     if (text.length <= maxLength) return text;
-    
+
     const truncated = text.substring(0, maxLength);
     const lastSpaceIndex = truncated.lastIndexOf(' ');
-    
+
     const finalTruncated = lastSpaceIndex > 0 ? truncated.substring(0, lastSpaceIndex) : truncated;
 
     return finalTruncated + '...';
 };
 
-
-export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, onClose, change }) => {
+export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, onClose, change, licenseTier }) => {
     const styles = useComparisonDialogStyles();
+    const [sortOrder, setSortOrder] = useState<'chronological' | 'reverse-chronological'>('chronological');
 
+    const displayedHistory = useMemo(() => {
+        if (!change?.history) {
+            return [];
+        }
+        // Create a shallow copy before reversing to avoid mutating the original prop array
+        const historyCopy = [...change.history];
+        if (sortOrder === 'reverse-chronological') {
+            return historyCopy.reverse();
+        }
+        return historyCopy;
+    }, [change?.history, sortOrder]);
+
+    // Now that all hooks have been called, we can safely return early.
     if (!change) return null;
+
 
     const { history, endFormula, endValue, changeType: finalChangeType, metadata } = change;
     const hasContent = (val: any) => val !== null && val !== undefined && String(val).length > 0;
@@ -53,7 +74,7 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
     const finalValueToDisplay = isFinalChangeFormula ? endFormula : endValue;
     const isUnchanged = metadata?.isUnchanged === true;
 
-    const renderHistoryItem = (item: IChange, index: number) => {
+    const renderHistoryItem = (item: IChange) => {
         const isFormula = item.changeType === 'formula' || item.changeType === 'both';
         const before = isFormula ? item.oldFormula : item.oldValue;
         const after = isFormula ? item.newFormula : item.newValue;
@@ -102,12 +123,12 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
                     </>
                 );
             }
-            // Fallback for safety
+            // Fallback for safety - Step index is removed as it's unreliable with sorting.
             const titleObject = isFormula ? "Formula" : "Value";
             let titleAction = wasAdded ? "Added" : wasRemoved ? "Removed" : "Changed";
-            return <strong className={styles.historyStepTitleText}>{`Step ${index + 1}: ${titleObject} ${titleAction}`}</strong>;
+            return <strong className={styles.historyStepTitleText}>{`${titleObject} ${titleAction}`}</strong>;
         };
-        
+
         const diffs = diffChars(String(before ?? ""), String(after ?? ""));
 
         const renderDiffPart = (part: DiffChange, partIndex: number) => {
@@ -122,12 +143,12 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
         const lineClass = mergeClasses(styles.diffLine, isFormula && styles.diffLine_formula);
 
         return (
-            <div key={index} className={styles.historyStep}>
+            <div key={`${item.fromVersionComment}-${item.toVersionComment}`} className={styles.historyStep}>
                 <div className={styles.historyStepHeader}>
                     <div className={styles.historyStepTitle}>{renderTitle()}</div>
                     {isFormula && <Badge appearance="tint" color="informative" size="small">Formula</Badge>}
                 </div>
-                
+
                 <div className={styles.diffContainer}>
                     {hasContent(before) && (
                         <div className={mergeClasses(lineClass, hasContent(after) && styles.diffLine_deleted)}>
@@ -135,7 +156,7 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
                             {diffs.filter(p => !p.added).map(renderDiffPart)}
                         </div>
                     )}
-                    
+
                     {hasContent(after) && (
                         <div className={lineClass}>
                             <span className={mergeClasses(styles.diffSymbol, styles.diffSymbol_added)}>+</span>
@@ -149,8 +170,39 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
 
     const codeBlockClass = mergeClasses(
         styles.codeBlock,
-        isFinalChangeFormula && styles.diffLine_formula 
+        isFinalChangeFormula && styles.diffLine_formula
     );
+
+    const SortButton = () => {
+        const isPro = licenseTier === 'pro';
+        const button = (
+            <Button
+                appearance="subtle"
+                size="small"
+                icon={sortOrder === 'chronological' ? <ArrowSortDownLines24Regular /> : <ArrowSortUpLines24Regular />}
+                onClick={() => setSortOrder(prev => prev === 'chronological' ? 'reverse-chronological' : 'chronological')}
+                disabled={!isPro}
+            >
+                {sortOrder === 'chronological' ? 'Oldest First' : 'Newest First'}
+            </Button>
+        );
+
+        if (isPro) {
+            return (
+                <Tooltip content={`Sort by time (${sortOrder === 'chronological' ? 'oldest to newest' : 'newest to oldest'})`} relationship="label">
+                    {button}
+                </Tooltip>
+            );
+        }
+
+        return (
+            <Tooltip content="Reverse sort order is a Pro feature." relationship="label">
+                <span> {/* Tooltip needs a DOM element to wrap when the child is disabled */}
+                    {button}
+                </span>
+            </Tooltip>
+        );
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={(_, data) => !data.open && onClose()}>
@@ -175,12 +227,16 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
                         onClick={onClose}
                     />
                 </div>
-                
+
                 <DialogBody className={styles.detailModalBody}>
                     <div className={styles.scrollableContent}>
                         {history.length > 0 ? (
                             <div>
-                                {history.map(renderHistoryItem)}
+                                <div className={styles.historyHeader}>
+                                    <span className={styles.historyHeaderTitle}>Change History</span>
+                                    {history.length > 1 && <SortButton />}
+                                </div>
+                                {displayedHistory.map(renderHistoryItem)}
                             </div>
                         ) : isUnchanged ? (
                             <div className={styles.infoBlock}>
@@ -196,9 +252,9 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
                                 <div className={styles.finalValueTitle}>
                                     <span>Final Value:</span>
                                     <Tooltip content="Copy to clipboard" relationship="label">
-                                        <Button 
-                                            icon={<Copy16Filled />} 
-                                            size="small" 
+                                        <Button
+                                            icon={<Copy16Filled />}
+                                            size="small"
                                             appearance="subtle"
                                             onClick={() => navigator.clipboard.writeText(String(finalValueToDisplay))}
                                         >

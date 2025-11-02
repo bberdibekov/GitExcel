@@ -85,6 +85,7 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
         endSnapshot={endSnapshot}
         startVersionComment={startVersionComment}
         endVersionComment={endVersionComment}
+        licenseTier={licenseTier}
       />
     </div>
   );

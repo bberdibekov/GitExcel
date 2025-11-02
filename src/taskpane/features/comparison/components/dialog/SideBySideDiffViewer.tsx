@@ -11,14 +11,13 @@ import { useComparisonDialogStyles } from './ComparisonDialog.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
 
-
-
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
     startSnapshot: IWorkbookSnapshot;
     endSnapshot: IWorkbookSnapshot;
     startVersionComment: string;
     endVersionComment: string;
+    licenseTier: 'free' | 'pro'; // --- MODIFICATION START: Add new prop type ---
 }
 
 const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): string | undefined => {
@@ -42,8 +41,10 @@ const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: Retu
     );
 };
 
+// --- MODIFICATION START: Update component signature to accept new prop ---
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
-    const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment } = props;
+    const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment, licenseTier } = props;
+    // --- MODIFICATION END ---
     const styles = useComparisonDialogStyles();
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const summary = useMemo(() => generateSummary(result), [result]);
@@ -140,13 +141,12 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
   
     return (
         <div className={styles.rootContainer}>
-            {/* --- MODIFICATION START: Replace inline Dialog with new component --- */}
             <ChangeDetailModal
                 isOpen={!!selectedChange}
                 onClose={handleModalClose}
                 change={selectedChange}
+                licenseTier={licenseTier}
             />
-            {/* --- MODIFICATION END --- */}
 
             <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
             <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
