@@ -13,13 +13,10 @@ import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import { Tooltip } from '@fluentui/react-components';
 import { useSharedStyles } from '../../../../shared/styles/sharedStyles';
 import { toA1 } from '../../../../shared/lib/address.converter';
-// --- CHANGE 1: Import the necessary communication tools ---
-import { crossWindowMessageBus } from '../../../../core/dialog/CrossWindowMessageBus';
-import { MessageType } from '../../../../types/messaging.types';
+// --- CHANGE 1: Imports for the message bus are now REMOVED ---
 
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
 
-// --- A small helper to identify formulas, consistent with other services. ---
 const isRealFormula = (formula: any): boolean => {
   return typeof formula === 'string' && formula.startsWith("=");
 };
@@ -30,11 +27,13 @@ type CustomCellData = {
   sheetName: string;
   startRow: number;
   startCol: number;
+  // --- CHANGE 2: Add the new onCellClick callback to the cell's data type ---
+  onCellClick: (change: ICombinedChange) => void;
 };
 
 type MainCellProps = CellComponentProps & CustomCellData;
 
-const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaAttributes, sheet, changeMap, sheetName, startRow, startCol }) => {
+const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaAttributes, sheet, changeMap, sheetName, startRow, startCol, onCellClick }) => {
     const styles = useSharedStyles();
     const dataRowIndex = rowIndex - startRow;
     const dataColIndex = columnIndex - startCol;
@@ -45,7 +44,6 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
 
     const cell = isOutOfBounds ? null : sheet.data[dataRowIndex].cells[dataColIndex];
     if (isOutOfBounds) {
-        // Render a blank cell for the area outside the used range
         return <div style={style} {...ariaAttributes} className={joinClasses(styles.gridCell, styles.gridCell_blank)}></div>;
     }
 
@@ -53,24 +51,19 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
     const isFormula = cell ? isRealFormula(cell.formula) : false;
     const tooltipContent = isFormula ? String(cell.formula) : displayValue;
 
-    // --- CHANGE 2: Get the full change object, not just a boolean ---
     const change = cell ? changeMap.get(`${sheetName}-${cell.address}`) : undefined;
     const isChanged = !!change;
     const className = joinClasses(styles.gridCell, !cell && styles.gridCell_blank, isChanged && styles.gridCell_changed);
     
-    // --- CHANGE 3: Define the click handler ---
+    // --- CHANGE 3: The click handler now calls the callback prop ---
     const handleClick = () => {
-      // If a 'change' object exists for this cell, send the message to the parent orchestrator.
+      // If a 'change' object exists for this cell, invoke the callback.
       if (change) {
-        crossWindowMessageBus.messageParent({
-          type: MessageType.SHOW_CHANGE_DETAIL,
-          payload: { change: change }
-        });
+        onCellClick(change);
       }
     };
     
     return (
-      // --- CHANGE 4: Attach the onClick handler to the cell's div ---
       <div style={style} {...ariaAttributes} className={className} onClick={handleClick}>
         <div className={styles.cellContentWrapper}>
           <Tooltip content={tooltipContent} relationship="label">
@@ -109,6 +102,8 @@ interface VirtualizedDiffGridProps {
   columnWidths: number[] | undefined;
   onScroll: (scrollTop: number, scrollLeft: number) => void;
   gridRef: React.RefObject<GridImperativeAPI>;
+  // --- CHANGE 4: Add the onCellClick prop to the main component's interface ---
+  onCellClick: (change: ICombinedChange) => void;
 }
 
 type GridCellComponent = (props: CellComponentProps) => React.ReactElement;
@@ -116,7 +111,7 @@ type ListRowComponent = (props: RowComponentProps) => React.ReactElement;
 
 
 const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
-  sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef
+  sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef, onCellClick
 }) => {
   const styles = useSharedStyles();
   
@@ -124,8 +119,12 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   const rowHeaderRef = useListRef(null);
   
   const getColumnWidth = (index: number) => columnWidths?.[index] ?? 100;
-  // --- NO CHANGE: The `cellProps` logic is preserved exactly as you provided. ---
-  const cellProps = React.useMemo(() => ({ sheet, changeMap, sheetName, startRow, startCol }), [sheet, changeMap, sheetName, startRow, startCol]);
+
+  // --- CHANGE 5: Pass the onCellClick handler down to the cell data so every cell can use it ---
+  const cellProps = React.useMemo(
+    () => ({ sheet, changeMap, sheetName, startRow, startCol, onCellClick }), 
+    [sheet, changeMap, sheetName, startRow, startCol, onCellClick]
+  );
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (event) => {
     const { scrollTop, scrollLeft } = event.currentTarget;

@@ -1,6 +1,6 @@
 // src/taskpane/types/messaging.types.ts
 
-import { IDiffResult, IWorkbookSnapshot, ICombinedChange } from "./types"; // Import ICombinedChange
+import { IDiffResult, IWorkbookSnapshot } from "./types";
 
 /**
  * Defines the distinct types of messages that can be sent across the window boundary.
@@ -19,31 +19,6 @@ export enum MessageType {
 
   // Main Comparison Dialog Actions
   RUN_COMPARISON_WITH_FILTERS = "RUN_COMPARISON_WITH_FILTERS",
-
-  // --- [NEW] Detail Dialog Lifecycle & Data Transfer ---
-  /**
-   * Fired from the Comparison Dialog grid when a user clicks a cell,
-   * requesting that the orchestrator show the detail view for that change.
-   */
-  SHOW_CHANGE_DETAIL = "SHOW_CHANGE_DETAIL",
-  
-  /**
-   * Fired from the new Detail Dialog after it has loaded, signaling to the
-   * orchestrator that it is ready to receive its initial data.
-   */
-  DETAIL_DIALOG_READY_FOR_DATA = "DETAIL_DIALOG_READY_FOR_DATA",
-
-  /**
-   * Fired from the Task Pane orchestrator to the Detail Dialog to provide
-   * the first set of cell change data.
-   */
-  INITIALIZE_DETAIL_DATA = "INITIALIZE_DETAIL_DATA",
-
-  /**
-   * Fired from the Task Pane orchestrator to an *existing* Detail Dialog
-   * to provide updated cell change data.
-   */
-  UPDATE_DETAIL_DATA = "UPDATE_DETAIL_DATA",
 }
 
 // --- Payload Definitions ---
@@ -63,9 +38,8 @@ export interface InitializeDataPayload {
   licenseTier: 'free' | 'pro';
   startSnapshot: IWorkbookSnapshot;
   endSnapshot: IWorkbookSnapshot;
-  // --- [NEW] Add version context for the dialog title ---
   startVersionComment: string;
-  endVersionComment: string;
+  endVersionComment:string;
 }
 
 export type UpdateDataPayload = InitializeDataPayload;
@@ -73,21 +47,6 @@ export type UpdateDataPayload = InitializeDataPayload;
 export interface RunComparisonWithFiltersPayload {
     filterIds: string[];
 }
-
-// --- [NEW] Detail Dialog Payloads ---
-
-export interface ShowChangeDetailPayload {
-  change: ICombinedChange;
-}
-
-export interface InitializeDetailDataPayload {
-  change: ICombinedChange;
-}
-
-export interface UpdateDetailDataPayload {
-  change: ICombinedChange;
-}
-
 
 // --- The Generic Message Wrapper ---
 
@@ -114,20 +73,4 @@ export type BusMessage =
   | {
       type: MessageType.RUN_COMPARISON_WITH_FILTERS;
       payload: RunComparisonWithFiltersPayload;
-    }
-  // --- [NEW] Detail Dialog Messages ---
-  | {
-      type: MessageType.SHOW_CHANGE_DETAIL;
-      payload: ShowChangeDetailPayload;
-  }
-  | {
-      type: MessageType.DETAIL_DIALOG_READY_FOR_DATA;
-  }
-  | {
-      type: MessageType.INITIALIZE_DETAIL_DATA;
-      payload: InitializeDetailDataPayload;
-  }
-  | {
-      type: MessageType.UPDATE_DETAIL_DATA;
-      payload: UpdateDetailDataPayload;
-  };
+    };

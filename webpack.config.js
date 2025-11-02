@@ -31,7 +31,6 @@ module.exports = async (env, options) => {
         import: ["./src/dialog_app/index.tsx"], // HTML is now handled by the plugin below
         dependOn: "react",
       },
-       "detail-dialog": ["./src/detail_dialog/index.tsx"],
     },
     output: {
       clean: true,
@@ -106,11 +105,6 @@ module.exports = async (env, options) => {
         filename: "diff-viewer.html",
         template: "./src/dialog_app/dialog.html",
         chunks: ["polyfill", "react", "dialog"],
-      }),
-      new HtmlWebpackPlugin({
-        filename: "detail-dialog.html",
-        template: "./src/dialog_app/dialog.html", // We can reuse the same simple HTML template
-        chunks: ["polyfill", "detail-dialog"], // But point it to the new JS chunk
       }),
     ],
     devServer: {

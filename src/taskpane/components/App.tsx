@@ -13,10 +13,6 @@ import VersionHistory from "../features/restore/components/VersionHistory";
 import DeveloperTools from "../features/developer/components/DeveloperTools";
 import { comparisonWorkflowService } from "../features/comparison/services/comparison.workflow.service";
 import ComparisonDialogPlaceholder from "../features/comparison/components/ComparisonDialogPlaceholder";
-import { crossWindowMessageBus } from "../core/dialog/CrossWindowMessageBus";
-import { MessageType, ShowChangeDetailPayload } from "../types/messaging.types";
-import { dialogService } from "../core/dialog/DialogService";
-import { loggingService } from "../core/services/LoggingService";
 
 const FREE_TIER_VERSION_LIMIT = 3;
 
@@ -25,10 +21,8 @@ const FREE_TIER_VERSION_LIMIT = 3;
  * This component's primary responsibilities are:
  * 1. To act as a router, showing the "home" screen or the "results" screen.
  * 2. To trigger initial data loading (like fetching the license).
- * 3. To establish root-level message bus listeners for orchestration.
  */
 const App = () => {
-  // --- Select ALL required state from the central stores ---
   const {
     versions,
     license,
@@ -39,39 +33,18 @@ const App = () => {
     restoreTarget,
   } = useAppStore();
   
-  // --- Subscribe to the new dialog store state shape ---
-  const isDiffViewerOpen = useDialogStore((state) => state.openViews['diff-viewer']);
+  // --- Simplified state selection ---
+  const isDiffViewerOpen = useDialogStore((state) => state.isDiffViewerOpen);
   
   const fetchLicense = useAppStore((state) => state.fetchLicense);
   const clearNotification = useAppStore((state) => state.clearNotification);
 
-  // --- Trigger initial data fetch on component mount ---
   useEffect(() => {
     fetchLicense();
   }, [fetchLicense]);
 
-  useEffect(() => {
-    loggingService.log("[App.tsx] Setting up root listener for SHOW_CHANGE_DETAIL messages.");
-    
-    const unsubscribe = crossWindowMessageBus.listen(
-      MessageType.SHOW_CHANGE_DETAIL,
-      (payload: ShowChangeDetailPayload) => {
-        loggingService.log("[App.tsx] Received SHOW_CHANGE_DETAIL. Invoking DialogService.", payload);
-        // This is the connection point: the message from the dialog UI
-        // triggers the central orchestrator service.
-        dialogService.showChangeDetail(payload.change);
-      }
-    );
+  // --- The root listener for SHOW_CHANGE_DETAIL has been removed ---
 
-    // Cleanup function to prevent memory leaks when the component unmounts.
-    return () => {
-      loggingService.log("[App.tsx] Cleaning up root listener for SHOW_CHANGE_DETAIL.");
-      unsubscribe();
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount and unmount.
-
-
-  // --- This memoized calculation maps raw versions to view models for the UI ---
   const versionsForView = useMemo((): IVersionViewModel[] => {
     const isPro = license?.tier === 'pro';
     const totalVersions = versions.length;
@@ -94,15 +67,11 @@ const App = () => {
     });
   }, [versions, license]);
 
-  // --- Main Render Logic ---
   const renderContent = () => {
-    // Priority 1: If the main dialog is open, show the placeholder.
-    // Use the new state variable ---
     if (isDiffViewerOpen) {
       return <ComparisonDialogPlaceholder />;
     }
 
-    // Priority 2: Otherwise, show the main version history view.
     return (
       <div style={{ overflowY: 'auto', flex: 1 }}>
         <div>

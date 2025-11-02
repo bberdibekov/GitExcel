@@ -7,7 +7,19 @@ import { generateSummary } from '../../services/summary.service';
 import { Tab, TabList, Subtitle2, Subtitle1} from '@fluentui/react-components';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles'; // --- [STYLE] Import the dedicated styles hook
+import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+
+// --- CHANGE 1: Import components for the modal dialog ---
+import { 
+    Dialog,
+    DialogSurface,
+    DialogTitle,
+    DialogBody,
+    DialogActions,
+    Button
+} from "@fluentui/react-components";
+import ChangeDetailViewer from './ChangeDetailViewer';
+import { loggingService } from '../../../../core/services/LoggingService';
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
@@ -38,124 +50,153 @@ const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: Retu
 };
 
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
-  const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment } = props;
-  
-  const styles = useComparisonDialogStyles();
+    const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment } = props;
+    const styles = useComparisonDialogStyles();
 
-  const summary = useMemo(() => generateSummary(result), [result]);
-  
-  const affectedSheetNames = useMemo(() => {
-    const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
-    const sheetsFromStructure = summary.highLevelChanges.map(c => c.sheet);
-    return [...new Set([...sheetsFromCells, ...sheetsFromStructure])];
-  }, [result, summary]);
+    // --- CHANGE 2: Add state to manage the selected change and modal visibility ---
+    const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
 
-  const [selectedSheetName, setSelectedSheetName] = useState<string>(affectedSheetNames[0] ?? "");
+    const summary = useMemo(() => generateSummary(result), [result]);
+    
+    const affectedSheetNames = useMemo(() => {
+        const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
+        const sheetsFromStructure = summary.highLevelChanges.map(c => c.sheet);
+        return [...new Set([...sheetsFromCells, ...sheetsFromStructure])];
+    }, [result, summary]);
 
-  const changeMap = useMemo(() => {
-    const map = new Map<string, ICombinedChange>();
-    for (const change of result.modifiedCells) {
-      if (change.sheet === selectedSheetName) {
-        map.set(`${change.sheet}-${change.address}`, change);
-      }
-    }
-    return map;
-  }, [result, selectedSheetName]);
+    const [selectedSheetName, setSelectedSheetName] = useState<string>(affectedSheetNames[0] ?? "");
 
-  const { startSheet, endSheet } = useMemo(() => {
-    const startSheetId = getSheetIdByName(startSnapshot, selectedSheetName);
-    const endSheetId = getSheetIdByName(endSnapshot, selectedSheetName);
-    return {
-      startSheet: startSheetId ? startSnapshot[startSheetId] : undefined,
-      endSheet: endSheetId ? endSnapshot[endSheetId] : undefined
+    const changeMap = useMemo(() => {
+        const map = new Map<string, ICombinedChange>();
+        for (const change of result.modifiedCells) {
+            if (change.sheet === selectedSheetName) {
+                map.set(`${change.sheet}-${change.address}`, change);
+            }
+        }
+        return map;
+    }, [result, selectedSheetName]);
+
+    const { startSheet, endSheet } = useMemo(() => {
+        const startSheetId = getSheetIdByName(startSnapshot, selectedSheetName);
+        const endSheetId = getSheetIdByName(endSnapshot, selectedSheetName);
+        return {
+            startSheet: startSheetId ? startSnapshot[startSheetId] : undefined,
+            endSheet: endSheetId ? endSnapshot[endSheetId] : undefined
+        };
+    }, [selectedSheetName, startSnapshot, endSnapshot]);
+
+    const gridStartRef = useRef<GridImperativeAPI | null>(null);
+    const gridEndRef = useRef<GridImperativeAPI | null>(null);
+    const isScrolling = useRef(false);
+
+    const onScrollStart = (scrollTop: number, scrollLeft: number) => {
+        if (isScrolling.current) return;
+        isScrolling.current = true;
+        
+        const targetElement = gridEndRef.current?.element;
+        if (targetElement) {
+            targetElement.scrollTop = scrollTop;
+            targetElement.scrollLeft = scrollLeft;
+        }
+
+        requestAnimationFrame(() => { isScrolling.current = false; });
     };
-  }, [selectedSheetName, startSnapshot, endSnapshot]);
-
-  const gridStartRef = useRef<GridImperativeAPI | null>(null);
-  const gridEndRef = useRef<GridImperativeAPI | null>(null);
-  const isScrolling = useRef(false);
-
-  const onScrollStart = (scrollTop: number, scrollLeft: number) => {
-    if (isScrolling.current) return;
-    isScrolling.current = true;
     
-    const targetElement = gridEndRef.current?.element;
-    if (targetElement) {
-        targetElement.scrollTop = scrollTop;
-        targetElement.scrollLeft = scrollLeft;
-    }
-
-    requestAnimationFrame(() => { isScrolling.current = false; });
-  };
-  
-  const onScrollEnd = (scrollTop: number, scrollLeft: number) => {
-    if (isScrolling.current) return;
-    isScrolling.current = true;
-    
-    const targetElement = gridStartRef.current?.element;
-    if (targetElement) {
-        targetElement.scrollTop = scrollTop;
-        targetElement.scrollLeft = scrollLeft;
-    }
-    
-    requestAnimationFrame(() => { isScrolling.current = false; });
-  };
-
-  const rowCount = Math.max(
-      (startSheet?.startRow ?? 0) + (startSheet?.data.length ?? 0),
-      (endSheet?.startRow ?? 0) + (endSheet?.data.length ?? 0)
-  );
-  const colCount = Math.max(
-      (startSheet?.startCol ?? 0) + (startSheet?.data[0]?.cells.length ?? 0),
-      (endSheet?.startCol ?? 0) + (endSheet?.data[0]?.cells.length ?? 0)
-  );
-  
-  return (
-    <div className={styles.rootContainer}>
-      <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
-      <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
-        {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
-      </TabList>
-      <div className={styles.gridsBody}>
+    const onScrollEnd = (scrollTop: number, scrollLeft: number) => {
+        if (isScrolling.current) return;
+        isScrolling.current = true;
         
-        <div className={styles.gridColumn}>
-            <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
-              {startVersionComment}
-            </Subtitle1>
-            <VirtualizedDiffGrid
-                gridRef={gridStartRef}
-                sheet={startSheet}
-                changeMap={changeMap}
-                sheetName={selectedSheetName}
-                rowCount={rowCount}
-                colCount={colCount}
-                startRow={startSheet?.startRow ?? 0}
-                startCol={startSheet?.startCol ?? 0}
-                columnWidths={startSheet?.columnWidths}
-                onScroll={onScrollStart}
-            />
-        </div>
+        const targetElement = gridStartRef.current?.element;
+        if (targetElement) {
+            targetElement.scrollTop = scrollTop;
+            targetElement.scrollLeft = scrollLeft;
+        }
         
-        <div className={styles.gridColumn}>
-            <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
-              {endVersionComment}
-            </Subtitle1>
-            <VirtualizedDiffGrid
-                gridRef={gridEndRef}
-                sheet={endSheet}
-                changeMap={changeMap}
-                sheetName={selectedSheetName}
-                rowCount={rowCount}
-                colCount={colCount}
-                startRow={endSheet?.startRow ?? 0}
-                startCol={endSheet?.startCol ?? 0}
-                columnWidths={endSheet?.columnWidths}
-                onScroll={onScrollEnd}
-            />
+        requestAnimationFrame(() => { isScrolling.current = false; });
+    };
+
+    const handleCellClick = (change: ICombinedChange) => {
+        loggingService.log("[SideBySideDiffViewer] Cell clicked. Staging change for detail view.", change);
+        setSelectedChange(change);
+    };
+
+    const handleModalClose = () => {
+        loggingService.log("[SideBySideDiffViewer] Closing detail view modal.");
+        setSelectedChange(null);
+    };
+
+    const rowCount = Math.max(
+        (startSheet?.startRow ?? 0) + (startSheet?.data.length ?? 0),
+        (endSheet?.startRow ?? 0) + (endSheet?.data.length ?? 0)
+    );
+    const colCount = Math.max(
+        (startSheet?.startCol ?? 0) + (startSheet?.data[0]?.cells.length ?? 0),
+        (endSheet?.startCol ?? 0) + (endSheet?.data[0]?.cells.length ?? 0)
+    );
+  
+    return (
+        <div className={styles.rootContainer}>
+            {/* --- CHANGE 4: Add the Fluent UI Dialog for the detail view --- */}
+            <Dialog open={!!selectedChange} onOpenChange={handleModalClose}>
+                <DialogSurface>
+                    <DialogBody>
+                        <DialogTitle>Cell Change Detail</DialogTitle>
+                        
+                        {selectedChange && (
+                           <ChangeDetailViewer change={selectedChange} />
+                        )}
+
+                        <DialogActions>
+                            <Button appearance="primary" onClick={handleModalClose}>Close</Button>
+                        </DialogActions>
+                    </DialogBody>
+                </DialogSurface>
+            </Dialog>
+
+            <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
+            <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
+                {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
+            </TabList>
+            <div className={styles.gridsBody}>
+                <div className={styles.gridColumn}>
+                    <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
+                        {startVersionComment}
+                    </Subtitle1>
+                    <VirtualizedDiffGrid
+                        gridRef={gridStartRef}
+                        sheet={startSheet}
+                        changeMap={changeMap}
+                        sheetName={selectedSheetName}
+                        rowCount={rowCount}
+                        colCount={colCount}
+                        startRow={startSheet?.startRow ?? 0}
+                        startCol={startSheet?.startCol ?? 0}
+                        columnWidths={startSheet?.columnWidths}
+                        onScroll={onScrollStart}
+                        onCellClick={handleCellClick}
+                    />
+                </div>
+                <div className={styles.gridColumn}>
+                    <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
+                        {endVersionComment}
+                    </Subtitle1>
+                    <VirtualizedDiffGrid
+                        gridRef={gridEndRef}
+                        sheet={endSheet}
+                        changeMap={changeMap}
+                        sheetName={selectedSheetName}
+                        rowCount={rowCount}
+                        colCount={colCount}
+                        startRow={endSheet?.startRow ?? 0}
+                        startCol={endSheet?.startCol ?? 0}
+                        columnWidths={endSheet?.columnWidths}
+                        onScroll={onScrollEnd}
+                        onCellClick={handleCellClick}
+                    />
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default SideBySideDiffViewer;
