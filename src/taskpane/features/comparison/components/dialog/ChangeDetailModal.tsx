@@ -14,12 +14,11 @@ import {
 import {
     Dismiss24Regular,
     Copy16Filled,
-    ArrowSortDownLines24Regular,
-    ArrowSortUpLines24Regular
 } from '@fluentui/react-icons';
-import { ICombinedChange, IChange } from '../../../../types/types';
+import { ICombinedChange } from '../../../../types/types';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
-import { diffChars, Change as DiffChange } from "diff";
+import { SortButton } from './SortButton';
+import { ChangeHistoryItem } from './ChangeHistoryItem';
 
 interface ChangeDetailModalProps {
     isOpen: boolean;
@@ -27,26 +26,6 @@ interface ChangeDetailModalProps {
     change: ICombinedChange | null;
     licenseTier: 'free' | 'pro';
 }
-
-const MAX_COMMENT_LENGTH = 25;
-
-/**
- * A helper function to truncate a string to a maximum length without splitting words.
- * @param text The string to truncate.
- * @param maxLength The maximum character length.
- * @returns The truncated string, with an ellipsis if shortened.
- */
-const truncateComment = (text: string | undefined, maxLength: number): string => {
-    if (!text) return '';
-    if (text.length <= maxLength) return text;
-
-    const truncated = text.substring(0, maxLength);
-    const lastSpaceIndex = truncated.lastIndexOf(' ');
-
-    const finalTruncated = lastSpaceIndex > 0 ? truncated.substring(0, lastSpaceIndex) : truncated;
-
-    return finalTruncated + '...';
-};
 
 export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, onClose, change, licenseTier }) => {
     const styles = useComparisonDialogStyles();
@@ -56,7 +35,6 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
         if (!change?.history) {
             return [];
         }
-        // Create a shallow copy before reversing to avoid mutating the original prop array
         const historyCopy = [...change.history];
         if (sortOrder === 'reverse-chronological') {
             return historyCopy.reverse();
@@ -64,145 +42,18 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
         return historyCopy;
     }, [change?.history, sortOrder]);
 
-    // Now that all hooks have been called, we can safely return early.
     if (!change) return null;
-
 
     const { history, endFormula, endValue, changeType: finalChangeType, metadata } = change;
     const hasContent = (val: any) => val !== null && val !== undefined && String(val).length > 0;
     const isFinalChangeFormula = finalChangeType === 'formula' || finalChangeType === 'both';
     const finalValueToDisplay = isFinalChangeFormula ? endFormula : endValue;
     const isUnchanged = metadata?.isUnchanged === true;
-
-    const renderHistoryItem = (item: IChange) => {
-        const isFormula = item.changeType === 'formula' || item.changeType === 'both';
-        const before = isFormula ? item.oldFormula : item.oldValue;
-        const after = isFormula ? item.newFormula : item.newValue;
-        const wasAdded = !hasContent(before);
-        const wasRemoved = !hasContent(after);
-
-        const renderTitle = () => {
-            if (item.fromVersionComment && item.toVersionComment) {
-                const truncatedFrom = truncateComment(item.fromVersionComment, MAX_COMMENT_LENGTH);
-                const truncatedTo = truncateComment(item.toVersionComment, MAX_COMMENT_LENGTH);
-
-                if (wasAdded) {
-                    return (
-                        <>
-                            <span className={styles.historyStepTitleText}>Content Added in:</span>
-                            <Tooltip content={item.toVersionComment} relationship="label">
-                                <span className={styles.historyStepVersionComment}>{truncatedTo}</span>
-                            </Tooltip>
-                        </>
-                    );
-                }
-                if (wasRemoved) {
-                     return (
-                        <>
-                            <span className={styles.historyStepTitleText}>Content Removed between</span>
-                            <Tooltip content={item.fromVersionComment} relationship="label">
-                                <span className={styles.historyStepVersionComment}>{truncatedFrom}</span>
-                            </Tooltip>
-                            <span className={styles.historyStepTitleText}>and</span>
-                            <Tooltip content={item.toVersionComment} relationship="label">
-                                <span className={styles.historyStepVersionComment}>{truncatedTo}</span>
-                            </Tooltip>
-                        </>
-                    );
-                }
-                return (
-                    <>
-                        <span className={styles.historyStepTitleText}>Change between</span>
-                        <Tooltip content={item.fromVersionComment} relationship="label">
-                            <span className={styles.historyStepVersionComment}>{truncatedFrom}</span>
-                        </Tooltip>
-                        <span className={styles.historyStepTitleText}>and</span>
-                        <Tooltip content={item.toVersionComment} relationship="label">
-                            <span className={styles.historyStepVersionComment}>{truncatedTo}</span>
-                        </Tooltip>
-                    </>
-                );
-            }
-            // Fallback for safety - Step index is removed as it's unreliable with sorting.
-            const titleObject = isFormula ? "Formula" : "Value";
-            let titleAction = wasAdded ? "Added" : wasRemoved ? "Removed" : "Changed";
-            return <strong className={styles.historyStepTitleText}>{`${titleObject} ${titleAction}`}</strong>;
-        };
-
-        const diffs = diffChars(String(before ?? ""), String(after ?? ""));
-
-        const renderDiffPart = (part: DiffChange, partIndex: number) => {
-            const partClass = mergeClasses(
-                styles.diffPart,
-                part.added && styles.diffPart_added,
-                part.removed && styles.diffPart_removed
-            );
-            return <span key={partIndex} className={partClass}>{part.value}</span>;
-        };
-
-        const lineClass = mergeClasses(styles.diffLine, isFormula && styles.diffLine_formula);
-
-        return (
-            <div key={`${item.fromVersionComment}-${item.toVersionComment}`} className={styles.historyStep}>
-                <div className={styles.historyStepHeader}>
-                    <div className={styles.historyStepTitle}>{renderTitle()}</div>
-                    {isFormula && <Badge appearance="tint" color="informative" size="small">Formula</Badge>}
-                </div>
-
-                <div className={styles.diffContainer}>
-                    {hasContent(before) && (
-                        <div className={mergeClasses(lineClass, hasContent(after) && styles.diffLine_deleted)}>
-                            <span className={mergeClasses(styles.diffSymbol, styles.diffSymbol_deleted)}>−</span>
-                            {diffs.filter(p => !p.added).map(renderDiffPart)}
-                        </div>
-                    )}
-
-                    {hasContent(after) && (
-                        <div className={lineClass}>
-                            <span className={mergeClasses(styles.diffSymbol, styles.diffSymbol_added)}>+</span>
-                            {diffs.filter(p => !p.removed).map(renderDiffPart)}
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
+    
     const codeBlockClass = mergeClasses(
         styles.codeBlock,
         isFinalChangeFormula && styles.diffLine_formula
     );
-
-    const SortButton = () => {
-        const isPro = licenseTier === 'pro';
-        const button = (
-            <Button
-                appearance="subtle"
-                size="small"
-                icon={sortOrder === 'chronological' ? <ArrowSortDownLines24Regular /> : <ArrowSortUpLines24Regular />}
-                onClick={() => setSortOrder(prev => prev === 'chronological' ? 'reverse-chronological' : 'chronological')}
-                disabled={!isPro}
-            >
-                {sortOrder === 'chronological' ? 'Oldest First' : 'Newest First'}
-            </Button>
-        );
-
-        if (isPro) {
-            return (
-                <Tooltip content={`Sort by time (${sortOrder === 'chronological' ? 'oldest to newest' : 'newest to oldest'})`} relationship="label">
-                    {button}
-                </Tooltip>
-            );
-        }
-
-        return (
-            <Tooltip content="Reverse sort order is a Pro feature." relationship="label">
-                <span> {/* Tooltip needs a DOM element to wrap when the child is disabled */}
-                    {button}
-                </span>
-            </Tooltip>
-        );
-    };
 
     return (
         <Dialog open={isOpen} onOpenChange={(_, data) => !data.open && onClose()}>
@@ -234,9 +85,20 @@ export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, on
                             <div>
                                 <div className={styles.historyHeader}>
                                     <span className={styles.historyHeaderTitle}>Change History</span>
-                                    {history.length > 1 && <SortButton />}
+                                    {history.length > 1 && (
+                                        <SortButton
+                                            licenseTier={licenseTier}
+                                            sortOrder={sortOrder}
+                                            onSortChange={setSortOrder}
+                                        />
+                                    )}
                                 </div>
-                                {displayedHistory.map(renderHistoryItem)}
+                                {displayedHistory.map(item => (
+                                    <ChangeHistoryItem 
+                                        key={`${item.fromVersionComment}-${item.toVersionComment}`} 
+                                        item={item} 
+                                    />
+                                ))}
                             </div>
                         ) : isUnchanged ? (
                             <div className={styles.infoBlock}>
