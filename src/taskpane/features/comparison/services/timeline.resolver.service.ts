@@ -1,4 +1,4 @@
-// src/taskpane/services/timeline.resolver.service.ts
+// src/taskpane/features/comparison/services/timeline.resolver.service.ts
 
 import { IChange, IRowChange, IStructuralChange, IResolvedTimeline, IChangeset, IRowEvent } from "../../../types/types";
 import { transformAddress } from "../../../shared/lib/coordinate.transform.service";

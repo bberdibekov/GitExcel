@@ -1,4 +1,4 @@
-// src/taskpane/services/comparison.filters.ts
+// src/taskpane/features/comparison/services/comparison.filters.ts
 
 /**
  * Defines the contract for a semantic comparison filter.
