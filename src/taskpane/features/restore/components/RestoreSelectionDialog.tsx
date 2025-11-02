@@ -29,7 +29,6 @@ import { useAppStore } from '../../../state/appStore';
  * and actions directly from the Zustand store, making it a self-managing component.
  */
 export interface IRestoreSelectionDialogProps {
-  // No props are needed after refactoring to Zustand.
 }
 
 export const RestoreSelectionDialog: React.FC<IRestoreSelectionDialogProps> = () => {

@@ -78,7 +78,6 @@ export const useComparisonDialogStyles = makeStyles({
         flex: '1 1 auto',
         minHeight: 0,
     },
-    // --- MODIFICATION START: Add new styles for history header ---
     historyHeader: {
         display: 'flex',
         justifyContent: 'space-between',
@@ -92,7 +91,6 @@ export const useComparisonDialogStyles = makeStyles({
         fontWeight: tokens.fontWeightSemibold,
         color: tokens.colorNeutralForeground1,
     },
-    // --- MODIFICATION END ---
     historyStep: {
         width: '100%',
         ':first-child': {

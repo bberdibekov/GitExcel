@@ -17,7 +17,7 @@ interface SideBySideDiffViewerProps {
     endSnapshot: IWorkbookSnapshot;
     startVersionComment: string;
     endVersionComment: string;
-    licenseTier: 'free' | 'pro'; // --- MODIFICATION START: Add new prop type ---
+    licenseTier: 'free' | 'pro';
 }
 
 const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): string | undefined => {
@@ -41,15 +41,11 @@ const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: Retu
     );
 };
 
-// --- MODIFICATION START: Update component signature to accept new prop ---
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment, licenseTier } = props;
-    // --- MODIFICATION END ---
     const styles = useComparisonDialogStyles();
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const summary = useMemo(() => generateSummary(result), [result]);
-    
-    // ... (all the useMemo and event handler hooks are unchanged)
 
     const affectedSheetNames = useMemo(() => {
         const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
