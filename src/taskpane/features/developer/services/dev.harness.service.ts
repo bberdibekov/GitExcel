@@ -156,7 +156,6 @@ class DevHarnessService {
         await this.delay(stepDelay);
       }
      
-      // --- START: FIX ---
       // Get the definitive state AFTER the creation loop to avoid race conditions.
       const finalVersions = getVersions();
       console.log("[DEV HARNESS] State of 'versions' array AFTER loop and BEFORE comparison:", finalVersions);
@@ -188,7 +187,6 @@ class DevHarnessService {
         }
         onStatusUpdate(`Test complete! Ran ${stepsToRun.length} step(s). Log file is being saved.`);
       }
-      // --- END: FIX ---
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

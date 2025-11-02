@@ -209,7 +209,6 @@ function coalesceRowChanges(
   return structuralChanges;
 }
 
-// --- START: REFACTORED diffSheetContent ---
 export function diffSheetContent(
   sheetId: SheetId,
   oldSheet: ISheetSnapshot,

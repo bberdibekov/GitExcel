@@ -94,13 +94,11 @@ class ComparisonWorkflowService {
         licenseTier: license.tier,
         startSnapshot: startVersion.snapshot,
         endSnapshot: endVersion.snapshot,
-        // --- [NEW] Add the version comments to the payload ---
         startVersionComment: startVersion.comment,
         endVersionComment: endVersion.comment,
     };
 
-    // --- FIX: This now calls the correct method on the dialogStore ---
-    // Command the dialogStore to open with our rich payload
+
     await useDialogStore.getState().openDiffViewer(payloadForDialog);
     
     const comparisonPayload = {
@@ -109,7 +107,6 @@ class ComparisonWorkflowService {
         endSnapshot: endVersion.snapshot
     };
     
-    // This logic is preserved from your original code.
     useAppStore.getState()._setComparisonResult(comparisonPayload);
   }
 

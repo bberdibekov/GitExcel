@@ -47,7 +47,6 @@ export const useDialogStore = create<IDialogState & IDialogActions>((set, get) =
     set({ stagedDiffViewerData: data });
 
     try {
-      // FIX: The store now calls the correct public method on the service.
       await dialogService.openDiffViewer(); 
       set((state) => ({ openViews: { ...state.openViews, 'diff-viewer': true } }));
       loggingService.log(`[DialogStore] 'diff-viewer' is now open and active.`);
@@ -63,20 +62,18 @@ export const useDialogStore = create<IDialogState & IDialogActions>((set, get) =
     set({ ...initialState });
   },
 
-  // FIX: This action no longer broadcasts. It tells the DialogService to do so.
   __internal_diffViewerHandshakeReady: () => {
     loggingService.log("[DialogStore] Handshake ready. Notifying DialogService to send diff viewer data.");
     dialogService.sendInitializationData('diff-viewer');
   },
 
-  // FIX: This action no longer broadcasts. It tells the DialogService to do so.
   __internal_detailDialogHandshakeReady: () => {
     loggingService.log("[DialogStore] Handshake ready. Notifying DialogService to send detail dialog data.");
     dialogService.sendInitializationData('detail-dialog');
   }
 }));
 
-// --- Permanent listeners remain here, connecting the bus to the store actions ---
+// --- Permanent listeners, connecting the bus to the store actions ---
 
 loggingService.log("[DialogStore] Setting up permanent listener for DIALOG_READY_FOR_DATA.");
 crossWindowMessageBus.listen(MessageType.DIALOG_READY_FOR_DATA, () => {

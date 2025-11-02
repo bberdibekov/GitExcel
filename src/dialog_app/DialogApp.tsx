@@ -15,7 +15,6 @@ interface IAppState {
     diffResult: IDiffResult;
     startSnapshot: IWorkbookSnapshot;
     endSnapshot: IWorkbookSnapshot;
-    // --- [NEW] Add state for version comments ---
     startVersionComment: string;
     endVersionComment: string;
   } | null;
@@ -33,7 +32,6 @@ const renderView = (view: string, data: IAppState['initialData'], licenseTier: '
                 startSnapshot={data.startSnapshot}
                 endSnapshot={data.endSnapshot}
                 licenseTier={licenseTier}
-                // --- [NEW] Pass comments as props ---
                 startVersionComment={data.startVersionComment}
                 endVersionComment={data.endVersionComment}
              />;
@@ -77,7 +75,6 @@ const DialogApp: React.FC = () => {
             diffResult: payload.diffResult,
             startSnapshot: payload.startSnapshot,
             endSnapshot: payload.endSnapshot,
-            // --- [NEW] Store comments from payload ---
             startVersionComment: payload.startVersionComment,
             endVersionComment: payload.endVersionComment,
           },
@@ -89,7 +86,6 @@ const DialogApp: React.FC = () => {
     );
 
     loggingService.log("[DialogApp] Broadcasting DIALOG_READY_FOR_DATA to task pane.");
-    // --- FIX: Use 'messageParent' when communicating from a dialog to the task pane ---
     crossWindowMessageBus.messageParent({ type: MessageType.DIALOG_READY_FOR_DATA });
     
     return () => {

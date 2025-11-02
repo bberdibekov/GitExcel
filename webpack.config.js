@@ -91,9 +91,6 @@ module.exports = async (env, options) => {
         Promise: ["es6-promise", "Promise"],
       }),
 
-      // --- [REMOVED] The three old, separate HtmlWebpackPlugin instances were here. ---
-
-      // --- [ADDED] A new, scalable way to generate all our HTML files. ---
       new HtmlWebpackPlugin({
         filename: "taskpane.html",
         template: "./src/taskpane/taskpane.html",

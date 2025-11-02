@@ -16,7 +16,6 @@ interface DialogComparisonViewProps {
   startSnapshot: IWorkbookSnapshot;
   endSnapshot: IWorkbookSnapshot;
   licenseTier: 'free' | 'pro';
-  // --- [NEW] Accept version comments as props ---
   startVersionComment: string;
   endVersionComment: string;
 }
@@ -57,8 +56,6 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
     if (newSettingsArray) {
         const newSettings = new Set(newSettingsArray);
         setActiveComparisonSettings(newSettings);
-        
-        // --- FIX: Use 'messageParent' when a dialog sends a message to the task pane ---
         crossWindowMessageBus.messageParent({
           type: MessageType.RUN_COMPARISON_WITH_FILTERS,
           payload: { filterIds: Array.from(newSettings) }
@@ -86,7 +83,6 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
         result={filteredResult}
         startSnapshot={startSnapshot}
         endSnapshot={endSnapshot}
-        // --- [NEW] Pass comments down to the viewer ---
         startVersionComment={startVersionComment}
         endVersionComment={endVersionComment}
       />

@@ -13,10 +13,10 @@ import VersionHistory from "../features/restore/components/VersionHistory";
 import DeveloperTools from "../features/developer/components/DeveloperTools";
 import { comparisonWorkflowService } from "../features/comparison/services/comparison.workflow.service";
 import ComparisonDialogPlaceholder from "../features/comparison/components/ComparisonDialogPlaceholder";
-import { crossWindowMessageBus } from "../core/dialog/CrossWindowMessageBus"; // <-- [NEW] IMPORT
-import { MessageType, ShowChangeDetailPayload } from "../types/messaging.types"; // <-- [NEW] IMPORT
-import { dialogService } from "../core/dialog/DialogService"; // <-- [NEW] IMPORT
-import { loggingService } from "../core/services/LoggingService"; // <-- [NEW] IMPORT
+import { crossWindowMessageBus } from "../core/dialog/CrossWindowMessageBus";
+import { MessageType, ShowChangeDetailPayload } from "../types/messaging.types";
+import { dialogService } from "../core/dialog/DialogService";
+import { loggingService } from "../core/services/LoggingService";
 
 const FREE_TIER_VERSION_LIMIT = 3;
 
@@ -39,7 +39,7 @@ const App = () => {
     restoreTarget,
   } = useAppStore();
   
-  // --- [UPDATED] Subscribe to the new dialog store state shape ---
+  // --- Subscribe to the new dialog store state shape ---
   const isDiffViewerOpen = useDialogStore((state) => state.openViews['diff-viewer']);
   
   const fetchLicense = useAppStore((state) => state.fetchLicense);
@@ -50,7 +50,6 @@ const App = () => {
     fetchLicense();
   }, [fetchLicense]);
 
-  // --- [NEW] Establish the root listener for the Detail Dialog orchestration ---
   useEffect(() => {
     loggingService.log("[App.tsx] Setting up root listener for SHOW_CHANGE_DETAIL messages.");
     
@@ -98,7 +97,7 @@ const App = () => {
   // --- Main Render Logic ---
   const renderContent = () => {
     // Priority 1: If the main dialog is open, show the placeholder.
-    // --- [UPDATED] Use the new state variable ---
+    // Use the new state variable ---
     if (isDiffViewerOpen) {
       return <ComparisonDialogPlaceholder />;
     }

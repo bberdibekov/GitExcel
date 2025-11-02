@@ -4,15 +4,15 @@ import * as React from 'react';
 import { useState, useMemo, useRef } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
-import { Tab, TabList, Subtitle2, Title3 } from '@fluentui/react-components'; // Import Title3
+import { Tab, TabList, Subtitle2, Subtitle1} from '@fluentui/react-components';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
+import { useComparisonDialogStyles } from './ComparisonDialog.styles'; // --- [STYLE] Import the dedicated styles hook
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
     startSnapshot: IWorkbookSnapshot;
     endSnapshot: IWorkbookSnapshot;
-    // --- [FIX] Add the missing properties to the interface ---
     startVersionComment: string;
     endVersionComment: string;
 }
@@ -21,12 +21,12 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
     return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
 };
 
-const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[] }> = ({ changes }) => {
+const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: ReturnType<typeof useComparisonDialogStyles> }> = ({ changes, styles }) => {
     if (changes.length === 0) return null;
     return (
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid #e0e0e0' }}>
+        <div className={styles.highLevelChangesContainer}>
             <Subtitle2>Structural Changes</Subtitle2>
-            <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+            <ul className={styles.highLevelChangesList}>
                 {changes.map((change, index) => (
                     <li key={index}>
                         <strong>{change.sheet}:</strong> {change.description}
@@ -40,6 +40,8 @@ const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[] }> = ({ chang
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
   const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment } = props;
   
+  const styles = useComparisonDialogStyles();
+
   const summary = useMemo(() => generateSummary(result), [result]);
   
   const affectedSheetNames = useMemo(() => {
@@ -99,21 +101,27 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     requestAnimationFrame(() => { isScrolling.current = false; });
   };
 
-  const rowCount = Math.max(startSheet?.data.length ?? 0, endSheet?.data.length ?? 0);
-  const colCount = Math.max(startSheet?.data[0]?.cells.length ?? 0, endSheet?.data[0]?.cells.length ?? 0);
+  const rowCount = Math.max(
+      (startSheet?.startRow ?? 0) + (startSheet?.data.length ?? 0),
+      (endSheet?.startRow ?? 0) + (endSheet?.data.length ?? 0)
+  );
+  const colCount = Math.max(
+      (startSheet?.startCol ?? 0) + (startSheet?.data[0]?.cells.length ?? 0),
+      (endSheet?.startCol ?? 0) + (endSheet?.data[0]?.cells.length ?? 0)
+  );
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 50px)' }}>
-      <HighLevelChangesList changes={summary.highLevelChanges} />
+    <div className={styles.rootContainer}>
+      <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
       <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
         {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
       </TabList>
-      <div style={{ display: 'flex', flex: 1, gap: '8px', padding: '8px', backgroundColor: '#f5f5fidential' }}>
+      <div className={styles.gridsBody}>
         
-        <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '4px'}}>
-            <Title3 as="h3" block align="center" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div className={styles.gridColumn}>
+            <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
               {startVersionComment}
-            </Title3>
+            </Subtitle1>
             <VirtualizedDiffGrid
                 gridRef={gridStartRef}
                 sheet={startSheet}
@@ -121,15 +129,17 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 sheetName={selectedSheetName}
                 rowCount={rowCount}
                 colCount={colCount}
+                startRow={startSheet?.startRow ?? 0}
+                startCol={startSheet?.startCol ?? 0}
                 columnWidths={startSheet?.columnWidths}
                 onScroll={onScrollStart}
             />
         </div>
         
-        <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '4px'}}>
-            <Title3 as="h3" block align="center" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div className={styles.gridColumn}>
+            <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
               {endVersionComment}
-            </Title3>
+            </Subtitle1>
             <VirtualizedDiffGrid
                 gridRef={gridEndRef}
                 sheet={endSheet}
@@ -137,6 +147,8 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 sheetName={selectedSheetName}
                 rowCount={rowCount}
                 colCount={colCount}
+                startRow={endSheet?.startRow ?? 0}
+                startCol={endSheet?.startCol ?? 0}
                 columnWidths={endSheet?.columnWidths}
                 onScroll={onScrollEnd}
             />

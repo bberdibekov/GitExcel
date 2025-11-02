@@ -79,7 +79,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
                     <li key={`hlc-${index}`} className={itemStyle}>
                       <strong>{change.sheet}!</strong> {change.description}
 
-                      {/* --- NEW: Logic to render details is now inside the high-level change --- */}
                       {isDeleted && change.involvedRows?.map((rowChange, rIndex) => (
                         rowChange.containedChanges && rowChange.containedChanges.length > 0 && (
                           <div key={`row-detail-${rIndex}`} className={`${styles.detailBlock} ${styles.detailBlock_deleted}`}>
@@ -116,7 +115,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ summary, onNavigate }) => {
             </>
           )}
 
-          {/* --- REMOVED: Redundant and now-broken sections for Added and Deleted Rows --- */}
         </div>
       }
     </div>

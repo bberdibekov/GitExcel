@@ -32,8 +32,6 @@ class DialogService {
         reject(new Error(`Dialog '${view}' is already open.`));
         return;
       }
-
-      // --- [THE FIX IS HERE] ---
       // Append the 'view' query parameter so the dialog app knows what to render.
       const dialogUrl = `${window.location.origin}/${view}.html?view=${view}`;
       

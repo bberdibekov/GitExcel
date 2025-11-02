@@ -54,6 +54,8 @@ export interface ISheetSnapshot {
   rowHeights?: { [key: number]: number };
   columnWidths?: number[];
   mergedCells?: string[];
+  startRow: number; 
+  startCol: number;
 }
 
 export interface IWorkbookSnapshot {

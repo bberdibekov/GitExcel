@@ -25,18 +25,29 @@ type CustomCellData = {
   sheet: ISheetSnapshot;
   changeMap: Map<string, ICombinedChange>;
   sheetName: string;
+  startRow: number;
+  startCol: number;
 };
 
 type MainCellProps = CellComponentProps & CustomCellData;
 
-const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaAttributes, sheet, changeMap, sheetName }) => {
+const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaAttributes, sheet, changeMap, sheetName, startRow, startCol }) => {
     const styles = useSharedStyles();
-    const cell = sheet?.data[rowIndex]?.cells[columnIndex];
-    
-    // --- Layer 1 Implementation ---
+    const dataRowIndex = rowIndex - startRow;
+    const dataColIndex = columnIndex - startCol;
+    const isOutOfBounds = 
+        dataRowIndex < 0 || dataColIndex < 0 || 
+        !sheet || dataRowIndex >= sheet.data.length || 
+        !sheet.data[dataRowIndex] || dataColIndex >= sheet.data[dataRowIndex].cells.length;
+
+    const cell = isOutOfBounds ? null : sheet.data[dataRowIndex].cells[dataColIndex];
+    if (isOutOfBounds) {
+        // Render a blank cell for the area outside the used range
+        return <div style={style} {...ariaAttributes} className={joinClasses(styles.gridCell, styles.gridCell_blank)}></div>;
+    }
+
     const displayValue = cell ? String(cell.value ?? '') : '';
     const isFormula = cell ? isRealFormula(cell.formula) : false;
-    // The tooltip shows the underlying formula if one exists, otherwise the value.
     const tooltipContent = isFormula ? String(cell.formula) : displayValue;
 
     const isChanged = cell ? !!changeMap.get(`${sheetName}-${cell.address}`) : false;
@@ -44,13 +55,10 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
     
     return (
       <div style={style} {...ariaAttributes} className={className}>
-        {/* Added a wrapper for relative positioning of the badge */}
         <div className={styles.cellContentWrapper}>
           <Tooltip content={tooltipContent} relationship="label">
-            {/* The span now only contains the calculated value and handles truncation */}
             <span className={styles.cellText}>{displayValue}</span>
           </Tooltip>
-          {/* Conditionally render the fx badge */}
           {isFormula && <span className={styles.fxBadge}>fx</span>}
         </div>
       </div>
@@ -58,8 +66,6 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
 };
 const CellComponent = React.memo(MainCell);
 
-
-// ... (The rest of the file remains exactly the same) ...
 
 const ColumnHeader: React.FC<CellComponentProps> = ({ columnIndex, style, ariaAttributes }) => {
     const styles = useSharedStyles();
@@ -81,6 +87,8 @@ interface VirtualizedDiffGridProps {
   sheetName: string;
   rowCount: number;
   colCount: number;
+  startRow: number;
+  startCol: number;
   columnWidths: number[] | undefined;
   onScroll: (scrollTop: number, scrollLeft: number) => void;
   gridRef: React.RefObject<GridImperativeAPI>;
@@ -91,7 +99,7 @@ type ListRowComponent = (props: RowComponentProps) => React.ReactElement;
 
 
 const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
-  sheet, changeMap, sheetName, rowCount, colCount, columnWidths, onScroll, gridRef
+  sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef
 }) => {
   const styles = useSharedStyles();
   
@@ -99,7 +107,7 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   const rowHeaderRef = useListRef(null);
   
   const getColumnWidth = (index: number) => columnWidths?.[index] ?? 100;
-  const cellProps = React.useMemo(() => ({ sheet, changeMap, sheetName }), [sheet, changeMap, sheetName]);
+  const cellProps = React.useMemo(() => ({ sheet, changeMap, sheetName, startRow, startCol }), [sheet, changeMap, sheetName, startRow, startCol]);
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (event) => {
     const { scrollTop, scrollLeft } = event.currentTarget;

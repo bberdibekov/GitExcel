@@ -52,8 +52,6 @@ export const TaskPaneComparisonView: React.FC = () => {
   };
 
   const handleOpenInWindow = () => {
-    // --- FIX: This functionality has moved to the comparison.workflow.service ---
-    // The dialog is now opened automatically. This button is currently redundant.
     loggingService.log("[TaskPaneComparisonView] 'Review Changes' clicked, but the dialog should already be open.");
   };
 

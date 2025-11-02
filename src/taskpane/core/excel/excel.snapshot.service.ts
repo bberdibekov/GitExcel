@@ -45,7 +45,6 @@ class ExcelSnapshotService {
       const usedRange = sheet.getUsedRangeOrNullObject();
       const mergedAreas = usedRange.getMergedAreasOrNullObject();
       
-      // --- START: CORRECT AND FINAL FIX ---
       // Load the top-level properties of the range first, including columnCount.
       usedRange.load("isNullObject, address, rowIndex, columnIndex, values, formulas, columnCount");
       mergedAreas.load("isNullObject, address");
@@ -53,7 +52,16 @@ class ExcelSnapshotService {
       await context.sync();
 
       if (usedRange.isNullObject) {
-        workbookSnapshot[sheetId] = { name: sheet.name, position: sheet.position, address: "", data: [], mergedCells: [], columnWidths: [] };
+        workbookSnapshot[sheetId] = { 
+            name: sheet.name, 
+            position: sheet.position, 
+            address: "", 
+            data: [], 
+            mergedCells: [], 
+            columnWidths: [],
+            startRow: 0,
+            startCol: 0
+        };
         continue;
       }
 
@@ -69,8 +77,6 @@ class ExcelSnapshotService {
       await context.sync();
 
       const columnWidths: number[] = columnRanges.map(col => col.format.columnWidth);
-      // --- END: CORRECT AND FINAL FIX ---
-      
       const formulas = usedRange.formulas as (string | number | boolean)[][];
 
       let precedentsMap = new Map<string, IFormulaPrecedent[]>();
@@ -84,6 +90,8 @@ class ExcelSnapshotService {
         name: sheet.name,
         position: sheet.position,
         address: usedRange.address,
+        startRow: usedRange.rowIndex,
+        startCol: usedRange.columnIndex,
         data: this.buildRowData(
             usedRange.values, 
             formulas,

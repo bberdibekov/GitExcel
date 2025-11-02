@@ -1,6 +1,6 @@
 // src/taskpane/services/excel.service.ts
 
-import { IWorkbookSnapshot, ICellData, IRowData, IFormat } from "../../types/types";
+import { IWorkbookSnapshot, ICellData, IRowData, IFormat, ISheetSnapshot } from "../../types/types";
 import { generateRowHash } from "../../shared/lib/hashing.service";
 import { excelFormatService } from "./excel.format.service"; 
 import { toA1 } from "../../shared/lib/address.converter";
@@ -52,7 +52,16 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
 
       if (usedRange.isNullObject) {
         console.warn(`[excel.service] Sheet ${sheetName} is empty. Snapshot will be empty.`);
-        workbookSnapshot[sheetId] = { name: sheetName, position: sheet.position, address: null, data: [], mergedCells: [] };
+        const emptySheetSnapshot: ISheetSnapshot = {
+            name: sheetName,
+            position: sheet.position,
+            address: "",
+            data: [],
+            mergedCells: [],
+            startRow: 0,
+            startCol: 0,
+        };
+        workbookSnapshot[sheetId] = emptySheetSnapshot;
         continue;
       }
       
@@ -101,13 +110,16 @@ export async function createWorkbookSnapshot(): Promise<IWorkbookSnapshot> {
         sheetData.push(rowToSave);
       }
       
-      workbookSnapshot[sheetId] = {
+      const sheetSnapshot: ISheetSnapshot = {
         name: sheetName,
         position: sheet.position,
         address: actualRange.address,
+        startRow: startRow,
+        startCol: startCol,
         data: sheetData,
         mergedCells: mergedAreas.isNullObject ? [] : mergedAreas.address.split(', '),
       };
+      workbookSnapshot[sheetId] = sheetSnapshot;
     }
   });
 
