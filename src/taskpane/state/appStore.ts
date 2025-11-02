@@ -6,11 +6,14 @@ import { INotification } from '../shared/ui/NotificationDialog';
 import { ILicense, authService } from '../core/services/AuthService';
 import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
 import { excelSnapshotService } from "../core/excel/excel.snapshot.service";
+// --- STEP 2.1: Import the new workbook metadata service ---
+import { workbookMetadataService } from '../core/services/workbook.metadata.service';
 
 /**
  * Interface defining the shape of our application's core data state.
  */
 export interface IAppState {
+  workbookId: string | null;
   versions: IVersion[];
   selectedVersions: (number | string)[];
   diffResult: IDiffResult | null;
@@ -29,6 +32,7 @@ export interface IAppState {
  * Interface defining all the actions that can modify the core application state.
  */
 export interface IAppActions {
+  initializeApp: () => Promise<void>;
   fetchLicense: () => Promise<void>;
   addVersion: (comment: string) => Promise<void>;
   clearVersions: () => void;
@@ -44,6 +48,7 @@ export interface IAppActions {
 
 
 const initialState: IAppState = {
+  workbookId: null,
   versions: [],
   selectedVersions: [],
   diffResult: null,
@@ -60,10 +65,42 @@ const initialState: IAppState = {
 
 /**
  * The Zustand store for the main application state.
- * It combines the state and actions into a single hook.
  */
 export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
   ...initialState,
+
+  // --- STEP 2.2: Create the main initialization action ---
+  initializeApp: async () => {
+    try {
+      const id = await Excel.run(async (context) => {
+        return await workbookMetadataService.getWorkbookId(context);
+      });
+      set({ workbookId: id });
+
+      // After getting the ID, fetch the license
+      await get().fetchLicense();
+
+      // Now load the versions using the workbook-specific key
+      const storageKey = `versions_${id}`;
+      const savedVersionsJSON = localStorage.getItem(storageKey);
+      if (savedVersionsJSON) {
+        const parsedVersions = JSON.parse(savedVersionsJSON);
+        set({ versions: parsedVersions });
+        console.log(`[AppStore] Hydrated ${parsedVersions.length} versions from localStorage for workbook ${id}.`);
+      } else {
+        set({ versions: [] }); // Ensure history is empty for new workbooks
+      }
+    } catch (error) {
+      console.error("Failed to initialize the application:", error);
+      set({
+        notification: {
+          severity: 'error',
+          title: 'Initialization Failed',
+          message: 'Could not identify the workbook. Version history may be unavailable.',
+        },
+      });
+    }
+  },
 
   fetchLicense: async () => {
     set({ isLicenseLoading: true });
@@ -78,11 +115,17 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     }
   },
 
+  // --- STEP 2.3: Modify addVersion to use the namespaced key ---
   addVersion: async (comment) => {
+    const { workbookId } = get();
+    if (!workbookId) {
+      set({ notification: { severity: 'error', title: 'Save Failed', message: 'Cannot save version because the workbook ID is missing.' } });
+      return;
+    }
     if (!comment) return;
     try {
       const newSnapshot = await Excel.run(async (context) => {
-          return await excelSnapshotService.createWorkbookSnapshot(context);
+        return await excelSnapshotService.createWorkbookSnapshot(context);
       });
       const newVersion: IVersion = {
         id: Date.now(),
@@ -91,17 +134,24 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
         snapshot: newSnapshot,
       };
       const updatedVersions = [...get().versions, newVersion];
-      localStorage.setItem("excelVersions", JSON.stringify(updatedVersions));
+      const storageKey = `versions_${workbookId}`; // Use the ID
+      localStorage.setItem(storageKey, JSON.stringify(updatedVersions));
       set({ versions: updatedVersions });
     } catch (error) {
-        console.error(`Failed to save version "${comment}":`, error);
-        set({ notification: { severity: 'error', title: 'Save Failed', message: `Could not create a snapshot. ${error.message}` } });
+      console.error(`Failed to save version "${comment}":`, error);
+      set({ notification: { severity: 'error', title: 'Save Failed', message: `Could not create a snapshot. ${error.message}` } });
     }
   },
 
+  // --- STEP 2.4: Modify clearVersions to use the namespaced key ---
   clearVersions: () => {
+    const { workbookId } = get();
+    if (workbookId) {
+      const storageKey = `versions_${workbookId}`;
+      localStorage.removeItem(storageKey);
+    }
     set({ versions: [], selectedVersions: [], diffResult: null, startSnapshot: null, endSnapshot: null, lastComparedIndices: null });
-    console.log("[AppStore] Version history cleared.");
+    console.log("[AppStore] Version history cleared for this workbook.");
   },
 
   selectVersion: (versionId) => {
@@ -122,16 +172,16 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
       diffResult: payload.result,
       startSnapshot: payload.startSnapshot,
       endSnapshot: payload.endSnapshot,
-      lastComparedIndices: null, // This concept is deprecated for now
+      lastComparedIndices: null,
     });
   },
 
   clearComparison: () => {
     set({
-        diffResult: null,
-        startSnapshot: null,
-        endSnapshot: null,
-        selectedVersions: []
+      diffResult: null,
+      startSnapshot: null,
+      endSnapshot: null,
+      selectedVersions: []
     });
   },
 
@@ -143,10 +193,9 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
       newFilters.add(filterId);
     }
     set({ activeFilters: newFilters });
-    
+
     const lastComparedIndices = get().lastComparedIndices;
     if (lastComparedIndices) {
-      // Use a dynamic require here to prevent circular dependency issues at module load time.
       const { comparisonWorkflowService } = require('../features/comparison/services/comparison.workflow.service');
       comparisonWorkflowService.runComparison(lastComparedIndices.start, lastComparedIndices.end);
     }
@@ -170,7 +219,7 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     set({ isRestoring: true, notification: null });
     try {
       const restoreOptions: IRestoreOptions = { restoreCellFormats: true, restoreMergedCells: true };
-      
+
       if (selection.destinations.asNewSheets) {
         await excelWriterService.restoreWorkbookFromSnapshot(
           restoreTarget.snapshot,
@@ -179,11 +228,11 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
           selection.sheets
         );
       }
-      
+
       if (selection.destinations.asNewWorkbook) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
-      
+
       set({ notification: { severity: 'success', title: 'Restore Complete', message: 'The selected sheets have been restored as new worksheets.' } });
     } catch (error) {
       console.error("Failed to restore:", error);
@@ -197,19 +246,3 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     set({ notification: null });
   },
 }));
-
-const savedVersionsJSON = localStorage.getItem("excelVersions");
-if (savedVersionsJSON) {
-  try {
-    const parsedVersions = JSON.parse(savedVersionsJSON);
-    const migratedVersions = parsedVersions.map(v => {
-      delete v.changeset;
-      return v;
-    });
-    useAppStore.setState({ versions: migratedVersions });
-    console.log("[AppStore] Hydrated versions from localStorage.", migratedVersions);
-  } catch (error) {
-    console.error("Failed to parse versions from localStorage. Clearing stored data.", error);
-    localStorage.removeItem("excelVersions");
-  }
-}

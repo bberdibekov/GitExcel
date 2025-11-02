@@ -16,12 +16,6 @@ import ComparisonDialogPlaceholder from "../features/comparison/components/Compa
 
 const FREE_TIER_VERSION_LIMIT = 3;
 
-/**
- * The root component of the task pane application.
- * This component's primary responsibilities are:
- * 1. To act as a router, showing the "home" screen or the "results" screen.
- * 2. To trigger initial data loading (like fetching the license).
- */
 const App = () => {
   const {
     versions,
@@ -33,17 +27,16 @@ const App = () => {
     restoreTarget,
   } = useAppStore();
   
-  // --- Simplified state selection ---
   const isDiffViewerOpen = useDialogStore((state) => state.isDiffViewerOpen);
   
-  const fetchLicense = useAppStore((state) => state.fetchLicense);
+  // --- STEP 3.1: Get the new initializeApp action from the store ---
+  const initializeApp = useAppStore((state) => state.initializeApp);
   const clearNotification = useAppStore((state) => state.clearNotification);
 
+  // --- STEP 3.2: Replace the old useEffect with one that calls initializeApp ---
   useEffect(() => {
-    fetchLicense();
-  }, [fetchLicense]);
-
-  // --- The root listener for SHOW_CHANGE_DETAIL has been removed ---
+    initializeApp();
+  }, [initializeApp]);
 
   const versionsForView = useMemo((): IVersionViewModel[] => {
     const isPro = license?.tier === 'pro';
