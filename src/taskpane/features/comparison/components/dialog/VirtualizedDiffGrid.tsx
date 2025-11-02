@@ -27,11 +27,24 @@ type CustomCellData = {
   startRow: number;
   startCol: number;
   onCellClick: (change: ICombinedChange) => void;
+  highlightOnlyMode: boolean;
 };
 
 type MainCellProps = CellComponentProps & CustomCellData;
 
-const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaAttributes, sheet, changeMap, sheetName, startRow, startCol, onCellClick }) => {
+const MainCell: React.FC<MainCellProps> = ({ 
+    columnIndex, 
+    rowIndex, 
+    style, 
+    ariaAttributes, 
+    sheet, 
+    changeMap, 
+    sheetName, 
+    startRow, 
+    startCol, 
+    onCellClick,
+    highlightOnlyMode 
+}) => {
     const styles = useComparisonDialogStyles();
     const dataRowIndex = rowIndex - startRow;
     const dataColIndex = columnIndex - startCol;
@@ -55,44 +68,35 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
     // A cell is considered to have content if its value is not empty or it contains a formula.
     const hasContent = cell && (cell.value !== '' || isFormula);
     
+    // In highlight-only mode, hide rows that don't contain any changes
+    const shouldHideRow = highlightOnlyMode && !isChanged;
+    
     const className = joinClasses(
       styles.gridCell, 
-      // Apply the 'blank' style if the cell has no content. This style
-      // is configured to suppress hover effects.
-      !hasContent && styles.gridCell_blank, 
-      isChanged && styles.gridCell_changed
+      !hasContent && styles.gridCell_blank,
+      isChanged && styles.gridCell_changed,
+      isChanged && styles.gridCell_changedBorder,
+      !isChanged && hasContent && styles.gridCell_faded,
+      shouldHideRow && styles.gridCell_hidden
     );
     
-    /**
-     * Handles clicks on any cell with content. If the cell was part of the original diff,
-     * it uses the existing change history. Otherwise, it creates a "synthetic" change
-     * object to show the cell's static details.
-     */
     const handleClick = () => {
-      // Guard against clicking on empty cells.
       if (!hasContent) {
         return;
       }
       
       if (change) {
-        // Case 1: The cell has a pre-existing change history. Use it directly.
         onCellClick(change);
       } else {
-        // Case 2: The cell has content but no changes. Create a synthetic change object
-        // on-the-fly to pass to the detail viewer.
         const syntheticChange: ICombinedChange = {
           sheet: sheetName,
           address: cell.address,
-          // For a cell with no changes, the start and end values are the same.
           startValue: cell.value,
           endValue: cell.value,
           startFormula: cell.formula,
           endFormula: cell.formula,
-          // Determine the change type based on whether it's a formula.
           changeType: isFormula ? 'formula' : 'value',
-          // History is empty because this cell didn't change between versions.
           history: [],
-          // Add metadata to indicate this isn't a real "change", which can be used later.
           metadata: { isUnchanged: true }, 
         };
         onCellClick(syntheticChange);
@@ -113,16 +117,56 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
 const CellComponent = React.memo(MainCell);
 
 
-const ColumnHeader: React.FC<CellComponentProps> = ({ columnIndex, style, ariaAttributes }) => {
+type ColumnHeaderCustomData = {
+  changedCols: Set<number>;
+};
+
+type ColumnHeaderProps = CellComponentProps & ColumnHeaderCustomData;
+
+const ColumnHeader: React.FC<ColumnHeaderProps> = ({ columnIndex, style, ariaAttributes, changedCols }) => {
     const styles = useComparisonDialogStyles();
     const columnLetter = toA1(0, columnIndex).replace(/[0-9]/g, '');
-    return <div style={style} {...ariaAttributes} className={styles.gridHeaderCell}>{columnLetter}</div>;
+    const hasChanges = changedCols.has(columnIndex);
+    
+    return (
+        <div 
+            style={style} 
+            {...ariaAttributes} 
+            className={joinClasses(
+                styles.gridHeaderCell,
+                hasChanges && styles.gridHeaderCell_changed
+            )}
+        >
+            {columnLetter}
+            {hasChanges && <span className={styles.changeMarker}>●</span>}
+        </div>
+    );
 };
 const ColumnHeaderCellComponent = React.memo(ColumnHeader);
 
-const RowHeader: React.FC<RowComponentProps> = (props) => {
+type RowHeaderCustomData = {
+  changedRows: Set<number>;
+};
+
+type RowHeaderProps = RowComponentProps & RowHeaderCustomData;
+
+const RowHeader: React.FC<RowHeaderProps> = (props) => {
   const styles = useComparisonDialogStyles();
-  return <div style={props.style} {...props.ariaAttributes} className={styles.gridHeaderCell}>{props.index + 1}</div>;
+  const hasChanges = props.changedRows.has(props.index);
+  
+  return (
+    <div 
+        style={props.style} 
+        {...props.ariaAttributes} 
+        className={joinClasses(
+            styles.gridHeaderCell,
+            hasChanges && styles.gridHeaderCell_changed
+        )}
+    >
+        {props.index + 1}
+        {hasChanges && <span className={styles.changeMarker}>●</span>}
+    </div>
+  );
 }
 const RowHeaderComponent = React.memo(RowHeader);
 
@@ -139,6 +183,9 @@ interface VirtualizedDiffGridProps {
   onScroll: (scrollTop: number, scrollLeft: number) => void;
   gridRef: React.RefObject<GridImperativeAPI>;
   onCellClick: (change: ICombinedChange) => void;
+  highlightOnlyMode: boolean;
+  changedRows: Set<number>;
+  changedCols: Set<number>;
 }
 
 type GridCellComponent = (props: CellComponentProps) => React.ReactElement;
@@ -146,19 +193,67 @@ type ListRowComponent = (props: RowComponentProps) => React.ReactElement;
 
 
 const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
-  sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef, onCellClick
+  sheet, 
+  changeMap, 
+  sheetName, 
+  rowCount, 
+  colCount, 
+  startRow, 
+  startCol, 
+  columnWidths, 
+  onScroll, 
+  gridRef, 
+  onCellClick,
+  highlightOnlyMode,
+  changedRows,
+  changedCols
 }) => {
   const styles = useComparisonDialogStyles();
   
   const columnHeaderRef = React.useRef<GridImperativeAPI | null>(null);
   const rowHeaderRef = useListRef(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [gridDimensions, setGridDimensions] = React.useState({ width: 800, height: 600 });
+  
+  React.useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setGridDimensions({ 
+          width: rect.width - 51, // subtract row header width + border
+          height: rect.height - 23 // subtract column header height + border
+        });
+      }
+    };
+    
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
   
   const getColumnWidth = (index: number) => columnWidths?.[index] ?? 100;
 
-  // Pass the onCellClick handler down to the cell data so every cell instance can use it.
   const cellProps = React.useMemo(
-    () => ({ sheet, changeMap, sheetName, startRow, startCol, onCellClick }), 
-    [sheet, changeMap, sheetName, startRow, startCol, onCellClick]
+    () => ({ 
+        sheet, 
+        changeMap, 
+        sheetName, 
+        startRow, 
+        startCol, 
+        onCellClick, 
+        highlightOnlyMode 
+    }), 
+    [sheet, changeMap, sheetName, startRow, startCol, onCellClick, highlightOnlyMode]
+  );
+
+  const columnHeaderProps = React.useMemo(
+    () => ({ changedCols }),
+    [changedCols]
+  );
+
+  const rowHeaderProps = React.useMemo(
+    () => ({ changedRows }),
+    [changedRows]
   );
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (event) => {
@@ -185,9 +280,9 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
       <div className={styles.gridComponentContainer}>
         <Grid
           gridRef={columnHeaderRef}
-          style={{ overflow: 'hidden' }}
+          style={{ overflow: 'hidden', pointerEvents: 'none' }}
           cellComponent={ColumnHeaderCellComponent as GridCellComponent}
-          cellProps={{}} 
+          cellProps={columnHeaderProps} 
           columnCount={colCount}
           columnWidth={getColumnWidth}
           rowCount={1} 
@@ -198,24 +293,26 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
       <div className={styles.gridComponentContainer}>
         <List
           listRef={rowHeaderRef}
-          style={{ overflow: 'hidden' }}
+          style={{ overflow: 'hidden', pointerEvents: 'none' }}
           rowCount={rowCount}
           rowHeight={22}
           rowComponent={RowHeaderComponent as ListRowComponent}
-          rowProps={{}}
+          rowProps={rowHeaderProps}
         />
       </div>
       
-      <Grid
-        gridRef={gridRef}
-        cellComponent={CellComponent as GridCellComponent}
-        cellProps={cellProps}
-        columnCount={colCount}
-        columnWidth={getColumnWidth}
-        rowCount={rowCount}
-        rowHeight={22}
-        onScroll={handleScroll}
-      />
+      <div className={styles.gridMainContainer}>
+        <Grid
+          gridRef={gridRef}
+          cellComponent={CellComponent as GridCellComponent}
+          cellProps={cellProps}
+          columnCount={colCount}
+          columnWidth={getColumnWidth}
+          rowCount={rowCount}
+          rowHeight={22}
+          onScroll={handleScroll}
+        />
+      </div>
     </div>
   );
 };

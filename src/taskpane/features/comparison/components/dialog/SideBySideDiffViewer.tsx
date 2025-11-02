@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useState, useMemo, useRef } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
-import { Tab, TabList, Subtitle2, Subtitle1} from '@fluentui/react-components';
+import { Tab, TabList, Subtitle2, Subtitle1, Switch } from '@fluentui/react-components';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
@@ -25,7 +25,6 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
 };
 
 const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: ReturnType<typeof useComparisonDialogStyles> }> = ({ changes, styles }) => {
-    // ... (this component is unchanged)
     if (changes.length === 0) return null;
     return (
         <div className={styles.highLevelChangesContainer}>
@@ -45,6 +44,8 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment, licenseTier } = props;
     const styles = useComparisonDialogStyles();
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
+    const [highlightOnlyMode, setHighlightOnlyMode] = useState(false);
+    
     const summary = useMemo(() => generateSummary(result), [result]);
 
     const affectedSheetNames = useMemo(() => {
@@ -63,6 +64,34 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             }
         }
         return map;
+    }, [result, selectedSheetName]);
+
+    // Track which rows/columns have changes for markers
+    const changedRowsAndCols = useMemo(() => {
+        const rows = new Set<number>();
+        const cols = new Set<number>();
+        
+        for (const change of result.modifiedCells) {
+            if (change.sheet === selectedSheetName) {
+                // Parse address like "A5" to get row and column
+                const match = change.address.match(/^([A-Z]+)(\d+)$/);
+                if (match) {
+                    const colStr = match[1];
+                    const rowNum = parseInt(match[2], 10);
+                    
+                    // Convert column letters to index
+                    let colIndex = 0;
+                    for (let i = 0; i < colStr.length; i++) {
+                        colIndex = colIndex * 26 + (colStr.charCodeAt(i) - 64);
+                    }
+                    
+                    rows.add(rowNum - 1); // 0-indexed
+                    cols.add(colIndex - 1); // 0-indexed
+                }
+            }
+        }
+        
+        return { rows, cols };
     }, [result, selectedSheetName]);
 
     const { startSheet, endSheet } = useMemo(() => {
@@ -145,9 +174,21 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             />
 
             <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
-            <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
-                {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
-            </TabList>
+            
+            <div className={styles.controlsBar}>
+                <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
+                    {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
+                </TabList>
+                
+                <div className={styles.highlightModeToggle}>
+                    <Switch 
+                        checked={highlightOnlyMode} 
+                        onChange={(_, data) => setHighlightOnlyMode(data.checked)}
+                        label="Highlight only mode"
+                    />
+                </div>
+            </div>
+            
             <div className={styles.gridsBody}>
                 <div className={styles.gridColumn}>
                     <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
@@ -165,8 +206,14 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                         columnWidths={unifiedColumnWidths}
                         onScroll={onScrollStart}
                         onCellClick={handleCellClick}
+                        highlightOnlyMode={highlightOnlyMode}
+                        changedRows={changedRowsAndCols.rows}
+                        changedCols={changedRowsAndCols.cols}
                     />
                 </div>
+                
+                <div className={styles.gridSeparator} />
+                
                 <div className={styles.gridColumn}>
                     <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
                         {endVersionComment}
@@ -183,6 +230,9 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                         columnWidths={unifiedColumnWidths}
                         onScroll={onScrollEnd}
                         onCellClick={handleCellClick}
+                        highlightOnlyMode={highlightOnlyMode}
+                        changedRows={changedRowsAndCols.rows}
+                        changedCols={changedRowsAndCols.cols}
                     />
                 </div>
             </div>

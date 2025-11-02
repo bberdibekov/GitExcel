@@ -4,30 +4,57 @@ export const useComparisonDialogStyles = makeStyles({
     rootContainer: {
         display: 'flex',
         flexDirection: 'column',
-        height: 'calc(100vh - 50px)',
+        height: '100vh',
+        overflow: 'hidden',
+    },
+    controlsBar: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px 16px',
+        borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+        flexShrink: 0,
+    },
+    highlightModeToggle: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
     },
     gridsBody: {
         display: 'flex',
-        flex: '1',
-        gap: '8px',
+        flex: '1 1 0',
+        gap: '0px',
         padding: '8px',
-        backgroundColor: tokens.colorNeutralBackground1, 
+        backgroundColor: tokens.colorNeutralBackground1,
+        overflow: 'hidden',
+        minHeight: 0,
     },
     gridColumn: {
-        flex: '1',
+        flex: '1 1 0',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        minWidth: 0,
+        minHeight: 0,
+    },
+    gridSeparator: {
+        width: '4px',
+        backgroundColor: tokens.colorBrandBackground,
+        boxShadow: `0 0 8px ${tokens.colorNeutralShadowAmbient}`,
+        flexShrink: 0,
+        margin: '0 4px',
     },
     versionTitle: {
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
+        flexShrink: 0,
+        marginBottom: '4px',
     },
     highLevelChangesContainer: {
         padding: '8px 16px',
         borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+        flexShrink: 0,
     },
     highLevelChangesList: {
         margin: '8px 0',
@@ -210,7 +237,7 @@ export const useComparisonDialogStyles = makeStyles({
         alignItems: 'center',
     },
     
-    // --- DIALOG REPORT GRID STYLES (Unchanged) ---
+    // --- DIALOG REPORT GRID STYLES ---
     gridContainer: {
         flex: "1 1 0%",
         overflow: "hidden",
@@ -239,20 +266,38 @@ export const useComparisonDialogStyles = makeStyles({
         },
     },
     gridCell_changed: {
-        backgroundColor: tokens.colorPaletteYellowBackground1,
+        backgroundColor: tokens.colorPaletteYellowBackground2,
         fontWeight: tokens.fontWeightSemibold,
         ':hover': {
             cursor: 'pointer',
-            backgroundColor: tokens.colorPaletteYellowBackground2,
+            backgroundColor: tokens.colorPaletteYellowBackground3,
         },
+    },
+    // NEW: Border emphasis for changed cells
+    gridCell_changedBorder: {
+        boxShadow: `inset 0 0 0 2px ${tokens.colorPaletteDarkOrangeBorder1}`,
+        ...shorthands.border("2px", "solid", tokens.colorPaletteDarkOrangeBorder1),
+    },
+    // NEW: Faded style for unchanged cells
+    gridCell_faded: {
+        opacity: 0.5,
+        ':hover': {
+            opacity: 0.7,
+        },
+    },
+    // NEW: Hidden style for highlight-only mode
+    gridCell_hidden: {
+        display: 'none',
     },
     gridOuterWrapper: {
         display: 'grid',
         gridTemplateRows: '22px 1fr',
         gridTemplateColumns: '50px 1fr',
-        flex: '1 1 0%',
-        height: 'calc(100vh - 150px)',
+        flex: '1 1 0',
+        minHeight: 0,
+        minWidth: 0,
         border: `1px solid ${tokens.colorNeutralStroke2}`,
+        overflow: 'hidden',
     },
     gridTopLeftCorner: {
         backgroundColor: tokens.colorNeutralBackground3,
@@ -269,13 +314,34 @@ export const useComparisonDialogStyles = makeStyles({
         borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
         borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
         boxSizing: 'border-box',
+        position: 'relative',
+    },
+    // NEW: Header cell with changes indicator
+    gridHeaderCell_changed: {
+        backgroundColor: tokens.colorPaletteYellowBackground1,
+        color: tokens.colorNeutralForeground1,
+    },
+    // NEW: Change marker dot
+    changeMarker: {
+        position: 'absolute',
+        top: '2px',
+        right: '2px',
+        fontSize: '8px',
+        color: tokens.colorPaletteDarkOrangeForeground1,
+        lineHeight: '8px',
     },
     gridComponentContainer: {
         position: 'relative',
         overflow: 'hidden',
     },
+    gridMainContainer: {
+        position: 'relative',
+        overflow: 'auto',
+        gridRow: '2',
+        gridColumn: '2',
+    },
     
-    // --- STYLES FOR FORMULA BADGE (Unchanged) ---
+    // --- STYLES FOR FORMULA BADGE ---
     cellContentWrapper: {
         position: 'relative',
         width: '100%',
