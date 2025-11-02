@@ -13,7 +13,6 @@ import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import { Tooltip } from '@fluentui/react-components';
 import { useSharedStyles } from '../../../../shared/styles/sharedStyles';
 import { toA1 } from '../../../../shared/lib/address.converter';
-// --- CHANGE 1: Imports for the message bus are now REMOVED ---
 
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
 
@@ -27,7 +26,6 @@ type CustomCellData = {
   sheetName: string;
   startRow: number;
   startCol: number;
-  // --- CHANGE 2: Add the new onCellClick callback to the cell's data type ---
   onCellClick: (change: ICombinedChange) => void;
 };
 
@@ -53,15 +51,55 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
 
     const change = cell ? changeMap.get(`${sheetName}-${cell.address}`) : undefined;
     const isChanged = !!change;
-    const className = joinClasses(styles.gridCell, !cell && styles.gridCell_blank, isChanged && styles.gridCell_changed);
+
+    // --- MODIFICATION START: Logic for universal clickability and hover effects ---
+    // A cell is considered to have content if its value is not empty or it contains a formula.
+    const hasContent = cell && (cell.value !== '' || isFormula);
     
-    // --- CHANGE 3: The click handler now calls the callback prop ---
+    const className = joinClasses(
+      styles.gridCell, 
+      // Apply the 'blank' style if the cell has no content. This style
+      // is configured to suppress hover effects.
+      !hasContent && styles.gridCell_blank, 
+      isChanged && styles.gridCell_changed
+    );
+    
+    /**
+     * Handles clicks on any cell with content. If the cell was part of the original diff,
+     * it uses the existing change history. Otherwise, it creates a "synthetic" change
+     * object to show the cell's static details.
+     */
     const handleClick = () => {
-      // If a 'change' object exists for this cell, invoke the callback.
+      // Guard against clicking on empty cells.
+      if (!hasContent) {
+        return;
+      }
+      
       if (change) {
+        // Case 1: The cell has a pre-existing change history. Use it directly.
         onCellClick(change);
+      } else {
+        // Case 2: The cell has content but no changes. Create a synthetic change object
+        // on-the-fly to pass to the detail viewer.
+        const syntheticChange: ICombinedChange = {
+          sheet: sheetName,
+          address: cell.address,
+          // For a cell with no changes, the start and end values are the same.
+          startValue: cell.value,
+          endValue: cell.value,
+          startFormula: cell.formula,
+          endFormula: cell.formula,
+          // Determine the change type based on whether it's a formula.
+          changeType: isFormula ? 'formula' : 'value',
+          // History is empty because this cell didn't change between versions.
+          history: [],
+          // Add metadata to indicate this isn't a real "change", which can be used later.
+          metadata: { isUnchanged: true }, 
+        };
+        onCellClick(syntheticChange);
       }
     };
+    // --- MODIFICATION END ---
     
     return (
       <div style={style} {...ariaAttributes} className={className} onClick={handleClick}>
@@ -102,7 +140,6 @@ interface VirtualizedDiffGridProps {
   columnWidths: number[] | undefined;
   onScroll: (scrollTop: number, scrollLeft: number) => void;
   gridRef: React.RefObject<GridImperativeAPI>;
-  // --- CHANGE 4: Add the onCellClick prop to the main component's interface ---
   onCellClick: (change: ICombinedChange) => void;
 }
 
@@ -120,7 +157,7 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   
   const getColumnWidth = (index: number) => columnWidths?.[index] ?? 100;
 
-  // --- CHANGE 5: Pass the onCellClick handler down to the cell data so every cell can use it ---
+  // Pass the onCellClick handler down to the cell data so every cell instance can use it.
   const cellProps = React.useMemo(
     () => ({ sheet, changeMap, sheetName, startRow, startCol, onCellClick }), 
     [sheet, changeMap, sheetName, startRow, startCol, onCellClick]

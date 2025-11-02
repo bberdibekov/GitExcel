@@ -52,7 +52,6 @@ export const useSharedStyles = makeStyles({
     listStyleType: "none",
   },
   listItem_modified: {
-    // This is now just a basic wrapper for the comparison row.
     backgroundColor: tokens.colorNeutralBackground1,
   },
   listItem_added: {
@@ -140,32 +139,8 @@ export const useSharedStyles = makeStyles({
     lineHeight: '16px',
     verticalAlign: 'middle',
   },
-  textBlock: {
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    margin: "0",
-    padding: "8px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e0e0e0",
-    borderRadius: "4px",
-    maxHeight: "150px",
-    overflowY: "auto",
-  },
-  codeBlock: {
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    margin: "0",
-    padding: "8px",
-    backgroundColor: "#fafafa",
-    border: "1px solid #e0e0e0",
-    borderRadius: "4px",
-    maxHeight: "150px",
-    overflowY: "auto",
-    fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
-  },
 
   // --- [AESTHETIC SHIFT APPLIED HERE] DIALOG REPORT GRID STYLES ---
-  
   comparisonHeader: {
     display: 'flex',
     alignItems: 'center',
@@ -176,7 +151,6 @@ export const useSharedStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     fontSize: tokens.fontSizeBase200,
   },
-
   comparisonRowContainer: {
     display: 'flex',
     alignItems: 'center',
@@ -191,7 +165,6 @@ export const useSharedStyles = makeStyles({
       opacity: 1,
     },
   },
-
   columnCheckbox: {
     flex: '0 0 32px',
     display: 'flex',
@@ -221,7 +194,6 @@ export const useSharedStyles = makeStyles({
     justifyContent: 'flex-end',
     gap: '8px',
   },
-
   quickRestoreIcon: {
     visibility: 'hidden',
     opacity: 0,
@@ -232,14 +204,13 @@ export const useSharedStyles = makeStyles({
       color: tokens.colorNeutralForeground2,
     }
   },
-
   chevron: {
     cursor: 'pointer',
     transition: `transform 0.2s ${tokens.curveEasyEase}`,
     color: tokens.colorNeutralForeground3,
   },
 
-  // --- [NEW] CHANGE DETAIL VIEWER STYLES ---
+  // --- [MODIFIED AND CORRECTED] CHANGE DETAIL VIEWER STYLES ---
   historyStep: {
     ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke2),
     ...shorthands.padding(tokens.spacingVerticalS, '0'),
@@ -255,18 +226,10 @@ export const useSharedStyles = makeStyles({
     marginBottom: tokens.spacingVerticalS,
   },
   transactionBlock: {
-    ...shorthands.padding(tokens.spacingVerticalNone, tokens.spacingHorizontalM),
-    ...shorthands.borderLeft('3px', 'solid', tokens.colorNeutralStroke2), // Default color
-    marginTop: tokens.spacingVerticalXS,
-  },
-  transactionBlock_added: {
-    borderLeftColor: tokens.colorPaletteGreenBorderActive,
-  },
-  transactionBlock_deleted: {
-    borderLeftColor: tokens.colorPaletteRedBorderActive,
-  },
-  transactionBlock_modified: {
-    borderLeftColor: tokens.colorNeutralStroke2,
+    ...shorthands.padding(tokens.spacingVerticalS, tokens.spacingHorizontalM),
+    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke2),
+    ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    backgroundColor: tokens.colorNeutralBackground2,
   },
   transactionLine: {
     ...shorthands.margin('0'),
@@ -286,33 +249,60 @@ export const useSharedStyles = makeStyles({
   diffSymbol_deleted: {
     color: tokens.colorPaletteRedForeground1,
   },
+  textBlock: {
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    margin: "0",
+    padding: "0",
+    backgroundColor: "transparent",
+    border: "none",
+  },
+  codeBlock: {
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-all",
+    margin: "0",
+    padding: "0",
+    backgroundColor: "transparent",
+    border: "none",
+    fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
+  },
 
+  // --- DIALOG REPORT GRID STYLES ---
   gridContainer: {
-    flex: "1 1 0%", // Use flex shorthand
+    flex: "1 1 0%",
     overflow: "hidden",
     border: `1px solid ${tokens.colorNeutralStroke2}`,
   },
-  
   gridCell: {
     ...shorthands.padding("2px", "6px"),
     ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    fontFamily: "Calibri, sans-serif", // Maintain Excel look
+    fontFamily: "Calibri, sans-serif",
     fontSize: "11pt",
     boxSizing: 'border-box',
+    transition: `background-color 0.1s ${tokens.curveEasyEase}`,
+    ':hover': {
+      cursor: 'pointer',
+      backgroundColor: tokens.colorNeutralBackground1Hover,
+    },
   },
-  
   gridCell_blank: {
     backgroundColor: tokens.colorNeutralBackground2,
+    ':hover': {
+      cursor: 'default',
+      backgroundColor: tokens.colorNeutralBackground2,
+    },
   },
-
   gridCell_changed: {
-    backgroundColor: tokens.colorPaletteYellowBackground1, // Use a Fluent token
+    backgroundColor: tokens.colorPaletteYellowBackground1,
     fontWeight: tokens.fontWeightSemibold,
+    ':hover': {
+      cursor: 'pointer',
+      backgroundColor: tokens.colorPaletteYellowBackground2,
+    },
   },
-
   gridOuterWrapper: {
     display: 'grid',
     gridTemplateRows: '22px 1fr',
@@ -337,13 +327,11 @@ export const useSharedStyles = makeStyles({
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
     boxSizing: 'border-box',
   },
-  // These containers now hold the List/Grid components
   gridComponentContainer: {
     position: 'relative',
     overflow: 'hidden',
   },
-
-
+  
   // --- STYLES FOR FORMULA BADGE ---
   cellContentWrapper: {
     position: 'relative',
@@ -351,10 +339,8 @@ export const useSharedStyles = makeStyles({
     height: '100%',
     display: 'flex',
     alignItems: 'center',
-    // Prevent the wrapper from shrinking when the content is long
     minWidth: 0,
   },
-
   cellText: {
     flexGrow: 1,
     minWidth: 0, 
@@ -362,17 +348,14 @@ export const useSharedStyles = makeStyles({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
-
   fxBadge: {
     position: 'absolute',
     top: '0px',
     right: '0px',
     fontSize: '9px',
     lineHeight: '9px',
-    color: tokens.colorNeutralForeground4, // A subtle, muted color
+    color: tokens.colorNeutralForeground4,
     fontStyle: 'italic',
-    userSelect: 'none', // Can't be selected with the mouse
+    userSelect: 'none',
   },
-  // --- END STYLES ---
-
-  });
+});

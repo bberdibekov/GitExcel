@@ -8,17 +8,16 @@ import { Tab, TabList, Subtitle2, Subtitle1} from '@fluentui/react-components';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
-
-import { 
-    Dialog,
-    DialogSurface,
-    DialogTitle,
-    DialogBody,
-    DialogActions,
-    Button
-} from "@fluentui/react-components";
-import ChangeDetailViewer from './ChangeDetailViewer';
 import { loggingService } from '../../../../core/services/LoggingService';
+
+// --- MODIFICATION START: Import the new modal component ---
+import { ChangeDetailModal } from './ChangeDetailModal';
+// --- MODIFICATION END ---
+
+// --- MODIFICATION START: Unused Dialog imports are removed ---
+// No longer need: Dialog, DialogSurface, DialogTitle, DialogBody, DialogActions, Button, ChangeDetailViewer
+// --- MODIFICATION END ---
+
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
@@ -33,6 +32,7 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
 };
 
 const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: ReturnType<typeof useComparisonDialogStyles> }> = ({ changes, styles }) => {
+    // ... (this component is unchanged)
     if (changes.length === 0) return null;
     return (
         <div className={styles.highLevelChangesContainer}>
@@ -54,6 +54,8 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const summary = useMemo(() => generateSummary(result), [result]);
     
+    // ... (all the useMemo and event handler hooks are unchanged)
+
     const affectedSheetNames = useMemo(() => {
         const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
         const sheetsFromStructure = summary.highLevelChanges.map(c => c.sheet);
@@ -81,13 +83,12 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         };
     }, [selectedSheetName, startSnapshot, endSnapshot]);
         
-    // --- CHANGE 1: Calculate a single, unified set of column widths ---
     const unifiedColumnWidths = useMemo(() => {
         const startWidths = startSheet?.columnWidths || [];
         const endWidths = endSheet?.columnWidths || [];
         const maxCols = Math.max(startWidths.length, endWidths.length);
         const unified: number[] = [];
-        const DEFAULT_COL_WIDTH = 100; // Default width if none is specified
+        const DEFAULT_COL_WIDTH = 100;
 
         for (let i = 0; i < maxCols; i++) {
             const startWidth = startWidths[i] || DEFAULT_COL_WIDTH;
@@ -145,17 +146,13 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
   
     return (
         <div className={styles.rootContainer}>
-            <Dialog open={!!selectedChange} onOpenChange={handleModalClose}>
-                <DialogSurface>
-                    <DialogBody>
-                        <DialogTitle>Cell Change Detail</DialogTitle>
-                        {selectedChange && <ChangeDetailViewer change={selectedChange} />}
-                        <DialogActions>
-                            <Button appearance="primary" onClick={handleModalClose}>Close</Button>
-                        </DialogActions>
-                    </DialogBody>
-                </DialogSurface>
-            </Dialog>
+            {/* --- MODIFICATION START: Replace inline Dialog with new component --- */}
+            <ChangeDetailModal
+                isOpen={!!selectedChange}
+                onClose={handleModalClose}
+                change={selectedChange}
+            />
+            {/* --- MODIFICATION END --- */}
 
             <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
             <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>

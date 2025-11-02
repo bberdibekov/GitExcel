@@ -1,4 +1,4 @@
-// src/taskpane/components/comparison_dialog/ChangeDetailViewer.tsx
+// src/taskpane/features/comparison/components/dialog/ChangeDetailViewer.tsx
 
 import * as React from "react";
 import { useSharedStyles } from "../../../../shared/styles/sharedStyles";
@@ -11,12 +11,6 @@ interface ChangeDetailViewerProps {
     change: ICombinedChange;
 }
 
-/**
- * A self-contained, "dumb" component with a single responsibility: to render a rich,
- * expanded detail view for a single cell's entire change history. It iterates through
- * each modification, prioritizing the display of formulas to provide maximum context.
- * It receives all data and renders it without managing any complex state.
- */
 const ChangeDetailViewer: React.FC<ChangeDetailViewerProps> = ({ change }) => {
     const styles = useSharedStyles();
     const { history, endFormula, endValue, changeType: finalChangeType } = change;
@@ -26,24 +20,17 @@ const ChangeDetailViewer: React.FC<ChangeDetailViewerProps> = ({ change }) => {
     const isFinalChangeFormula = finalChangeType === 'formula' || finalChangeType === 'both';
     const finalValueToDisplay = isFinalChangeFormula ? endFormula : endValue;
 
-    /**
-     * Renders a single, atomic change from the history as a "grouped transaction",
-     * using symbols and colored borders for a cleaner, more intuitive presentation.
-     */
     const renderHistoryItem = (item: IChange, index: number) => {
         const isFormula = item.changeType === 'formula' || item.changeType === 'both';
         const before = isFormula ? item.oldFormula : item.oldValue;
         const after = isFormula ? item.newFormula : item.newValue;
 
         let titleAction = "Changed";
-        let transactionClass = styles.transactionBlock_modified;
         if (!hasContent(before)) {
             titleAction = "Added";
-            transactionClass = styles.transactionBlock_added;
         }
         if (!hasContent(after)) {
             titleAction = "Removed";
-            transactionClass = styles.transactionBlock_deleted;
         }
         const titleObject = isFormula ? "Formula" : "Value";
         const title = `Step ${index + 1}: ${titleObject} ${titleAction}`;
@@ -59,13 +46,18 @@ const ChangeDetailViewer: React.FC<ChangeDetailViewerProps> = ({ change }) => {
             return <span key={partIndex}>{part.value}</span>;
         };
 
+        // --- MODIFICATION START: Remove the logic that uses the deleted style classes ---
         return (
             <div key={index} className={styles.historyStep}>
                 <strong className={mergeClasses(styles.detailBlock_title, styles.historyStepTitle)}>
                     {title}
                 </strong>
                 
-                <div className={mergeClasses(styles.transactionBlock, transactionClass)}>
+                {/* 
+                  This container now uses a single, unchanging style class.
+                  The logic for `transactionClass` has been removed.
+                */}
+                <div className={styles.transactionBlock}>
                     {hasContent(before) && (
                         <pre className={mergeClasses(isFormula ? styles.codeBlock : styles.textBlock, styles.transactionLine)}>
                             <span className={mergeClasses(styles.diffSymbol, styles.diffSymbol_deleted)}>-</span>
@@ -82,6 +74,7 @@ const ChangeDetailViewer: React.FC<ChangeDetailViewerProps> = ({ change }) => {
                 </div>
             </div>
         );
+        // --- MODIFICATION END ---
     };
 
     return (
