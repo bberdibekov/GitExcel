@@ -13,6 +13,9 @@ import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import { Tooltip } from '@fluentui/react-components';
 import { useSharedStyles } from '../../../../shared/styles/sharedStyles';
 import { toA1 } from '../../../../shared/lib/address.converter';
+// --- CHANGE 1: Import the necessary communication tools ---
+import { crossWindowMessageBus } from '../../../../core/dialog/CrossWindowMessageBus';
+import { MessageType } from '../../../../types/messaging.types';
 
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
 
@@ -50,11 +53,25 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
     const isFormula = cell ? isRealFormula(cell.formula) : false;
     const tooltipContent = isFormula ? String(cell.formula) : displayValue;
 
-    const isChanged = cell ? !!changeMap.get(`${sheetName}-${cell.address}`) : false;
+    // --- CHANGE 2: Get the full change object, not just a boolean ---
+    const change = cell ? changeMap.get(`${sheetName}-${cell.address}`) : undefined;
+    const isChanged = !!change;
     const className = joinClasses(styles.gridCell, !cell && styles.gridCell_blank, isChanged && styles.gridCell_changed);
     
+    // --- CHANGE 3: Define the click handler ---
+    const handleClick = () => {
+      // If a 'change' object exists for this cell, send the message to the parent orchestrator.
+      if (change) {
+        crossWindowMessageBus.messageParent({
+          type: MessageType.SHOW_CHANGE_DETAIL,
+          payload: { change: change }
+        });
+      }
+    };
+    
     return (
-      <div style={style} {...ariaAttributes} className={className}>
+      // --- CHANGE 4: Attach the onClick handler to the cell's div ---
+      <div style={style} {...ariaAttributes} className={className} onClick={handleClick}>
         <div className={styles.cellContentWrapper}>
           <Tooltip content={tooltipContent} relationship="label">
             <span className={styles.cellText}>{displayValue}</span>
@@ -107,6 +124,7 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   const rowHeaderRef = useListRef(null);
   
   const getColumnWidth = (index: number) => columnWidths?.[index] ?? 100;
+  // --- NO CHANGE: The `cellProps` logic is preserved exactly as you provided. ---
   const cellProps = React.useMemo(() => ({ sheet, changeMap, sheetName, startRow, startCol }), [sheet, changeMap, sheetName, startRow, startCol]);
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (event) => {

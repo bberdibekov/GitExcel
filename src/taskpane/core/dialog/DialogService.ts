@@ -58,21 +58,34 @@ class DialogService {
           }
         );
         
+        // --- THIS IS THE CORRECTED LOGIC ---
+        // The error code for a user-initiated close is 12006.
+        const DIALOG_CLOSED_BY_USER = 12006;
+
         dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg: { error: number }) => {
             loggingService.log(`[DialogService] DialogEventReceived for '${view}'. Code: ${arg.error}`);
             
-            if (view === 'diff-viewer' && activeDialogs['detail-dialog']) {
-              loggingService.log("[DialogService] Main diff viewer closed, also closing detail dialog.");
-              activeDialogs['detail-dialog'].close();
-              activeDialogs['detail-dialog'] = null;
+            // Only trigger the full close-down logic if the user explicitly closed the dialog.
+            // Other events (like opening a second dialog) will be logged but ignored here.
+            if (arg.error === DIALOG_CLOSED_BY_USER) {
+              
+              // Coordinated close: if the main viewer is closed, also close the detail view.
+              if (view === 'diff-viewer' && activeDialogs['detail-dialog']) {
+                loggingService.log("[DialogService] Main diff viewer closed, also closing detail dialog.");
+                activeDialogs['detail-dialog'].close();
+                activeDialogs['detail-dialog'] = null;
+              }
+  
+              activeDialogs[view] = null;
+              loggingService.log(`[DialogService] Physical dialog for '${view}' cleaned up.`);
+              
+              // This is the call that was causing the problem. Now it's correctly guarded.
+              useDialogStore.getState().closeAll(); 
             }
-
-            activeDialogs[view] = null;
-            loggingService.log(`[DialogService] Physical dialog for '${view}' cleaned up.`);
-            
-            useDialogStore.getState().closeAll(); 
           }
         );
+        // --- END OF CORRECTION ---
+
         resolve();
       });
     });
