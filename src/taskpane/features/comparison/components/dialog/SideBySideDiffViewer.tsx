@@ -9,7 +9,6 @@ import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
 
-// --- CHANGE 1: Import components for the modal dialog ---
 import { 
     Dialog,
     DialogSurface,
@@ -52,10 +51,7 @@ const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: Retu
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment } = props;
     const styles = useComparisonDialogStyles();
-
-    // --- CHANGE 2: Add state to manage the selected change and modal visibility ---
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
-
     const summary = useMemo(() => generateSummary(result), [result]);
     
     const affectedSheetNames = useMemo(() => {
@@ -84,6 +80,23 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             endSheet: endSheetId ? endSnapshot[endSheetId] : undefined
         };
     }, [selectedSheetName, startSnapshot, endSnapshot]);
+        
+    // --- CHANGE 1: Calculate a single, unified set of column widths ---
+    const unifiedColumnWidths = useMemo(() => {
+        const startWidths = startSheet?.columnWidths || [];
+        const endWidths = endSheet?.columnWidths || [];
+        const maxCols = Math.max(startWidths.length, endWidths.length);
+        const unified: number[] = [];
+        const DEFAULT_COL_WIDTH = 100; // Default width if none is specified
+
+        for (let i = 0; i < maxCols; i++) {
+            const startWidth = startWidths[i] || DEFAULT_COL_WIDTH;
+            const endWidth = endWidths[i] || DEFAULT_COL_WIDTH;
+            unified.push(Math.max(startWidth, endWidth));
+        }
+        return unified;
+    }, [startSheet, endSheet]);
+
 
     const gridStartRef = useRef<GridImperativeAPI | null>(null);
     const gridEndRef = useRef<GridImperativeAPI | null>(null);
@@ -92,26 +105,22 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const onScrollStart = (scrollTop: number, scrollLeft: number) => {
         if (isScrolling.current) return;
         isScrolling.current = true;
-        
         const targetElement = gridEndRef.current?.element;
         if (targetElement) {
             targetElement.scrollTop = scrollTop;
             targetElement.scrollLeft = scrollLeft;
         }
-
         requestAnimationFrame(() => { isScrolling.current = false; });
     };
     
     const onScrollEnd = (scrollTop: number, scrollLeft: number) => {
         if (isScrolling.current) return;
         isScrolling.current = true;
-        
         const targetElement = gridStartRef.current?.element;
         if (targetElement) {
             targetElement.scrollTop = scrollTop;
             targetElement.scrollLeft = scrollLeft;
         }
-        
         requestAnimationFrame(() => { isScrolling.current = false; });
     };
 
@@ -136,16 +145,11 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
   
     return (
         <div className={styles.rootContainer}>
-            {/* --- CHANGE 4: Add the Fluent UI Dialog for the detail view --- */}
             <Dialog open={!!selectedChange} onOpenChange={handleModalClose}>
                 <DialogSurface>
                     <DialogBody>
                         <DialogTitle>Cell Change Detail</DialogTitle>
-                        
-                        {selectedChange && (
-                           <ChangeDetailViewer change={selectedChange} />
-                        )}
-
+                        {selectedChange && <ChangeDetailViewer change={selectedChange} />}
                         <DialogActions>
                             <Button appearance="primary" onClick={handleModalClose}>Close</Button>
                         </DialogActions>
@@ -171,7 +175,7 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                         colCount={colCount}
                         startRow={startSheet?.startRow ?? 0}
                         startCol={startSheet?.startCol ?? 0}
-                        columnWidths={startSheet?.columnWidths}
+                        columnWidths={unifiedColumnWidths}
                         onScroll={onScrollStart}
                         onCellClick={handleCellClick}
                     />
@@ -189,7 +193,7 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                         colCount={colCount}
                         startRow={endSheet?.startRow ?? 0}
                         startCol={endSheet?.startCol ?? 0}
-                        columnWidths={endSheet?.columnWidths}
+                        columnWidths={unifiedColumnWidths}
                         onScroll={onScrollEnd}
                         onCellClick={handleCellClick}
                     />
