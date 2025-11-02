@@ -15,6 +15,9 @@ interface IAppState {
     diffResult: IDiffResult;
     startSnapshot: IWorkbookSnapshot;
     endSnapshot: IWorkbookSnapshot;
+    // --- [NEW] Add state for version comments ---
+    startVersionComment: string;
+    endVersionComment: string;
   } | null;
   licenseTier: 'free' | 'pro';
   isLoading: boolean;
@@ -29,7 +32,10 @@ const renderView = (view: string, data: IAppState['initialData'], licenseTier: '
                 result={data.diffResult} 
                 startSnapshot={data.startSnapshot}
                 endSnapshot={data.endSnapshot}
-                licenseTier={licenseTier} 
+                licenseTier={licenseTier}
+                // --- [NEW] Pass comments as props ---
+                startVersionComment={data.startVersionComment}
+                endVersionComment={data.endVersionComment}
              />;
     default:
       return <p>Error: Unknown view '{view}' requested.</p>;
@@ -71,6 +77,9 @@ const DialogApp: React.FC = () => {
             diffResult: payload.diffResult,
             startSnapshot: payload.startSnapshot,
             endSnapshot: payload.endSnapshot,
+            // --- [NEW] Store comments from payload ---
+            startVersionComment: payload.startVersionComment,
+            endVersionComment: payload.endVersionComment,
           },
           licenseTier: payload.licenseTier,
           isLoading: false,

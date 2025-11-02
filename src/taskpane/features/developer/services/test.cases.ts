@@ -172,7 +172,7 @@ export const testSteps: ITestStep[] = [
   },
 
   {
-    description: "Setting up v14: Rename DataSheet to 'Scores'",
+    description: "Setting up v14: Rename 'DataSheet' to 'Scores'",
     comment: "v14: Sheet rename test",
     sheetsInvolved: ["DataSheet", "Scores"],
     action: async () => {

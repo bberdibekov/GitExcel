@@ -23,6 +23,21 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
   
   const styles = useSharedStyles();
 
+  // --- START: "COMPARE MODE" LOGIC ---
+  const isInCompareMode = selectedVersions.length === 1;
+  const sourceCompareId = isInCompareMode ? selectedVersions[0] : null;
+
+  const handleTargetedCompare = (targetVersionId: number | 'current') => {
+    // This action adds the second version to the selection array in the store.
+    selectVersion(targetVersionId);
+    
+    // Immediately call the comparison service. Because the service uses `getState()`,
+    // it will see the updated selection array with two items and run the comparison.
+    // Zustand's `set` is synchronous, so this is a safe operation.
+    comparisonWorkflowService.runComparison();
+  };
+  // --- END: "COMPARE MODE" LOGIC ---
+
   if (versions.length === 0) {
     return <p>No versions saved yet.</p>;
   }
@@ -51,11 +66,48 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
     );
   };
 
+  const renderActionButtons = (version: IVersionViewModel, isFirstVersion: boolean) => {
+    // When in compare mode, non-selected rows get a special, direct compare button.
+    if (isInCompareMode && version.id !== sourceCompareId) {
+      return (
+        <Tooltip content="Compare with selected" relationship="label">
+          <Button
+            size="small"
+            appearance="primary"
+            icon={<BranchCompare20Filled />}
+            onClick={() => handleTargetedCompare(version.id)}
+            disabled={isRestoring || disabled}
+          />
+        </Tooltip>
+      );
+    }
+
+    // Default view: Show the standard restore and "compare to previous" buttons.
+    return (
+      <>
+        {renderRestoreButton(version)}
+        {!isFirstVersion && (
+          <Tooltip content="Compare to Previous" relationship="label">
+            <Button 
+              size="small"
+              appearance="subtle" 
+              icon={<BranchCompare20Filled />}
+              onClick={() => comparisonWorkflowService.compareWithPrevious(version.id)}
+              disabled={isRestoring || disabled}
+            />
+          </Tooltip>
+        )}
+      </>
+    );
+  };
+
+  const isCurrentWorkbookSelectedForCompare = isInCompareMode && sourceCompareId === 'current';
+
   return (
     <div>
       {/* Current workbook item */}
       <div 
-        className={`${styles.card} ${styles.flexRowSpaceBetween}`} 
+        className={`${styles.card} ${styles.flexRowSpaceBetween} ${isCurrentWorkbookSelectedForCompare ? styles.card_info : ''}`} 
         style={{ 
           flexShrink: 0,
           padding: '8px',
@@ -73,15 +125,30 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
             <strong style={{ fontSize: '13px' }}>Current Workbook</strong>
           </div>
         </div>
+        <div className={styles.flexRow} style={{ gap: '4px', flexShrink: 0 }}>
+          {isInCompareMode && !isCurrentWorkbookSelectedForCompare && (
+            <Tooltip content="Compare with selected" relationship="label">
+              <Button
+                size="small"
+                appearance="primary"
+                icon={<BranchCompare20Filled />}
+                onClick={() => handleTargetedCompare('current')}
+                disabled={isRestoring || disabled}
+              />
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       {/* Historical versions */}
       {reversedVersions.map((version, index) => {
         const isFirstVersion = index === reversedVersions.length - 1;
+        const isSelectedForCompare = isInCompareMode && sourceCompareId === version.id;
+
         return (
           <div
             key={version.id}
-            className={`${styles.card} ${styles.flexRowSpaceBetween}`}
+            className={`${styles.card} ${styles.flexRowSpaceBetween} ${isSelectedForCompare ? styles.card_info : ''}`}
             style={{ 
               flexShrink: 0,
               padding: '8px',
@@ -104,18 +171,7 @@ const VersionHistory: React.FC<VersionHistoryProps> = ({ versions, disabled }) =
               </div>
             </div>
             <div className={styles.flexRow} style={{ gap: '4px', flexShrink: 0 }}>
-              {renderRestoreButton(version)}
-              {!isFirstVersion && (
-                <Tooltip content="Compare to Previous" relationship="label">
-                  <Button 
-                    size="small"
-                    appearance="subtle" 
-                    icon={<BranchCompare20Filled />}
-                    onClick={() => comparisonWorkflowService.compareWithPrevious(version.id)}
-                    disabled={isRestoring || disabled}
-                  />
-                </Tooltip>
-              )}
+              {renderActionButtons(version, isFirstVersion)}
             </div>
           </div>
         );

@@ -16,9 +16,14 @@ interface DialogComparisonViewProps {
   startSnapshot: IWorkbookSnapshot;
   endSnapshot: IWorkbookSnapshot;
   licenseTier: 'free' | 'pro';
+  // --- [NEW] Accept version comments as props ---
+  startVersionComment: string;
+  endVersionComment: string;
 }
 
-const DialogComparisonView: React.FC<DialogComparisonViewProps> = ({ result, startSnapshot, endSnapshot, licenseTier }) => {
+const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
+  const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
+  
   const [activeViewFilter, setActiveViewFilter] = useState<ViewFilter>('all');
   const [activeComparisonSettings, setActiveComparisonSettings] = useState<Set<string>>(new Set());
 
@@ -81,6 +86,9 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = ({ result, sta
         result={filteredResult}
         startSnapshot={startSnapshot}
         endSnapshot={endSnapshot}
+        // --- [NEW] Pass comments down to the viewer ---
+        startVersionComment={startVersionComment}
+        endVersionComment={endVersionComment}
       />
     </div>
   );

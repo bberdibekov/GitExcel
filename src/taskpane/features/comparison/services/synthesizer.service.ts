@@ -20,6 +20,16 @@ export function synthesizeChangesets(
     v.id >= startVersion.id && v.id <= endVersion.id
   );
 
+  // --- START: ADDED DEBUG LOGGING ---
+  const description = `Synthesizing v"${startVersion.id}" vs v"${endVersion.id}"`;
+  debugService.addLogEntry(description, {
+    startVersion: startVersion.comment,
+    endVersion: endVersion.comment,
+    relevantVersionCount: relevantVersions.length,
+    activeFilterIds: Array.from(activeFilterIds),
+  });
+  // --- END: ADDED DEBUG LOGGING ---
+
   const changesetSequence: IChangeset[] = [];
   for (let i = 0; i < relevantVersions.length - 1; i++) {
     const fromVersion = relevantVersions[i];
@@ -31,26 +41,22 @@ export function synthesizeChangesets(
       activeFilterIds
     );
     // --- START: ADDED DEBUG LOGGING ---
-    console.log(`[SYNTHESIZER] CHANGESET LOG: ${fromVersion.comment} -> ${toVersion.comment}`, {
-        modifiedCells: changeset.modifiedCells.length,
-        addedRows: changeset.addedRows.length,
-        deletedRows: changeset.deletedRows.length,
-        structuralChanges: changeset.structuralChanges, // <-- VERY IMPORTANT
+    debugService.addLogEntry(`[Synthesizer] Generated Changeset ${i + 1}/${relevantVersions.length - 1} (${fromVersion.comment} -> ${toVersion.comment})`, {
+        summary: {
+            modifiedCells: changeset.modifiedCells.length,
+            addedRows: changeset.addedRows.length,
+            deletedRows: changeset.deletedRows.length,
+            structuralChanges: changeset.structuralChanges.length,
+        },
+        structuralChangeDetails: changeset.structuralChanges,
         isPartial: changeset.isPartialResult
     });
     // --- END: ADDED DEBUG LOGGING ---
     changesetSequence.push(changeset);
   }
   
-  const description = `Synthesizing v"${startVersion.id}" vs v"${endVersion.id}"`;
-  debugService.addLogEntry(description, {
-    startVersion: startVersion.comment,
-    endVersion: endVersion.comment,
-    changesetCount: changesetSequence.length,
-    activeFilterIds: Array.from(activeFilterIds),
-  });
-
   if (changesetSequence.length === 0) {
+    debugService.addLogEntry("Synthesizer detected no changesets; returning empty result.", {});
     return { modifiedCells: [], addedRows: [], deletedRows: [], structuralChanges: [] };
   }
   
@@ -70,40 +76,26 @@ export function synthesizeChangesets(
   const resolvedTimeline = resolveTimeline(changesetSequence, sheetIdToFinalNameMap);
   
   // --- START: ADDED DEBUG LOGGING ---
-  console.log('[SYNTHESIZER] TIMELINE LOG:', {
-      finalChangeHistoryCount: resolvedTimeline.finalChangeHistory.size,
-      finalChangeHistoryKeys: Array.from(resolvedTimeline.finalChangeHistory.keys()), // See what cells are being tracked
-      chronologicalRowEventCount: resolvedTimeline.chronologicalRowEvents.length,
-      chronologicalStructuralChangeCount: resolvedTimeline.chronologicalStructuralChanges.length,
-  });
-  // --- END: ADDED DEBUG LOGGING ---
-  
-  // --- Translate the keys for this log entry ---
-  const translatedKeys = Array.from(resolvedTimeline.finalChangeHistory.keys()).map(key => {
+  const translatedKeysForLog = Array.from(resolvedTimeline.finalChangeHistory.keys()).map(key => {
     const [sheetId, cell] = key.split('!');
-    const sheetName = sheetIdToFinalNameMap.get(sheetId as SheetId) || sheetId;
+    const sheetName = sheetIdToFinalNameMap.get(sheetId as SheetId) || `[${sheetId}]`;
     return `${sheetName}!${cell}`;
   });
 
   debugService.addLogEntry(
     "Synthesizer Stage 1/2 (Timeline Resolution) Complete",
     {
-      finalChangeHistoryKeys: translatedKeys, // Use translated keys
+      finalChangeHistoryCount: resolvedTimeline.finalChangeHistory.size,
+      finalChangeHistoryKeys: translatedKeysForLog,
       chronologicalRowEventCount: resolvedTimeline.chronologicalRowEvents.length,
+      chronologicalStructuralChangeCount: resolvedTimeline.chronologicalStructuralChanges.length,
     },
   );
+  // --- END: ADDED DEBUG LOGGING ---
 
   const finalResult = consolidateReport(resolvedTimeline, sheetIdToFinalNameMap);
 
   // --- START: ADDED DEBUG LOGGING ---
-  console.log('[SYNTHESIZER] FINAL RESULT LOG:', {
-    modifiedCells: finalResult.modifiedCells.length,
-    addedRows: finalResult.addedRows.length,
-    deletedRows: finalResult.deletedRows.length,
-    structuralChanges: finalResult.structuralChanges.length,
-  });
-  // --- END: ADDED DEBUG LOGGING ---
-  
   debugService.addLogEntry(
     "Synthesizer Stage 2/2 (Report Consolidation) Complete",
     {
@@ -116,6 +108,7 @@ export function synthesizeChangesets(
       finalModifiedCellAddresses: finalResult.modifiedCells.map(c => `${c.sheet}!${c.address}`)
     }
   );
+  // --- END: ADDED DEBUG LOGGING ---
 
   finalResult.isPartialResult = isPartial;
   finalResult.hiddenChangeCount = hiddenCount;

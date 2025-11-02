@@ -94,6 +94,9 @@ class ComparisonWorkflowService {
         licenseTier: license.tier,
         startSnapshot: startVersion.snapshot,
         endSnapshot: endVersion.snapshot,
+        // --- [NEW] Add the version comments to the payload ---
+        startVersionComment: startVersion.comment,
+        endVersionComment: endVersion.comment,
     };
 
     // --- FIX: This now calls the correct method on the dialogStore ---

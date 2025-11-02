@@ -133,7 +133,6 @@ class DevHarnessService {
     }
     
     const stepsToRun = testSteps.slice(startIndex, endIndex + 1);
-    const totalSteps = stepsToRun.length;
    
     debugService.startNewLogSession();
     try {
@@ -142,14 +141,14 @@ class DevHarnessService {
       await this.cleanupTestSheets();
       await this.delay(stepDelay);
       
-      onStatusUpdate(`Phase 1/3: Clearing history and creating ${totalSteps} version(s) (steps ${startFromStep}-${upToStep})...`);
+      onStatusUpdate(`Phase 1/3: Clearing history and creating ${stepsToRun.length} version(s) (steps ${startFromStep}-${upToStep})...`);
       onClearHistory();
       await this.delay(stepDelay);
       
       for (let i = 0; i < stepsToRun.length; i++) {
         const step = stepsToRun[i];
         const stepNumber = startIndex + i + 1;
-        onStatusUpdate(`Creating v${i + 1}/${totalSteps}: ${step.description} (step ${stepNumber})`);
+        onStatusUpdate(`Creating v${i + 1}/${stepsToRun.length}: ${step.description} (step ${stepNumber})`);
         
         await step.action();
         await this.delay(actionDelay);
@@ -157,32 +156,45 @@ class DevHarnessService {
         await this.delay(stepDelay);
       }
      
-      console.log("[DEV HARNESS] State of 'versions' array AFTER loop and BEFORE capture:", getVersions());
-      debugService.capture('AllVersionsAfterCreation', getVersions());
+      // --- START: FIX ---
+      // Get the definitive state AFTER the creation loop to avoid race conditions.
+      const finalVersions = getVersions();
+      console.log("[DEV HARNESS] State of 'versions' array AFTER loop and BEFORE comparison:", finalVersions);
+      debugService.capture('AllVersionsAfterCreation', finalVersions);
+
       onStatusUpdate("Phase 2/3: Running focused comparison matrix...");
       await this.delay(stepDelay);
      
-      const numVersions = totalSteps;
-      const pairs: [number, number][] = [[0, numVersions - 1]];
-      debugService.addLogEntry("Starting comparison verification phase.", { 
-        totalPairs: pairs.length, 
-        generatedPairs: pairs,
-        stepsRun: `${startFromStep} to ${upToStep}`,
-        totalVersionsCreated: numVersions
-      });
-      
-      for (let i = 0; i < pairs.length; i++) {
-        const [startIdx, endIdx] = pairs[i];
-        onStatusUpdate(`Comparing v${startIdx + 1} vs v${endIdx + 1} (${i + 1}/${pairs.length})`);
-        onCompare(startIdx, endIdx);
-        await this.delay(actionDelay);
+      const numVersions = finalVersions.length;
+      if (numVersions < 2) {
+        onStatusUpdate(`Test complete! Only ${numVersions} version(s) created. No comparison run.`);
+        console.warn(`[DEV HARNESS] Not enough versions (${numVersions}) to run a comparison.`);
+        // No throw, just end gracefully.
+      } else {
+        // The comparison logic now uses the actual number of versions from the state.
+        const pairs: [number, number][] = [[0, numVersions - 1]];
+        debugService.addLogEntry("Starting comparison verification phase.", { 
+          totalPairs: pairs.length, 
+          generatedPairs: pairs,
+          stepsRun: `${startFromStep} to ${upToStep}`,
+          totalVersionsCreated: numVersions
+        });
+        
+        for (let i = 0; i < pairs.length; i++) {
+          const [startIdx, endIdx] = pairs[i];
+          onStatusUpdate(`Comparing v${startIdx + 1} vs v${endIdx + 1} (${i + 1}/${pairs.length})`);
+          onCompare(startIdx, endIdx);
+          await this.delay(actionDelay);
+        }
+        onStatusUpdate(`Test complete! Ran ${stepsToRun.length} step(s). Log file is being saved.`);
       }
-     
-      onStatusUpdate(`Test complete! Ran ${totalSteps} step(s). Log file is being saved.`);
+      // --- END: FIX ---
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Test harness failed:", error);
       debugService.addLogEntry("Test Harness Failed", { error: errorMessage });
+      onStatusUpdate(`Test FAILED: ${errorMessage}. Check console.`);
       throw new Error(`Test harness failed. Check console for details.`);
     } finally {
       debugService.saveLogSession('timeline_resolver_debug_log.json');

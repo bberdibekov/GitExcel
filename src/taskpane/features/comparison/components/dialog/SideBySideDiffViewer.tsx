@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useState, useMemo, useRef } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
-import { Tab, TabList, Subtitle2 } from '@fluentui/react-components';
+import { Tab, TabList, Subtitle2, Title3 } from '@fluentui/react-components'; // Import Title3
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 
@@ -12,6 +12,9 @@ interface SideBySideDiffViewerProps {
     result: IDiffResult;
     startSnapshot: IWorkbookSnapshot;
     endSnapshot: IWorkbookSnapshot;
+    // --- [FIX] Add the missing properties to the interface ---
+    startVersionComment: string;
+    endVersionComment: string;
 }
 
 const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): string | undefined => {
@@ -34,7 +37,9 @@ const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[] }> = ({ chang
     );
 };
 
-const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, startSnapshot, endSnapshot }) => {
+const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
+  const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment } = props;
+  
   const summary = useMemo(() => generateSummary(result), [result]);
   
   const affectedSheetNames = useMemo(() => {
@@ -68,7 +73,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, sta
   const gridEndRef = useRef<GridImperativeAPI | null>(null);
   const isScrolling = useRef(false);
 
-  // --- FIX: The scroll handlers now access the raw DOM element from the ref ---
   const onScrollStart = (scrollTop: number, scrollLeft: number) => {
     if (isScrolling.current) return;
     isScrolling.current = true;
@@ -105,7 +109,11 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, sta
         {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
       </TabList>
       <div style={{ display: 'flex', flex: 1, gap: '8px', padding: '8px', backgroundColor: '#f5f5fidential' }}>
-        <div style={{flex: 1, overflow: 'hidden'}}>
+        
+        <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '4px'}}>
+            <Title3 as="h3" block align="center" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {startVersionComment}
+            </Title3>
             <VirtualizedDiffGrid
                 gridRef={gridStartRef}
                 sheet={startSheet}
@@ -117,7 +125,11 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = ({ result, sta
                 onScroll={onScrollStart}
             />
         </div>
-        <div style={{flex: 1, overflow: 'hidden'}}>
+        
+        <div style={{flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '4px'}}>
+            <Title3 as="h3" block align="center" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {endVersionComment}
+            </Title3>
             <VirtualizedDiffGrid
                 gridRef={gridEndRef}
                 sheet={endSheet}

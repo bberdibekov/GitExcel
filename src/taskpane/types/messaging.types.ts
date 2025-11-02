@@ -63,6 +63,9 @@ export interface InitializeDataPayload {
   licenseTier: 'free' | 'pro';
   startSnapshot: IWorkbookSnapshot;
   endSnapshot: IWorkbookSnapshot;
+  // --- [NEW] Add version context for the dialog title ---
+  startVersionComment: string;
+  endVersionComment: string;
 }
 
 export type UpdateDataPayload = InitializeDataPayload;
