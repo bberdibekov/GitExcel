@@ -25,8 +25,11 @@ module.exports = async (env, options) => {
         dependOn: "react",
       },
       commands: "./src/commands/commands.ts",
+      
+      // --- [MODIFIED] ---
+      // This single 'dialog' entry point will serve the JS for all our dialog windows.
       dialog: {
-        import: ["./src/dialog_app/index.tsx", "./src/dialog_app/dialog.html"],
+        import: ["./src/dialog_app/index.tsx"], // HTML is now handled by the plugin below
         dependOn: "react",
       },
     },
@@ -65,11 +68,6 @@ module.exports = async (env, options) => {
       ],
     },
     plugins: [
-      new HtmlWebpackPlugin({
-        filename: "taskpane.html",
-        template: "./src/taskpane/taskpane.html",
-        chunks: ["polyfill", "taskpane", "react"],
-      }),
       new CopyWebpackPlugin({
         patterns: [
           {
@@ -89,19 +87,35 @@ module.exports = async (env, options) => {
           },
         ],
       }),
+      new webpack.ProvidePlugin({
+        Promise: ["es6-promise", "Promise"],
+      }),
+
+      // --- [REMOVED] The three old, separate HtmlWebpackPlugin instances were here. ---
+
+      // --- [ADDED] A new, scalable way to generate all our HTML files. ---
+      new HtmlWebpackPlugin({
+        filename: "taskpane.html",
+        template: "./src/taskpane/taskpane.html",
+        chunks: ["polyfill", "taskpane", "react"],
+      }),
       new HtmlWebpackPlugin({
         filename: "commands.html",
         template: "./src/commands/commands.html",
         chunks: ["polyfill", "commands"],
       }),
+      // This will generate 'diff-viewer.html' for our main comparison dialog.
       new HtmlWebpackPlugin({
-        filename: "dialog.html",
+        filename: "diff-viewer.html",
         template: "./src/dialog_app/dialog.html",
         chunks: ["polyfill", "react", "dialog"],
       }),
-      new webpack.ProvidePlugin({
-        Promise: ["es6-promise", "Promise"],
-      }),
+      // When we build the detail dialog, we will simply add another block like this:
+      // new HtmlWebpackPlugin({
+      //   filename: "detail-dialog.html",
+      //   template: "./src/detail_dialog/detail-dialog.html", // Assuming a new template
+      //   chunks: ["polyfill", "react", "detail-dialog-entry"], // Assuming a new JS entry
+      // }),
     ],
     devServer: {
       hot: true,

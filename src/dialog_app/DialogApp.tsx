@@ -6,12 +6,11 @@ import { Spinner } from "@fluentui/react-components";
 import { crossWindowMessageBus } from "../taskpane/core/dialog/CrossWindowMessageBus";
 import { MessageType, InitializeDataPayload } from "../taskpane/types/messaging.types";
 import DialogComparisonView from "../taskpane/features/comparison/components/dialog/DialogComparisonView";
-import { IDiffResult, IWorkbookSnapshot } from "../taskpane/types/types"; // Import IWorkbookSnapshot
+import { IDiffResult, IWorkbookSnapshot } from "../taskpane/types/types";
 import { loggingService } from "../taskpane/core/services/LoggingService";
 
 interface IAppState {
   view: string | null;
-  // --- UPDATED: The shape of our initial data has changed ---
   initialData: {
     diffResult: IDiffResult;
     startSnapshot: IWorkbookSnapshot;
@@ -68,7 +67,6 @@ const DialogApp: React.FC = () => {
         loggingService.log("[DialogApp] Received INITIALIZE_DATA message with payload:", payload);
         setState({
           view,
-          // --- UPDATED: Store the entire payload object ---
           initialData: {
             diffResult: payload.diffResult,
             startSnapshot: payload.startSnapshot,
@@ -82,7 +80,8 @@ const DialogApp: React.FC = () => {
     );
 
     loggingService.log("[DialogApp] Broadcasting DIALOG_READY_FOR_DATA to task pane.");
-    crossWindowMessageBus.broadcast({ type: MessageType.DIALOG_READY_FOR_DATA });
+    // --- FIX: Use 'messageParent' when communicating from a dialog to the task pane ---
+    crossWindowMessageBus.messageParent({ type: MessageType.DIALOG_READY_FOR_DATA });
     
     return () => {
       loggingService.log("[DialogApp] Cleaning up listener for INITIALIZE_DATA.");

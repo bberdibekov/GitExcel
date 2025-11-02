@@ -4,7 +4,6 @@ import { useAppStore } from "../../../state/appStore";
 import { useDialogStore } from "../../../state/dialogStore";
 import { synthesizeChangesets } from "./synthesizer.service";
 import { debugService } from "../../../core/services/debug.service";
-// --- ADDED: We need the snapshot service to handle the "Live" case ---
 import { excelSnapshotService } from "../../../core/excel/excel.snapshot.service";
 import { IVersion } from "../../../types/types";
 
@@ -26,7 +25,6 @@ class ComparisonWorkflowService {
       return;
     }
 
-    // --- START: REVISED LOGIC ---
     // Correctly determine the start and end versions regardless of selection order.
     const [selection1, selection2] = selectedVersions;
     let startSelectionId: number | string;
@@ -46,7 +44,6 @@ class ComparisonWorkflowService {
         startSelectionId = selection1;
       }
     }
-    // --- END: REVISED LOGIC ---
 
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
@@ -92,22 +89,24 @@ class ComparisonWorkflowService {
     const result = synthesizeChangesets(startVersion, endVersion, versions, license, activeFilters);
     debugService.addLogEntry(`Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`, result);
 
+    const payloadForDialog = {
+        diffResult: result,
+        licenseTier: license.tier,
+        startSnapshot: startVersion.snapshot,
+        endSnapshot: endVersion.snapshot,
+    };
+
+    // --- FIX: This now calls the correct method on the dialogStore ---
     // Command the dialogStore to open with our rich payload
-    useDialogStore.getState().open("diff-viewer", {
-      diffResult: result,
-      licenseTier: license.tier,
-      startSnapshot: startVersion.snapshot,
-      endSnapshot: endVersion.snapshot,
-    });
+    await useDialogStore.getState().openDiffViewer(payloadForDialog);
+    
     const comparisonPayload = {
         result: result,
         startSnapshot: startVersion.snapshot,
         endSnapshot: endVersion.snapshot
     };
     
-    // Note: The concept of `lastComparedIndices` is now more complex.
-    // We will temporarily disable updating it to avoid errors. A future task can make it mode-aware.
-    // useAppStore.getState()._setComparisonResult(result, { start: finalStartIndex!, end: finalEndIndex! });
+    // This logic is preserved from your original code.
     useAppStore.getState()._setComparisonResult(comparisonPayload);
   }
 

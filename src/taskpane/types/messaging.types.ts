@@ -1,6 +1,6 @@
 // src/taskpane/types/messaging.types.ts
 
-import { IDiffResult, IWorkbookSnapshot } from "./types"; // Import IWorkbookSnapshot
+import { IDiffResult, IWorkbookSnapshot, ICombinedChange } from "./types"; // Import ICombinedChange
 
 /**
  * Defines the distinct types of messages that can be sent across the window boundary.
@@ -12,14 +12,38 @@ export enum MessageType {
   // Excel Grid Interaction Events
   GRID_SELECTION_CHANGED = "GRID_SELECTION_CHANGED",
 
-  // Dialog Lifecycle & Handshake Events
-  DIALOG_INITIALIZED = "DIALOG_INITIALIZED",
-  // DIALOG_CLOSED = "DIALOG_CLOSED", // --- REMOVED ---
+  // Main Comparison Dialog Lifecycle & Handshake Events
   DIALOG_READY_FOR_DATA = "DIALOG_READY_FOR_DATA",
   INITIALIZE_DATA = "INITIALIZE_DATA",
   UPDATE_DATA = "UPDATE_DATA", 
 
+  // Main Comparison Dialog Actions
   RUN_COMPARISON_WITH_FILTERS = "RUN_COMPARISON_WITH_FILTERS",
+
+  // --- [NEW] Detail Dialog Lifecycle & Data Transfer ---
+  /**
+   * Fired from the Comparison Dialog grid when a user clicks a cell,
+   * requesting that the orchestrator show the detail view for that change.
+   */
+  SHOW_CHANGE_DETAIL = "SHOW_CHANGE_DETAIL",
+  
+  /**
+   * Fired from the new Detail Dialog after it has loaded, signaling to the
+   * orchestrator that it is ready to receive its initial data.
+   */
+  DETAIL_DIALOG_READY_FOR_DATA = "DETAIL_DIALOG_READY_FOR_DATA",
+
+  /**
+   * Fired from the Task Pane orchestrator to the Detail Dialog to provide
+   * the first set of cell change data.
+   */
+  INITIALIZE_DETAIL_DATA = "INITIALIZE_DETAIL_DATA",
+
+  /**
+   * Fired from the Task Pane orchestrator to an *existing* Detail Dialog
+   * to provide updated cell change data.
+   */
+  UPDATE_DETAIL_DATA = "UPDATE_DETAIL_DATA",
 }
 
 // --- Payload Definitions ---
@@ -37,7 +61,6 @@ export interface GridSelectionChangedPayload {
 export interface InitializeDataPayload {
   diffResult: IDiffResult;
   licenseTier: 'free' | 'pro';
-  // --- ADDED: Pass the full snapshots for the grid view ---
   startSnapshot: IWorkbookSnapshot;
   endSnapshot: IWorkbookSnapshot;
 }
@@ -46,6 +69,20 @@ export type UpdateDataPayload = InitializeDataPayload;
 
 export interface RunComparisonWithFiltersPayload {
     filterIds: string[];
+}
+
+// --- [NEW] Detail Dialog Payloads ---
+
+export interface ShowChangeDetailPayload {
+  change: ICombinedChange;
+}
+
+export interface InitializeDetailDataPayload {
+  change: ICombinedChange;
+}
+
+export interface UpdateDetailDataPayload {
+  change: ICombinedChange;
 }
 
 
@@ -61,10 +98,6 @@ export type BusMessage =
       payload: GridSelectionChangedPayload;
     }
   | {
-      type: MessageType.DIALOG_INITIALIZED;
-    }
-  // --- REMOVED { type: MessageType.DIALOG_CLOSED } ---
-  | {
       type: MessageType.DIALOG_READY_FOR_DATA;
     }
   | {
@@ -78,4 +111,20 @@ export type BusMessage =
   | {
       type: MessageType.RUN_COMPARISON_WITH_FILTERS;
       payload: RunComparisonWithFiltersPayload;
-    };
+    }
+  // --- [NEW] Detail Dialog Messages ---
+  | {
+      type: MessageType.SHOW_CHANGE_DETAIL;
+      payload: ShowChangeDetailPayload;
+  }
+  | {
+      type: MessageType.DETAIL_DIALOG_READY_FOR_DATA;
+  }
+  | {
+      type: MessageType.INITIALIZE_DETAIL_DATA;
+      payload: InitializeDetailDataPayload;
+  }
+  | {
+      type: MessageType.UPDATE_DETAIL_DATA;
+      payload: UpdateDetailDataPayload;
+  };

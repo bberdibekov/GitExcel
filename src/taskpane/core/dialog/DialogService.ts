@@ -3,6 +3,8 @@
 import { crossWindowMessageBus } from '../dialog/CrossWindowMessageBus';
 import { loggingService } from "../../core/services/LoggingService";
 import { useDialogStore } from '../../state/dialogStore';
+import { ICombinedChange } from '../../types/types';
+import { MessageType } from '../../types/messaging.types';
 
 export interface IDialogOptions {
   height?: number;
@@ -10,86 +12,124 @@ export interface IDialogOptions {
   displayInIframe?: boolean;
 }
 
-let activeDialog: Office.Dialog | null = null;
-
-const DEFAULT_OPTIONS: IDialogOptions = {
-  height: 80,
-  width: 60,
-  displayInIframe: false,
+const activeDialogs: {
+  'diff-viewer': Office.Dialog | null,
+  'detail-dialog': Office.Dialog | null,
+} = {
+  'diff-viewer': null,
+  'detail-dialog': null,
 };
 
+type DialogView = keyof typeof activeDialogs;
+
 /**
- * Handles the lifecycle and communication for Office.js dialogs.
- * This version is corrected to use the proper API and type-safe event handlers.
+ * The master orchestrator for all Office.js dialog windows.
  */
 class DialogService {
-  public open(view: string, options?: Partial<IDialogOptions>): Promise<void> {
+  private open(view: DialogView, options?: Partial<IDialogOptions>): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (activeDialog) {
-        loggingService.warn("[DialogService] An 'open' call was ignored because a dialog is already active.");
-        reject(new Error("A dialog is already open."));
+      if (activeDialogs[view]) {
+        reject(new Error(`Dialog '${view}' is already open.`));
         return;
       }
 
-      const finalOptions = { ...DEFAULT_OPTIONS, ...options };
-      const dialogUrl = `${window.location.origin}/dialog.html?view=${encodeURIComponent(view)}`;
-      loggingService.log(`[DialogService] Opening dialog with URL: ${dialogUrl}`);
+      // --- [THE FIX IS HERE] ---
+      // Append the 'view' query parameter so the dialog app knows what to render.
+      const dialogUrl = `${window.location.origin}/${view}.html?view=${view}`;
+      
+      loggingService.log(`[DialogService] Opening '${view}' with URL: ${dialogUrl}`);
 
-      Office.context.ui.displayDialogAsync(dialogUrl, finalOptions, (asyncResult) => {
+      Office.context.ui.displayDialogAsync(dialogUrl, options, (asyncResult) => {
         if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-          loggingService.logError(asyncResult.error, "[DialogService] Failed to open dialog");
-          useDialogStore.getState().close(); // Ensure state is clean on failure
+          loggingService.logError(asyncResult.error, `[DialogService] Failed to open '${view}' dialog`);
+          useDialogStore.getState().closeAll(); 
           reject(asyncResult.error);
           return;
         }
 
-        loggingService.log("[DialogService] Dialog opened successfully. Registering handlers.");
-        activeDialog = asyncResult.value;
+        const dialog = asyncResult.value;
+        activeDialogs[view] = dialog;
+        loggingService.log(`[DialogService] '${view}' dialog opened. Registering handlers.`);
 
-        crossWindowMessageBus.__internal_setActiveDialog(activeDialog);
-
-        // --- CORRECTED HANDLER REGISTRATION ---
-
-        // 1. Handler for receiving messages from the dialog.
-        // This now correctly handles the UNION type provided by the Office.js API.
-        activeDialog.addEventHandler(
-          Office.EventType.DialogMessageReceived,
-          (arg: { message: string; origin: string } | { error: number }) => {
-            // We use a type guard to check which kind of object we received.
+        dialog.addEventHandler(Office.EventType.DialogMessageReceived, (arg: any) => {
             if ("message" in arg) {
-              loggingService.log(`[DialogService] Raw message received from dialog:`, arg.message);
               crossWindowMessageBus.__internal_receive(arg.message);
             } else {
-              // It's an error object.
-              loggingService.logError(new Error(`DialogMessageReceived reported an error.`), `Error code: ${arg.error}`);
+              loggingService.logError(new Error(`DialogMessageReceived error from '${view}'`), `Error code: ${arg.error}`);
             }
           }
         );
         
-        // 2. Handler for lifecycle events (like the user closing the window).
-        // This handler's signature was correct as it only receives the error object shape.
-        activeDialog.addEventHandler(
-          Office.EventType.DialogEventReceived,
-          (arg: { error: number }) => {
-            loggingService.log(`[DialogService] DialogEventReceived FIRING! Event Code: ${arg.error}`);
+        dialog.addEventHandler(Office.EventType.DialogEventReceived, (arg: { error: number }) => {
+            loggingService.log(`[DialogService] DialogEventReceived for '${view}'. Code: ${arg.error}`);
             
-            // The cleanup logic is now directly inside the correctly-typed handler.
-            if (activeDialog) {
-                crossWindowMessageBus.__internal_setActiveDialog(null);
-                activeDialog = null;
-                loggingService.log("[DialogService] Physical dialog object has been cleaned up.");
-                
-                // Notify the global store to reset the application state.
-                useDialogStore.getState().close(); 
+            if (view === 'diff-viewer' && activeDialogs['detail-dialog']) {
+              loggingService.log("[DialogService] Main diff viewer closed, also closing detail dialog.");
+              activeDialogs['detail-dialog'].close();
+              activeDialogs['detail-dialog'] = null;
             }
+
+            activeDialogs[view] = null;
+            loggingService.log(`[DialogService] Physical dialog for '${view}' cleaned up.`);
+            
+            useDialogStore.getState().closeAll(); 
           }
         );
-
         resolve();
       });
     });
   }
+
+  public async openDiffViewer(): Promise<void> {
+    return this.open('diff-viewer', { height: 80, width: 60, displayInIframe: false });
+  }
+
+  public async showChangeDetail(change: ICombinedChange): Promise<void> {
+    const detailDialog = activeDialogs['detail-dialog'];
+    if (detailDialog) {
+      loggingService.log("[DialogService] Detail dialog open. Sending UPDATE message.");
+      crossWindowMessageBus.messageChild(
+        detailDialog, 
+        { type: MessageType.UPDATE_DETAIL_DATA, payload: { change } }
+      );
+    } else {
+      loggingService.log("[DialogService] Creating new detail dialog.");
+      useDialogStore.setState({ stagedDetailData: change });
+      try {
+        // For the detail dialog, we will also need to update webpack to output 'detail-dialog.html'
+        await this.open('detail-dialog', { height: 50, width: 40, displayInIframe: false });
+        useDialogStore.setState(state => ({ openViews: { ...state.openViews, 'detail-dialog': true }}));
+      } catch (error) {
+        loggingService.logError(error, "[DialogService] Failed to create detail dialog.");
+        useDialogStore.setState({ stagedDetailData: null });
+      }
+    }
+  }
+
+  public sendInitializationData(view: DialogView): void {
+    const dialog = activeDialogs[view];
+    if (!dialog) {
+      loggingService.warn(`[DialogService] Tried to send init data to '${view}', but no active dialog was found.`);
+      return;
+    }
+
+    const state = useDialogStore.getState();
+    if (view === 'diff-viewer') {
+      const { stagedDiffViewerData } = state;
+      if (stagedDiffViewerData) {
+        loggingService.log("[DialogService] Sending INITIALIZE_DATA to diff viewer.", stagedDiffViewerData);
+        crossWindowMessageBus.messageChild(dialog, { type: MessageType.INITIALIZE_DATA, payload: stagedDiffViewerData });
+        useDialogStore.setState({ stagedDiffViewerData: null });
+      }
+    } else if (view === 'detail-dialog') {
+      const { stagedDetailData } = state;
+      if (stagedDetailData) {
+        loggingService.log("[DialogService] Sending INITIALIZE_DETAIL_DATA to detail dialog.", stagedDetailData);
+        crossWindowMessageBus.messageChild(dialog, { type: MessageType.INITIALIZE_DETAIL_DATA, payload: { change: stagedDetailData } });
+        useDialogStore.setState({ stagedDetailData: null });
+      }
+    }
+  }
 }
 
-// Export a singleton instance.
 export const dialogService = new DialogService();

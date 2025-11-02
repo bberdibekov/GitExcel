@@ -2,13 +2,16 @@
 
 import * as React from 'react';
 import { useAppStore } from '../../../state/appStore';
-import { useDialogStore } from '../../../state/dialogStore';
+// import { useDialogStore } from '../../../state/dialogStore'; // <-- No longer needed here
 import { Button, Subtitle1, Body1 } from '@fluentui/react-components';
 import { ArrowLeft16Filled } from '@fluentui/react-icons';
+import { loggingService } from '../../../core/services/LoggingService';
 
 /**
  * This component acts as the "Results Screen". It reads the current comparison
  * result from the global state and decides HOW to display it based on the mode.
+ * NOTE: This component's role has changed. The dialog is now opened by the workflow service.
+ * This view serves as a summary placeholder in the task pane.
  */
 export const TaskPaneComparisonView: React.FC = () => {
   const diffResult = useAppStore((state) => state.diffResult);
@@ -16,7 +19,7 @@ export const TaskPaneComparisonView: React.FC = () => {
   const endSnapshot = useAppStore((state) => state.endSnapshot);
   const clearComparison = useAppStore((state) => state.clearComparison);
   
-  const openDialog = useDialogStore((s) => s.open);
+  // const openDialog = useDialogStore((s) => s.open); // <-- FIX: This was removed.
   
   if (!diffResult || !startSnapshot || !endSnapshot) {
     return (
@@ -27,7 +30,6 @@ export const TaskPaneComparisonView: React.FC = () => {
     );
   }
   
-  // --- START: ADDED DYNAMIC SUMMARY LOGIC ---
   const generateSummaryText = () => {
     const { modifiedCells, structuralChanges } = diffResult;
     const parts = [];
@@ -48,18 +50,13 @@ export const TaskPaneComparisonView: React.FC = () => {
 
     return `Found ${parts.join(" and ")}.`;
   };
-  // --- END: ADDED DYNAMIC SUMMARY LOGIC ---
 
   const handleOpenInWindow = () => {
-    openDialog('diff-viewer', {
-      diffResult,
-      startSnapshot,
-      endSnapshot,
-      licenseTier: useAppStore.getState().license?.tier ?? 'free'
-    });
+    // --- FIX: This functionality has moved to the comparison.workflow.service ---
+    // The dialog is now opened automatically. This button is currently redundant.
+    loggingService.log("[TaskPaneComparisonView] 'Review Changes' clicked, but the dialog should already be open.");
   };
 
-  // --- MODIFIED: The component now has a single, simplified render path ---
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <header style={{ padding: '8px 16px', borderBottom: '1px solid #e0e0e0', flexShrink: 0, marginBottom: '10px' }}>
@@ -71,12 +68,12 @@ export const TaskPaneComparisonView: React.FC = () => {
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'flex-start' }}>
           <Subtitle1>Comparison Summary</Subtitle1>
           <Body1>
-              {/* --- MODIFIED: Use the new summary text --- */}
               {generateSummaryText()}
           </Body1>
-          <Button appearance="primary" onClick={handleOpenInWindow}>
+          <Button appearance="primary" onClick={handleOpenInWindow} disabled>
               Review Changes in New Window
           </Button>
+          <Body1><i>The comparison window should have opened automatically.</i></Body1>
       </div>
     </div>
   );

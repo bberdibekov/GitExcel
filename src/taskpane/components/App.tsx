@@ -4,7 +4,7 @@ import * as React from "react";
 import { useEffect, useMemo } from "react";
 import { Button } from "@fluentui/react-components";
 import { useAppStore } from "../state/appStore";
-import { useDialogStore } from "../state/dialogStore"; // <-- ADD THIS IMPORT
+import { useDialogStore } from "../state/dialogStore";
 import { IVersionViewModel } from "../types/types";
 import NotificationDialog from "../shared/ui/NotificationDialog";
 import { RestoreSelectionDialog } from "../features/restore/components/RestoreSelectionDialog";
@@ -12,7 +12,11 @@ import SaveVersionForm from "../features/restore/components/SaveVersionForm";
 import VersionHistory from "../features/restore/components/VersionHistory";
 import DeveloperTools from "../features/developer/components/DeveloperTools";
 import { comparisonWorkflowService } from "../features/comparison/services/comparison.workflow.service";
-import ComparisonDialogPlaceholder from "../features/comparison/components/ComparisonDialogPlaceholder"; // <-- ADD THIS IMPORT
+import ComparisonDialogPlaceholder from "../features/comparison/components/ComparisonDialogPlaceholder";
+import { crossWindowMessageBus } from "../core/dialog/CrossWindowMessageBus"; // <-- [NEW] IMPORT
+import { MessageType, ShowChangeDetailPayload } from "../types/messaging.types"; // <-- [NEW] IMPORT
+import { dialogService } from "../core/dialog/DialogService"; // <-- [NEW] IMPORT
+import { loggingService } from "../core/services/LoggingService"; // <-- [NEW] IMPORT
 
 const FREE_TIER_VERSION_LIMIT = 3;
 
@@ -21,7 +25,7 @@ const FREE_TIER_VERSION_LIMIT = 3;
  * This component's primary responsibilities are:
  * 1. To act as a router, showing the "home" screen or the "results" screen.
  * 2. To trigger initial data loading (like fetching the license).
- * 3. To read state from the central stores to render major UI elements.
+ * 3. To establish root-level message bus listeners for orchestration.
  */
 const App = () => {
   // --- Select ALL required state from the central stores ---
@@ -35,7 +39,8 @@ const App = () => {
     restoreTarget,
   } = useAppStore();
   
-  const activeDialog = useDialogStore((state) => state.activeDialog); // <-- SUBSCRIBE TO DIALOG STORE
+  // --- [UPDATED] Subscribe to the new dialog store state shape ---
+  const isDiffViewerOpen = useDialogStore((state) => state.openViews['diff-viewer']);
   
   const fetchLicense = useAppStore((state) => state.fetchLicense);
   const clearNotification = useAppStore((state) => state.clearNotification);
@@ -44,6 +49,28 @@ const App = () => {
   useEffect(() => {
     fetchLicense();
   }, [fetchLicense]);
+
+  // --- [NEW] Establish the root listener for the Detail Dialog orchestration ---
+  useEffect(() => {
+    loggingService.log("[App.tsx] Setting up root listener for SHOW_CHANGE_DETAIL messages.");
+    
+    const unsubscribe = crossWindowMessageBus.listen(
+      MessageType.SHOW_CHANGE_DETAIL,
+      (payload: ShowChangeDetailPayload) => {
+        loggingService.log("[App.tsx] Received SHOW_CHANGE_DETAIL. Invoking DialogService.", payload);
+        // This is the connection point: the message from the dialog UI
+        // triggers the central orchestrator service.
+        dialogService.showChangeDetail(payload.change);
+      }
+    );
+
+    // Cleanup function to prevent memory leaks when the component unmounts.
+    return () => {
+      loggingService.log("[App.tsx] Cleaning up root listener for SHOW_CHANGE_DETAIL.");
+      unsubscribe();
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount and unmount.
+
 
   // --- This memoized calculation maps raw versions to view models for the UI ---
   const versionsForView = useMemo((): IVersionViewModel[] => {
@@ -70,8 +97,9 @@ const App = () => {
 
   // --- Main Render Logic ---
   const renderContent = () => {
-    // Priority 1: If the dialog is open, show the placeholder.
-    if (activeDialog === 'diff-viewer') {
+    // Priority 1: If the main dialog is open, show the placeholder.
+    // --- [UPDATED] Use the new state variable ---
+    if (isDiffViewerOpen) {
       return <ComparisonDialogPlaceholder />;
     }
 
@@ -109,10 +137,8 @@ const App = () => {
       <NotificationDialog notification={notification} onDismiss={clearNotification} />
       {restoreTarget && <RestoreSelectionDialog />}
 
-      {/* The new render logic is called here */}
       {renderContent()}
 
-      {/* Developer tools at the bottom - only in development */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{ flexShrink: 0, marginTop: '8px' }}>
           <DeveloperTools />
