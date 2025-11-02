@@ -9,14 +9,8 @@ import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
-
-// --- MODIFICATION START: Import the new modal component ---
 import { ChangeDetailModal } from './ChangeDetailModal';
-// --- MODIFICATION END ---
 
-// --- MODIFICATION START: Unused Dialog imports are removed ---
-// No longer need: Dialog, DialogSurface, DialogTitle, DialogBody, DialogActions, Button, ChangeDetailViewer
-// --- MODIFICATION END ---
 
 
 interface SideBySideDiffViewerProps {

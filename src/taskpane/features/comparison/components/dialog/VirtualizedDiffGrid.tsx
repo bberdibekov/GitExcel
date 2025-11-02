@@ -11,7 +11,7 @@ import {
 } from 'react-window';
 import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import { Tooltip } from '@fluentui/react-components';
-import { useSharedStyles } from '../../../../shared/styles/sharedStyles';
+import { useComparisonDialogStyles } from './ComparisonDialog.styles';
 import { toA1 } from '../../../../shared/lib/address.converter';
 
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
@@ -32,7 +32,7 @@ type CustomCellData = {
 type MainCellProps = CellComponentProps & CustomCellData;
 
 const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaAttributes, sheet, changeMap, sheetName, startRow, startCol, onCellClick }) => {
-    const styles = useSharedStyles();
+    const styles = useComparisonDialogStyles();
     const dataRowIndex = rowIndex - startRow;
     const dataColIndex = columnIndex - startCol;
     const isOutOfBounds = 
@@ -52,7 +52,6 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
     const change = cell ? changeMap.get(`${sheetName}-${cell.address}`) : undefined;
     const isChanged = !!change;
 
-    // --- MODIFICATION START: Logic for universal clickability and hover effects ---
     // A cell is considered to have content if its value is not empty or it contains a formula.
     const hasContent = cell && (cell.value !== '' || isFormula);
     
@@ -99,7 +98,6 @@ const MainCell: React.FC<MainCellProps> = ({ columnIndex, rowIndex, style, ariaA
         onCellClick(syntheticChange);
       }
     };
-    // --- MODIFICATION END ---
     
     return (
       <div style={style} {...ariaAttributes} className={className} onClick={handleClick}>
@@ -116,14 +114,14 @@ const CellComponent = React.memo(MainCell);
 
 
 const ColumnHeader: React.FC<CellComponentProps> = ({ columnIndex, style, ariaAttributes }) => {
-    const styles = useSharedStyles();
+    const styles = useComparisonDialogStyles();
     const columnLetter = toA1(0, columnIndex).replace(/[0-9]/g, '');
     return <div style={style} {...ariaAttributes} className={styles.gridHeaderCell}>{columnLetter}</div>;
 };
 const ColumnHeaderCellComponent = React.memo(ColumnHeader);
 
 const RowHeader: React.FC<RowComponentProps> = (props) => {
-  const styles = useSharedStyles();
+  const styles = useComparisonDialogStyles();
   return <div style={props.style} {...props.ariaAttributes} className={styles.gridHeaderCell}>{props.index + 1}</div>;
 }
 const RowHeaderComponent = React.memo(RowHeader);
@@ -150,7 +148,7 @@ type ListRowComponent = (props: RowComponentProps) => React.ReactElement;
 const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef, onCellClick
 }) => {
-  const styles = useSharedStyles();
+  const styles = useComparisonDialogStyles();
   
   const columnHeaderRef = React.useRef<GridImperativeAPI | null>(null);
   const rowHeaderRef = useListRef(null);
