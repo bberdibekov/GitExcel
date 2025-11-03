@@ -7,9 +7,11 @@ import { Spinner } from "@fluentui/react-components";
 import { crossWindowMessageBus } from "../../../../core/dialog/CrossWindowMessageBus";
 import { MessageType } from "../../../../types/messaging.types";
 import { loggingService } from "../../../../core/services/LoggingService";
+import { generateSummary, calculateSummaryStats } from "../../services/summary.service";
 
-import ComparisonActionBar, { ViewFilter } from "./ComparisonActionBar";
 import SideBySideDiffViewer from "./SideBySideDiffViewer";
+import CollapsiblePane, { ViewFilter } from "./CollapsiblePane";
+import { useComparisonDialogStyles } from "./ComparisonDialog.styles";
 
 interface DialogComparisonViewProps {
   result: IDiffResult | null;
@@ -22,9 +24,14 @@ interface DialogComparisonViewProps {
 
 const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
   const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
+  const styles = useComparisonDialogStyles();
   
+  const [isPaneOpen, setIsPaneOpen] = useState(true);
   const [activeViewFilter, setActiveViewFilter] = useState<ViewFilter>('all');
   const [activeComparisonSettings, setActiveComparisonSettings] = useState<Set<string>>(new Set());
+
+  const summary = useMemo(() => result ? generateSummary(result) : { highLevelChanges: [], modifiedCells: [] }, [result]);
+  const summaryStats = useMemo(() => calculateSummaryStats(result), [result]);
 
   const filteredResult = useMemo((): IDiffResult | null => {
     if (!result) {
@@ -68,8 +75,14 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
   }
       
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <ComparisonActionBar
+    <div className={styles.dialogViewContainer}>
+      <CollapsiblePane
+        isPaneOpen={isPaneOpen}
+        onPaneToggle={() => setIsPaneOpen(!isPaneOpen)}
+        highLevelChanges={summary.highLevelChanges}
+        totalChanges={summaryStats.totalChanges}
+        valueChanges={summaryStats.valueChanges}
+        formulaChanges={summaryStats.formulaChanges}
         licenseTier={licenseTier}
         selectedChangeCount={filteredResult.modifiedCells.length}
         activeViewFilter={activeViewFilter}
@@ -79,14 +92,16 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
         onRestore={(action) => loggingService.log(`[DialogComparisonView] Restore action triggered:`, action)}
       />
       
-      <SideBySideDiffViewer
-        result={filteredResult}
-        startSnapshot={startSnapshot}
-        endSnapshot={endSnapshot}
-        startVersionComment={startVersionComment}
-        endVersionComment={endVersionComment}
-        licenseTier={licenseTier}
-      />
+      <div className={styles.mainContentArea}>
+        <SideBySideDiffViewer
+          result={filteredResult}
+          startSnapshot={startSnapshot}
+          endSnapshot={endSnapshot}
+          startVersionComment={startVersionComment}
+          endVersionComment={endVersionComment}
+          licenseTier={licenseTier}
+        />
+      </div>
     </div>
   );
 };

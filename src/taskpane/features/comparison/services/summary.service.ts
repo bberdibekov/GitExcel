@@ -163,3 +163,43 @@ export function generateSummary(result: IDiffResult): ISummaryResult {
     modifiedCells: result.modifiedCells,
   };
 }
+
+export interface ISummaryStats {
+    totalChanges: number;
+    valueChanges: number;
+    formulaChanges: number;
+}
+
+/**
+ * Calculates the number of value and formula changes from a diff result.
+ * This provides a quantitative summary separate from the descriptive summary.
+ * @param result The raw diff result object.
+ * @returns An object containing the calculated statistics.
+ */
+export const calculateSummaryStats = (result: IDiffResult | null): ISummaryStats => {
+    if (!result) {
+        return { totalChanges: 0, valueChanges: 0, formulaChanges: 0 };
+    }
+
+    let valueChanges = 0;
+    let formulaChanges = 0;
+
+    result.modifiedCells.forEach(cell => {
+        if (cell.changeType === 'value') {
+            valueChanges++;
+        } else if (cell.changeType === 'formula') {
+            formulaChanges++;
+        } else if (cell.changeType === 'both') {
+            // A 'both' change means the value and formula changed independently.
+            // We count it as one of each.
+            valueChanges++;
+            formulaChanges++;
+        }
+    });
+
+    return {
+        totalChanges: result.modifiedCells.length,
+        valueChanges,
+        formulaChanges
+    };
+};

@@ -1,6 +1,83 @@
 import { makeStyles, shorthands, tokens } from '@fluentui/react-components';
 
 export const useComparisonDialogStyles = makeStyles({
+    
+    dialogViewContainer: {
+        display: 'flex',
+        flexDirection: 'row',
+        height: '100vh', // Use viewport height for the dialog window
+        width: '100%',
+        overflow: 'hidden',
+        backgroundColor: tokens.colorNeutralBackground2,
+    },
+    collapsiblePane: {
+        display: 'flex',
+        flexDirection: 'column',
+        width: '280px', // Standard sidebar width
+        flexShrink: 0,
+        backgroundColor: tokens.colorNeutralBackground1,
+        borderRight: `1px solid ${tokens.colorNeutralStroke1}`,
+        transition: 'width 0.2s ease-in-out',
+        overflow: 'hidden',
+    },
+    collapsiblePane_collapsed: {
+        display: 'flex',
+        flexDirection: 'column',
+        width: '48px', // Icon-only toolbar width
+        flexShrink: 0,
+        backgroundColor: tokens.colorNeutralBackground1,
+        borderRight: `1px solid ${tokens.colorNeutralStroke1}`,
+        transition: 'width 0.2s ease-in-out',
+        overflow: 'hidden',
+        alignItems: 'center',
+    },
+    paneHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '8px',
+        flexShrink: 0,
+        width: '100%',
+    },
+    paneTitle: {
+        fontSize: tokens.fontSizeBase400,
+        fontWeight: tokens.fontWeightSemibold,
+        marginLeft: '4px',
+        whiteSpace: 'nowrap',
+    },
+
+    paneContent: {
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '8px',
+        gap: '16px',
+        overflowY: 'auto',
+        flex: '1 1 auto',
+    },
+    paneSection: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+    },
+    paneSectionHeader: {
+        fontSize: tokens.fontSizeBase300,
+        fontWeight: tokens.fontWeightSemibold,
+        color: tokens.colorNeutralForeground2,
+    },
+    paneToolbar: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '8px',
+        marginTop: '8px',
+    },
+
+    mainContentArea: {
+        flex: '1 1 0',
+        minWidth: 0, // Crucial for flexbox to allow shrinking
+        display: 'flex',
+        flexDirection: 'column',
+    },
     rootContainer: {
         display: 'flex',
         flexDirection: 'column',
@@ -410,5 +487,31 @@ export const useComparisonDialogStyles = makeStyles({
     minimapCanvas: {
         cursor: 'pointer',
         ...shorthands.borderRadius(tokens.borderRadiusSmall),
+    },
+    summaryContainer: {
+        width: '100%',
+    },
+    summaryStatsGrid: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '8px',
+        textAlign: 'center',
+        padding: '8px',
+        backgroundColor: tokens.colorNeutralBackground2,
+        ...shorthands.borderRadius(tokens.borderRadiusMedium),
+    },
+    summaryStatItem: {
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    summaryStatValue: {
+        fontSize: tokens.fontSizeHero800,
+        fontWeight: tokens.fontWeightSemibold,
+        lineHeight: '1',
+        color: tokens.colorBrandForeground1,
+    },
+    summaryStatLabel: {
+        fontSize: tokens.fontSizeBase200,
+        color: tokens.colorNeutralForeground2,
     },
 });

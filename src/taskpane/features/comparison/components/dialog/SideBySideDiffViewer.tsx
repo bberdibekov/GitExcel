@@ -34,22 +34,6 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
     return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
 };
 
-const HighLevelChangesList: React.FC<{ changes: IHighLevelChange[]; styles: ReturnType<typeof useComparisonDialogStyles> }> = ({ changes, styles }) => {
-    if (changes.length === 0) return null;
-    return (
-        <div className={styles.highLevelChangesContainer}>
-            <Subtitle2>Structural Changes</Subtitle2>
-            <ul className={styles.highLevelChangesList}>
-                {changes.map((change, index) => (
-                    <li key={index}>
-                        <strong>{change.sheet}:</strong> {change.description}
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-};
-
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment, licenseTier } = props;
     const styles = useComparisonDialogStyles();
@@ -256,8 +240,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 licenseTier={licenseTier}
             />
 
-            <HighLevelChangesList changes={summary.highLevelChanges} styles={styles} />
-            
             <div className={styles.controlsBar}>
                 <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
                     {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
