@@ -1,4 +1,4 @@
-//src/taskpane/features/comparison/components/dialog/Styles/SideBySideDiffViewer.styles.ts
+// src/taskpane/features/comparison/components/dialog/Styles/SideBySideDiffViewer.styles.ts
 import { makeStyles, tokens } from '@fluentui/react-components';
 
 /**
@@ -10,8 +10,10 @@ export const useSideBySideDiffViewerStyles = makeStyles({
     rootContainer: {
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh', // Take full viewport height
+        height: '100%',
+        width: '100%',
         overflow: 'hidden',
+        position: 'relative',
     },
     controlsBar: {
         display: 'flex',
@@ -34,6 +36,7 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         backgroundColor: tokens.colorNeutralBackground1,
         overflow: 'hidden',
         minHeight: 0,
+        boxSizing: 'border-box',
     },
     gridColumn: {
         flex: '1 1 0',

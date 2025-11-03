@@ -1,4 +1,4 @@
-//src/taskpane/features/comparison/components/dialog/Styles/VirtualizedDiffGrid.styles.ts
+// src/taskpane/features/comparison/components/dialog/Styles/VirtualizedDiffGrid.styles.ts
 import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 
 /**
@@ -61,8 +61,8 @@ export const useVirtualizedDiffGridStyles = makeStyles({
     },
     gridTopLeftCorner: {
         backgroundColor: tokens.colorNeutralBackground3,
-        borderBottom: "1px solid ${tokens.colorNeutralStroke2}",
-        borderRight: "1px solid ${tokens.colorNeutralStroke2}",
+        borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
     },
     gridHeaderCell: {
         display: "flex",

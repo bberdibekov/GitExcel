@@ -7,6 +7,25 @@
     <title>Dialog</title>
 
     <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+    <!-- 
+      ADDED: Global CSS Reset.
+      This is the fix for the overflow issue. It removes the default 
+      browser margin from the <body> tag, allowing our React application to
+      truly fill the entire dialog window from edge to edge.
+    -->
+    <style>
+      html,
+      body,
+      #container { /* Targeting your specific root div id */
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        overflow: hidden; /* A safety measure to ensure the page itself never scrolls */
+      }
+    </style>
+
   </head>
 
   <body>

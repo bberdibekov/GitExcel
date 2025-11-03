@@ -2,16 +2,15 @@
 
 import * as React from "react";
 import { useState, useMemo } from "react";
-import { IDiffResult, IWorkbookSnapshot } from "../../../../types/types";
+import { IDiffResult, IWorkbookSnapshot, ViewFilter } from "../../../../types/types";
 import { Spinner } from "@fluentui/react-components";
 import { crossWindowMessageBus } from "../../../../core/dialog/CrossWindowMessageBus";
 import { MessageType } from "../../../../types/messaging.types";
-import { loggingService } from "../../../../core/services/LoggingService";
 import { generateSummary, calculateSummaryStats } from "../../services/summary.service";
 
 import SideBySideDiffViewer from "./SideBySideDiffViewer";
-import CollapsiblePane, { ViewFilter } from "./CollapsiblePane";
 import { useDialogComparisonViewStyles } from "./Styles/DialogComparisonView.styles";
+import { IHighLevelChange } from "../../../../types/types";
 
 interface DialogComparisonViewProps {
   result: IDiffResult | null;
@@ -26,17 +25,17 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
   const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
   const styles = useDialogComparisonViewStyles();
   
-  const [isPaneOpen, setIsPaneOpen] = useState(true);
   const [activeViewFilter, setActiveViewFilter] = useState<ViewFilter>('all');
   const [activeComparisonSettings, setActiveComparisonSettings] = useState<Set<string>>(new Set());
 
-  const summary = useMemo(() => result ? generateSummary(result) : { highLevelChanges: [], modifiedCells: [] }, [result]);
+  const summary = useMemo(() => result ? generateSummary(result) : { highLevelChanges: [] as IHighLevelChange[], modifiedCells: [] }, [result]);
   const summaryStats = useMemo(() => calculateSummaryStats(result), [result]);
 
   const filteredResult = useMemo((): IDiffResult | null => {
     if (!result) {
       return null;
     }
+    // This filtering logic will eventually move, but is fine here for now.
     switch (activeViewFilter) {
       case 'values':
         return {
@@ -76,32 +75,25 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
       
   return (
     <div className={styles.dialogViewContainer}>
-      <CollapsiblePane
-        isPaneOpen={isPaneOpen}
-        onPaneToggle={() => setIsPaneOpen(!isPaneOpen)}
-        highLevelChanges={summary.highLevelChanges}
-        totalChanges={summaryStats.totalChanges}
-        valueChanges={summaryStats.valueChanges}
-        formulaChanges={summaryStats.formulaChanges}
+      {/* The CollapsiblePane is now removed. */}
+      {/* All necessary props are passed directly into the SideBySideDiffViewer. */}
+      <SideBySideDiffViewer
+        // Core props
+        result={filteredResult}
+        startSnapshot={startSnapshot}
+        endSnapshot={endSnapshot}
+        startVersionComment={startVersionComment}
+        endVersionComment={endVersionComment}
         licenseTier={licenseTier}
-        selectedChangeCount={filteredResult.modifiedCells.length}
+        
+        // Props inherited from CollapsiblePane for future use
+        highLevelChanges={summary.highLevelChanges}
+        summaryStats={summaryStats}
         activeViewFilter={activeViewFilter}
         activeComparisonSettings={activeComparisonSettings}
         onViewFilterChange={setActiveViewFilter}
         onComparisonSettingChange={handleComparisonSettingChange}
-        onRestore={(action) => loggingService.log(`[DialogComparisonView] Restore action triggered:`, action)}
       />
-      
-      <div className={styles.mainContentArea}>
-        <SideBySideDiffViewer
-          result={filteredResult}
-          startSnapshot={startSnapshot}
-          endSnapshot={endSnapshot}
-          startVersionComment={startVersionComment}
-          endVersionComment={endVersionComment}
-          licenseTier={licenseTier}
-        />
-      </div>
     </div>
   );
 };

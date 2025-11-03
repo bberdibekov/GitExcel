@@ -1,5 +1,7 @@
 // src/taskpane/types/types.ts
 
+export type ViewFilter = 'all' | 'values' | 'formulas' | 'structural';
+export type RestoreAction = 'selected' | 'sheet' | 'workbook';
 export type SheetId = string & { readonly __brand: 'SheetId' };
 export type SheetName = string;
 

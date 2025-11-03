@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
-import { Tab, TabList, Subtitle2, Subtitle1, Switch, Button, Tooltip } from '@fluentui/react-components';
+import { Tab, TabList, Subtitle1, Switch, Button, Tooltip } from '@fluentui/react-components';
 import { PanelLeftContract24Regular, PanelRightContract24Regular, Eye24Regular } from '@fluentui/react-icons';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
@@ -12,6 +12,11 @@ import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.sty
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
 import { Minimap } from './Minimap';
+import FloatingToolbar from './FloatingToolbar';
+import { ViewFilter } from './CollapsiblePane';
+import { ISummaryStats } from '../../services/summary.service';
+
+
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
@@ -20,6 +25,14 @@ interface SideBySideDiffViewerProps {
     startVersionComment: string;
     endVersionComment: string;
     licenseTier: 'free' | 'pro';
+    
+    // Props plumbed from DialogComparisonView
+    highLevelChanges: IHighLevelChange[];
+    summaryStats: ISummaryStats;
+    activeViewFilter: ViewFilter;
+    activeComparisonSettings: Set<string>;
+    onViewFilterChange: (filter: ViewFilter) => void;
+    onComparisonSettingChange: (changedSettings: Record<string, string[]>) => void;
 }
 
 const colLetterToIndex = (letters: string): number => {
@@ -35,7 +48,14 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
 };
 
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
-    const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment, licenseTier } = props;
+    const { 
+        result, 
+        startSnapshot, 
+        endSnapshot, 
+        startVersionComment, 
+        endVersionComment, 
+        licenseTier 
+    } = props;
     const styles = useSideBySideDiffViewerStyles();
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const [highlightOnlyMode, setHighlightOnlyMode] = useState(false);
@@ -115,7 +135,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const gridEndRef = useRef<GridImperativeAPI | null>(null);
     const isScrolling = useRef(false);
     
-    // Create refs for BOTH grid containers now.
     const leftGridContainerRef = useRef<HTMLDivElement | null>(null);
     const rightGridContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -126,14 +145,11 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         viewportHeight: 1,
     });
 
-    // This effect is now aware of the panel visibility state to prevent crashes.
     useEffect(() => {
-        // Determine which container is currently active and should be observed.
         let container: HTMLDivElement | null = null;
         if (visiblePanel === 'start') {
             container = leftGridContainerRef.current;
         } else if (visiblePanel === 'end' || visiblePanel === 'both') {
-            // Default to the right panel if both are visible for minimap positioning.
             container = rightGridContainerRef.current;
         }
 
@@ -141,19 +157,16 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
 
         const resizeObserver = new ResizeObserver(() => {
             const { width, height } = container.getBoundingClientRect();
-            // Subtract header height to approximate grid area for the minimap.
             const approxGridHeight = height - 30; 
             setViewport(prev => ({ ...prev, viewportWidth: width, viewportHeight: approxGridHeight }));
         });
 
         resizeObserver.observe(container);
         
-        // This cleanup function now runs EVERY time `visiblePanel` changes,
-        // correctly disconnecting the observer from the old/unmounted element.
         return () => {
             resizeObserver.disconnect();
         };
-    }, [visiblePanel]); // The dependency array is key to the fix.
+    }, [visiblePanel]);
 
     const onScrollStart = (scrollTop: number, scrollLeft: number) => {
         setViewport(prev => ({...prev, scrollTop, scrollLeft}));
@@ -233,6 +246,15 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
   
     return (
         <div className={styles.rootContainer}>
+            {/* The new toolbar is the first element, so it can float on top */}
+            <FloatingToolbar
+                onSummaryClick={() => console.log("Summary clicked")}
+                onFilterClick={() => console.log("Filter clicked")}
+                onSettingsClick={() => console.log("Settings clicked")}
+                onRestoreClick={() => console.log("Restore clicked")}
+                isRestoreDisabled={result.modifiedCells.length === 0}
+            />
+
             <ChangeDetailModal
                 isOpen={!!selectedChange}
                 onClose={handleModalClose}
