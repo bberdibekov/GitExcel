@@ -2,21 +2,17 @@
 
 import * as React from 'react';
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
+import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange, ViewFilter} from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
-import { Tab, TabList, Subtitle1, Switch, Button, Tooltip } from '@fluentui/react-components';
-import { PanelLeftContract24Regular, PanelRightContract24Regular, Eye24Regular } from '@fluentui/react-icons';
-import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
 import { Minimap } from './Minimap';
 import FloatingToolbar from './FloatingToolbar';
-import { ViewFilter } from './CollapsiblePane';
 import { ISummaryStats } from '../../services/summary.service';
-
-
+import ComparisonGridPanel from './ComparisonGridPanel';
+import FloatingViewControls from './FloatingViewControls';
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
@@ -46,6 +42,7 @@ const colLetterToIndex = (letters: string): number => {
 const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): string | undefined => {
     return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
 };
+
 
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { 
@@ -243,10 +240,9 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             endElement.scrollLeft = scrollLeft;
         }
     };
-  
+
     return (
         <div className={styles.rootContainer}>
-            {/* The new toolbar is the first element, so it can float on top */}
             <FloatingToolbar
                 onSummaryClick={() => console.log("Summary clicked")}
                 onFilterClick={() => console.log("Filter clicked")}
@@ -262,66 +258,38 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 licenseTier={licenseTier}
             />
 
-            <div className={styles.controlsBar}>
-                <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
-                    {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
-                </TabList>
-
-                {visiblePanel !== 'both' && (
-                    <Tooltip content="Show Both Panels" relationship="label">
-                        <Button 
-                            icon={<Eye24Regular />} 
-                            onClick={() => setVisiblePanel('both')}
-                            appearance="primary"
-                        >
-                            Show Both
-                        </Button>
-                    </Tooltip>
-                )}
-                
-                <div className={styles.highlightModeToggle}>
-                    <Switch 
-                        checked={highlightOnlyMode} 
-                        onChange={(_, data) => setHighlightOnlyMode(data.checked)}
-                        label="Highlight only mode"
-                    />
-                </div>
-            </div>
+            {/* --- DELETED: The entire 'controlsBar' div has been removed. --- */}
             
             <div className={styles.gridsBody}>
+                {/* --- ADDED: The new unified floating control panel --- */}
+                <FloatingViewControls
+                    affectedSheetNames={affectedSheetNames}
+                    selectedSheetName={selectedSheetName}
+                    onSheetChange={setSelectedSheetName}
+                    visiblePanel={visiblePanel}
+                    onVisibilityChange={setVisiblePanel}
+                    highlightOnlyMode={highlightOnlyMode}
+                    onHighlightModeChange={setHighlightOnlyMode}
+                />
+                
                 {visiblePanel !== 'end' && (
-                    <div className={styles.gridColumn} ref={leftGridContainerRef}>
-                        <div className={styles.gridPanelHeader}>
-                            <Subtitle1 as="h1" className={styles.versionTitle}>
-                                {startVersionComment}
-                            </Subtitle1>
-                            {visiblePanel === 'both' && (
-                                <Tooltip content="Focus on right panel" relationship="label">
-                                    <Button 
-                                        icon={<PanelLeftContract24Regular />} 
-                                        onClick={() => setVisiblePanel('end')}
-                                        appearance="subtle"
-                                    />
-                                </Tooltip>
-                            )}
-                        </div>
-                        <VirtualizedDiffGrid
-                            gridRef={gridStartRef}
-                            sheet={startSheet}
-                            changeMap={changeMap}
-                            sheetName={selectedSheetName}
-                            rowCount={rowCount}
-                            colCount={colCount}
-                            startRow={startSheet?.startRow ?? 0}
-                            startCol={startSheet?.startCol ?? 0}
-                            columnWidths={unifiedColumnWidths}
-                            onScroll={onScrollStart}
-                            onCellClick={handleCellClick}
-                            highlightOnlyMode={highlightOnlyMode}
-                            changedRows={changedRowsAndCols.rows}
-                            changedCols={changedRowsAndCols.cols}
-                        />
-                    </div>
+                    <ComparisonGridPanel
+                        panelType="start"
+                        versionComment={startVersionComment}
+                        containerRef={leftGridContainerRef}
+                        gridRef={gridStartRef}
+                        sheet={startSheet}
+                        changeMap={changeMap}
+                        sheetName={selectedSheetName}
+                        rowCount={rowCount}
+                        colCount={colCount}
+                        columnWidths={unifiedColumnWidths}
+                        onScroll={onScrollStart}
+                        onCellClick={handleCellClick}
+                        highlightOnlyMode={highlightOnlyMode}
+                        changedRows={changedRowsAndCols.rows}
+                        changedCols={changedRowsAndCols.cols}
+                    />
                 )}
                 
                 {visiblePanel === 'both' && (
@@ -329,40 +297,23 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 )}
                 
                 {visiblePanel !== 'start' && (
-                    <div className={styles.gridColumn} ref={rightGridContainerRef}>
-                        <div className={styles.gridContentContainer}>
-                            <div className={styles.gridPanelHeader}>
-                                <Subtitle1 as="h1" className={styles.versionTitle}>
-                                    {endVersionComment}
-                                </Subtitle1>
-                                {visiblePanel === 'both' && (
-                                    <Tooltip content="Focus on left panel" relationship="label">
-                                        <Button 
-                                            icon={<PanelRightContract24Regular />} 
-                                            onClick={() => setVisiblePanel('start')}
-                                            appearance="subtle"
-                                        />
-                                    </Tooltip>
-                                )}
-                            </div>
-                            <VirtualizedDiffGrid
-                                gridRef={gridEndRef}
-                                sheet={endSheet}
-                                changeMap={changeMap}
-                                sheetName={selectedSheetName}
-                                rowCount={rowCount}
-                                colCount={colCount}
-                                startRow={endSheet?.startRow ?? 0}
-                                startCol={endSheet?.startCol ?? 0}
-                                columnWidths={unifiedColumnWidths}
-                                onScroll={onScrollEnd}
-                                onCellClick={handleCellClick}
-                                highlightOnlyMode={highlightOnlyMode}
-                                changedRows={changedRowsAndCols.rows}
-                                changedCols={changedRowsAndCols.cols}
-                            />
-                        </div>
-                        
+                    <ComparisonGridPanel
+                        panelType="end"
+                        versionComment={endVersionComment}
+                        containerRef={rightGridContainerRef}
+                        gridRef={gridEndRef}
+                        sheet={endSheet}
+                        changeMap={changeMap}
+                        sheetName={selectedSheetName}
+                        rowCount={rowCount}
+                        colCount={colCount}
+                        columnWidths={unifiedColumnWidths}
+                        onScroll={onScrollEnd}
+                        onCellClick={handleCellClick}
+                        highlightOnlyMode={highlightOnlyMode}
+                        changedRows={changedRowsAndCols.rows}
+                        changedCols={changedRowsAndCols.cols}
+                    >
                         {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
                             <Minimap
                                 totalRowCount={rowCount}
@@ -374,7 +325,7 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                                 gridPixelHeight={totalGridContentHeight}
                             />
                         )}
-                    </div>
+                    </ComparisonGridPanel>
                 )}
             </div>
         </div>

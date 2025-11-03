@@ -101,11 +101,8 @@ export async function setupSelectionListener(
   });
 }
 
-/**
- * Removes the selection event listener.
- */
+
 export async function removeSelectionListener() {
-    // ... (This function has no dependencies on the change type and is unchanged)
 }
 
 // --- HELPER FUNCTIONS ---

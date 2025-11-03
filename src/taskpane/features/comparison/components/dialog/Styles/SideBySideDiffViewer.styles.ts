@@ -2,9 +2,8 @@
 import { makeStyles, tokens } from '@fluentui/react-components';
 
 /**
- * Styles for the SideBySideDiffViewer component. This includes the main
- * container for the two grids, the control bar at the top (with tabs and switches),
- * and the headers for each version panel.
+ * Styles for the SideBySideDiffViewer component. This is now very minimal as
+ * all controls have been moved to floating components.
  */
 export const useSideBySideDiffViewerStyles = makeStyles({
     rootContainer: {
@@ -15,19 +14,6 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         overflow: 'hidden',
         position: 'relative',
     },
-    controlsBar: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '8px 16px',
-        borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
-        flexShrink: 0,
-    },
-    highlightModeToggle: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
     gridsBody: {
         display: 'flex',
         flex: '1 1 0',
@@ -37,21 +23,7 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         overflow: 'hidden',
         minHeight: 0,
         boxSizing: 'border-box',
-    },
-    gridColumn: {
-        flex: '1 1 0',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        minWidth: 0,
-        minHeight: 0,
         position: 'relative',
-    },
-    gridContentContainer: {
-        display: 'flex',
-        flexDirection: 'column',
-        flex: '1 1 0',
-        minHeight: 0,
     },
     gridSeparator: {
         width: '2px',
@@ -59,19 +31,5 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         boxShadow: `0 0 8px ${tokens.colorNeutralShadowAmbient}`,
         flexShrink: 0,
         margin: '0 4px',
-    },
-    gridPanelHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexShrink: 0,
-        marginBottom: '4px',
-    },
-    versionTitle: {
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        flexShrink: 0,
-        marginBottom: '4px',
     },
 });

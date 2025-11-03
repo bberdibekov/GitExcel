@@ -14,7 +14,6 @@ import { Tooltip } from '@fluentui/react-components';
 import { useVirtualizedDiffGridStyles } from './Styles/VirtualizedDiffGrid.styles';
 import { toA1 } from '../../../../shared/lib/address.converter';
 
-// ... (All helper components like MainCell, RowHeader, etc., are unchanged)
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
 
 const isRealFormula = (formula: any): boolean => {
@@ -143,7 +142,6 @@ const RowHeader: React.FC<RowHeaderProps> = ({ index, style, ariaAttributes, cha
 }
 const RowHeaderComponent = React.memo(RowHeader);
 
-// ... (Interface and type definitions are unchanged)
 interface VirtualizedDiffGridProps {
   sheet: ISheetSnapshot | undefined;
   changeMap: Map<string, ICombinedChange>;

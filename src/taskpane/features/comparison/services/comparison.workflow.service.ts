@@ -85,7 +85,7 @@ class ComparisonWorkflowService {
       return;
     }
 
-    // --- Part 3: Execute the comparison (unchanged logic, but with dynamically resolved versions) ---
+    // --- Part 3: Execute the comparison (dynamically resolved versions) ---
     const result = synthesizeChangesets(startVersion, endVersion, versions, license, activeFilters);
     debugService.addLogEntry(`Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`, result);
 
