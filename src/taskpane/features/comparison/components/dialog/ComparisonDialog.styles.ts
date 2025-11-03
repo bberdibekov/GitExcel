@@ -4,7 +4,7 @@ export const useComparisonDialogStyles = makeStyles({
     rootContainer: {
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: '91vh',
         overflow: 'hidden',
     },
     controlsBar: {
@@ -36,6 +36,13 @@ export const useComparisonDialogStyles = makeStyles({
         flexDirection: 'column',
         minWidth: 0,
         minHeight: 0,
+        position: 'relative',
+    },
+    gridContentContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        flex: '1 1 0', // This makes the wrapper take all available space in the column.
+        minHeight: 0,  // This is crucial. It allows the container to shrink smaller than its content.
     },
     gridSeparator: {
         width: '4px',
@@ -380,5 +387,21 @@ export const useComparisonDialogStyles = makeStyles({
         width: '100%',
         maxWidth: '100%',
         overflowWrap: 'anywhere',
+    },
+
+    minimapContainer: {
+        position: 'absolute',
+        bottom: '16px',
+        right: '16px',
+        zIndex: 10,
+        boxShadow: tokens.shadow16,
+        backgroundColor: tokens.colorNeutralBackground1,
+        ...shorthands.borderRadius(tokens.borderRadiusMedium),
+        ...shorthands.padding('4px'),
+        border: `1px solid ${tokens.colorNeutralStroke1}`,
+    },
+    minimapCanvas: {
+        cursor: 'pointer',
+        ...shorthands.borderRadius(tokens.borderRadiusSmall),
     },
 });

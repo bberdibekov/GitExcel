@@ -1,7 +1,7 @@
 // src/taskpane/features/comparison/components/dialog/SideBySideDiffViewer.tsx
 
 import * as React from 'react';
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
 import { Tab, TabList, Subtitle2, Subtitle1, Switch } from '@fluentui/react-components';
@@ -10,6 +10,7 @@ import { type GridImperativeAPI } from 'react-window';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
+import { Minimap } from './Minimap';
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
@@ -19,6 +20,14 @@ interface SideBySideDiffViewerProps {
     endVersionComment: string;
     licenseTier: 'free' | 'pro';
 }
+
+const colLetterToIndex = (letters: string): number => {
+    let result = 0;
+    for (let i = 0; i < letters.length; i++) {
+        result = result * 26 + (letters.charCodeAt(i) - 64);
+    }
+    return result - 1;
+};
 
 const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): string | undefined => {
     return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
@@ -66,27 +75,24 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         return map;
     }, [result, selectedSheetName]);
 
-    // Track which rows/columns have changes for markers
     const changedRowsAndCols = useMemo(() => {
         const rows = new Set<number>();
         const cols = new Set<number>();
         
         for (const change of result.modifiedCells) {
             if (change.sheet === selectedSheetName) {
-                // Parse address like "A5" to get row and column
                 const match = change.address.match(/^([A-Z]+)(\d+)$/);
                 if (match) {
                     const colStr = match[1];
                     const rowNum = parseInt(match[2], 10);
                     
-                    // Convert column letters to index
                     let colIndex = 0;
                     for (let i = 0; i < colStr.length; i++) {
                         colIndex = colIndex * 26 + (colStr.charCodeAt(i) - 64);
                     }
                     
-                    rows.add(rowNum - 1); // 0-indexed
-                    cols.add(colIndex - 1); // 0-indexed
+                    rows.add(rowNum - 1);
+                    cols.add(colIndex - 1);
                 }
             }
         }
@@ -122,8 +128,33 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const gridStartRef = useRef<GridImperativeAPI | null>(null);
     const gridEndRef = useRef<GridImperativeAPI | null>(null);
     const isScrolling = useRef(false);
+    
+    const rightGridContainerRef = useRef<HTMLDivElement | null>(null);
+    const [viewport, setViewport] = useState({
+        scrollTop: 0,
+        scrollLeft: 0,
+        viewportWidth: 1,
+        viewportHeight: 1,
+    });
+
+    useEffect(() => {
+        const container = rightGridContainerRef.current;
+        if (!container) return () => {};
+
+        const resizeObserver = new ResizeObserver(() => {
+            const { width, height } = container.getBoundingClientRect();
+            const approxGridHeight = height - 30;
+            setViewport(prev => ({ ...prev, viewportWidth: width, viewportHeight: approxGridHeight }));
+        });
+
+        resizeObserver.observe(container);
+        return () => {
+            resizeObserver.disconnect();
+        };
+    }, []);
 
     const onScrollStart = (scrollTop: number, scrollLeft: number) => {
+        setViewport(prev => ({...prev, scrollTop, scrollLeft}));
         if (isScrolling.current) return;
         isScrolling.current = true;
         const targetElement = gridEndRef.current?.element;
@@ -135,6 +166,7 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     };
     
     const onScrollEnd = (scrollTop: number, scrollLeft: number) => {
+        setViewport(prev => ({...prev, scrollTop, scrollLeft}));
         if (isScrolling.current) return;
         isScrolling.current = true;
         const targetElement = gridStartRef.current?.element;
@@ -163,6 +195,39 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         (startSheet?.startCol ?? 0) + (startSheet?.data[0]?.cells.length ?? 0),
         (endSheet?.startCol ?? 0) + (endSheet?.data[0]?.cells.length ?? 0)
     );
+
+    const changeCoordinates = useMemo(() => {
+        const coords = [];
+        for (const cell of result.modifiedCells) {
+            if (cell.sheet !== selectedSheetName) continue;
+            const match = cell.address.match(/^([A-Z]+)(\d+)$/);
+            if (match) {
+                const colIndex = colLetterToIndex(match[1]);
+                const rowIndex = parseInt(match[2], 10) - 1;
+                coords.push({ rowIndex, colIndex });
+            }
+        }
+        return coords;
+    }, [result.modifiedCells, selectedSheetName]);
+
+    const totalGridContentWidth = useMemo(() => {
+        return unifiedColumnWidths.reduce((sum, width) => sum + width, 0);
+    }, [unifiedColumnWidths]);
+
+    const totalGridContentHeight = rowCount * 22;
+
+    const handleMinimapNavigate = (scrollTop: number, scrollLeft: number) => {
+        const startElement = gridStartRef.current?.element;
+        if (startElement) {
+            startElement.scrollTop = scrollTop;
+            startElement.scrollLeft = scrollLeft;
+        }
+        const endElement = gridEndRef.current?.element;
+        if (endElement) {
+            endElement.scrollTop = scrollTop;
+            endElement.scrollLeft = scrollLeft;
+        }
+    };
   
     return (
         <div className={styles.rootContainer}>
@@ -190,7 +255,7 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             </div>
             
             <div className={styles.gridsBody}>
-                <div className={styles.gridColumn}>
+                <div className={styles.gridColumn}> {/* Left Grid */}
                     <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
                         {startVersionComment}
                     </Subtitle1>
@@ -214,26 +279,41 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 
                 <div className={styles.gridSeparator} />
                 
-                <div className={styles.gridColumn}>
-                    <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
-                        {endVersionComment}
-                    </Subtitle1>
-                    <VirtualizedDiffGrid
-                        gridRef={gridEndRef}
-                        sheet={endSheet}
-                        changeMap={changeMap}
-                        sheetName={selectedSheetName}
-                        rowCount={rowCount}
-                        colCount={colCount}
-                        startRow={endSheet?.startRow ?? 0}
-                        startCol={endSheet?.startCol ?? 0}
-                        columnWidths={unifiedColumnWidths}
-                        onScroll={onScrollEnd}
-                        onCellClick={handleCellClick}
-                        highlightOnlyMode={highlightOnlyMode}
-                        changedRows={changedRowsAndCols.rows}
-                        changedCols={changedRowsAndCols.cols}
-                    />
+                <div className={styles.gridColumn} ref={rightGridContainerRef}> {/* Right Grid */}
+                    <div className={styles.gridContentContainer}>
+                        <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
+                            {endVersionComment}
+                        </Subtitle1>
+                        <VirtualizedDiffGrid
+                            gridRef={gridEndRef}
+                            sheet={endSheet}
+                            changeMap={changeMap}
+                            sheetName={selectedSheetName}
+                            rowCount={rowCount}
+                            colCount={colCount}
+                            startRow={endSheet?.startRow ?? 0}
+                            startCol={endSheet?.startCol ?? 0}
+                            columnWidths={unifiedColumnWidths}
+                            onScroll={onScrollEnd}
+                            onCellClick={handleCellClick}
+                            highlightOnlyMode={highlightOnlyMode}
+                            changedRows={changedRowsAndCols.rows}
+                            changedCols={changedRowsAndCols.cols}
+                        />
+                    </div>
+                    
+                    {/* The Minimap is now a sibling to the content wrapper, positioned correctly */}
+                    {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
+                        <Minimap
+                            totalRowCount={rowCount}
+                            totalColumnCount={colCount}
+                            changeCoordinates={changeCoordinates}
+                            viewport={viewport}
+                            onNavigate={handleMinimapNavigate}
+                            gridPixelWidth={totalGridContentWidth}
+                            gridPixelHeight={totalGridContentHeight}
+                        />
+                    )}
                 </div>
             </div>
         </div>
