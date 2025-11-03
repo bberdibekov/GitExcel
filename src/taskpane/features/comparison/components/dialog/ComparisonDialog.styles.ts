@@ -364,19 +364,19 @@ export const useComparisonDialogStyles = makeStyles({
             backgroundColor: tokens.colorPaletteYellowBackground3,
         },
     },
-    // NEW: Border emphasis for changed cells
+    // Border emphasis for changed cells
     gridCell_changedBorder: {
         boxShadow: `inset 0 0 0 2px ${tokens.colorPaletteDarkOrangeBorder1}`,
         ...shorthands.border("2px", "solid", tokens.colorPaletteDarkOrangeBorder1),
     },
-    // NEW: Faded style for unchanged cells
+    // Faded style for unchanged cells
     gridCell_faded: {
         opacity: 0.5,
         ':hover': {
             opacity: 0.7,
         },
     },
-    // NEW: Hidden style for highlight-only mode
+    // Hidden style for highlight-only mode
     gridCell_hidden: {
         display: 'none',
     },
@@ -407,12 +407,12 @@ export const useComparisonDialogStyles = makeStyles({
         boxSizing: 'border-box',
         position: 'relative',
     },
-    // NEW: Header cell with changes indicator
+    // Header cell with changes indicator
     gridHeaderCell_changed: {
         backgroundColor: tokens.colorPaletteYellowBackground1,
         color: tokens.colorNeutralForeground1,
     },
-    // NEW: Change marker dot
+    // Change marker dot
     changeMarker: {
         position: 'absolute',
         top: '2px',

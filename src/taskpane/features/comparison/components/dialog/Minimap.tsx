@@ -51,7 +51,7 @@ export const Minimap: React.FC<MinimapProps> = (props) => {
         ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
         if (totalRowCount === 0 || totalColumnCount === 0 || gridPixelWidth <= 0 || gridPixelHeight <= 0) return;
 
-        ctx.fillStyle = '#ff0000'; // Use a distinct, strong red
+        ctx.fillStyle = '#ff0000';
         const avgColWidth = gridPixelWidth / totalColumnCount;
         const avgRowHeight = gridPixelHeight / totalRowCount;
 
@@ -69,15 +69,14 @@ export const Minimap: React.FC<MinimapProps> = (props) => {
         const viewportRectHeight = viewport.viewportHeight * scaleY;
         
         // SET THE STYLE FOR THE VIEWPORT
-        ctx.fillStyle = 'rgba(139, 139, 139, 0.25)'; // Grey fill with 25% opacity
-        ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)'; // Darker grey border
+        ctx.fillStyle = 'rgba(200, 200, 200, 0.2)';
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.35)';
         ctx.lineWidth = 1;
         
         // DRAW THE VIEWPORT
         ctx.fillRect(viewportX, viewportY, viewportRectWidth, viewportRectHeight);
         ctx.strokeRect(viewportX, viewportY, viewportRectWidth, viewportRectHeight);
 
-        // --- FIX ENDS HERE ---
 
     }, [changeCoordinates, viewport, totalRowCount, totalColumnCount, gridPixelWidth, gridPixelHeight, scaleX, scaleY]);
 
