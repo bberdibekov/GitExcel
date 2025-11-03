@@ -1,3 +1,4 @@
+//src/taskpane/features/comparison/components/dialog/Styles/CollapsiblePane.styles.ts
 import { makeStyles, tokens } from '@fluentui/react-components';
 
 /**

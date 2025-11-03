@@ -1,3 +1,5 @@
+//src/taskpane/features/comparison/components/dialog/Styles/ChangeDetailModal.styles.tsx
+
 import { makeStyles, shorthands, tokens } from '@fluentui/react-components';
 
 /**

@@ -1,3 +1,4 @@
+//src/taskpane/features/comparison/components/dialog/Styles/ChangeHistoryItem.styles.ts
 import { makeStyles, shorthands, tokens } from '@fluentui/react-components';
 
 /**

@@ -1,3 +1,5 @@
+//src/taskpane/features/comparison/components/dialog/Styles/DialogComparisonView.styles.ts
+
 import { makeStyles, tokens } from '@fluentui/react-components';
 
 /**
