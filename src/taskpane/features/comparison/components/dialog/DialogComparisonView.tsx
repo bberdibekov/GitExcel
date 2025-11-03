@@ -11,7 +11,7 @@ import { generateSummary, calculateSummaryStats } from "../../services/summary.s
 
 import SideBySideDiffViewer from "./SideBySideDiffViewer";
 import CollapsiblePane, { ViewFilter } from "./CollapsiblePane";
-import { useComparisonDialogStyles } from "./ComparisonDialog.styles";
+import { useDialogComparisonViewStyles } from "./Styles/DialogComparisonView.styles";
 
 interface DialogComparisonViewProps {
   result: IDiffResult | null;
@@ -24,7 +24,7 @@ interface DialogComparisonViewProps {
 
 const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
   const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
-  const styles = useComparisonDialogStyles();
+  const styles = useDialogComparisonViewStyles();
   
   const [isPaneOpen, setIsPaneOpen] = useState(true);
   const [activeViewFilter, setActiveViewFilter] = useState<ViewFilter>('all');

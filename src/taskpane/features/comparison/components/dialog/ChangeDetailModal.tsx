@@ -16,7 +16,7 @@ import {
     Copy16Filled,
 } from '@fluentui/react-icons';
 import { ICombinedChange } from '../../../../types/types';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import { useChangeDetailModalStyles } from './Styles/ChangeDetailModal.styles';
 import { SortButton } from './SortButton';
 import { ChangeHistoryItem } from './ChangeHistoryItem';
 
@@ -28,7 +28,7 @@ interface ChangeDetailModalProps {
 }
 
 export const ChangeDetailModal: React.FC<ChangeDetailModalProps> = ({ isOpen, onClose, change, licenseTier }) => {
-    const styles = useComparisonDialogStyles();
+    const styles = useChangeDetailModalStyles();
     const [sortOrder, setSortOrder] = useState<'chronological' | 'reverse-chronological'>('chronological');
 
     const displayedHistory = useMemo(() => {

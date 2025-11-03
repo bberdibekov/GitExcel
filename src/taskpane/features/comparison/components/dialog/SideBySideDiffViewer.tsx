@@ -8,7 +8,7 @@ import { Tab, TabList, Subtitle2, Subtitle1, Switch, Button, Tooltip } from '@fl
 import { PanelLeftContract24Regular, PanelRightContract24Regular, Eye24Regular } from '@fluentui/react-icons';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
 import { Minimap } from './Minimap';
@@ -36,7 +36,7 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
 
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { result, startSnapshot, endSnapshot, startVersionComment, endVersionComment, licenseTier } = props;
-    const styles = useComparisonDialogStyles();
+    const styles = useSideBySideDiffViewerStyles();
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const [highlightOnlyMode, setHighlightOnlyMode] = useState(false);
     const [visiblePanel, setVisiblePanel] = useState<'both' | 'start' | 'end'>('both');

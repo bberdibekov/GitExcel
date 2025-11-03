@@ -11,7 +11,7 @@ import {
     Filter24Regular
 } from '@fluentui/react-icons';
 import { IHighLevelChange } from '../../../../types/types';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import { useCollapsiblePaneStyles } from './Styles/CollapsiblePane.styles';
 import FeatureBadge from '../../../../shared/paywall/FeatureBadge';
 import { valueFilters, formulaFilters } from '../../services/comparison.filters';
 import ComparisonSummary from './ComparisonSummary';
@@ -52,7 +52,7 @@ const CollapsiblePane: React.FC<CollapsiblePaneProps> = (props) => {
         onRestore
     } = props;
     
-    const styles = useComparisonDialogStyles();
+    const styles = useCollapsiblePaneStyles();
     const isPro = licenseTier === 'pro';
     const allComparisonFilters = [...valueFilters, ...formulaFilters];
 

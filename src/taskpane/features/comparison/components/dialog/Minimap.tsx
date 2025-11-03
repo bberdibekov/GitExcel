@@ -1,6 +1,6 @@
 // src/taskpane/features/comparison/components/dialog/Minimap.tsx
 import React, { useRef, useEffect } from 'react';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import { useMinimapStyles } from './Styles/Minimap.styles';
 import { tokens } from '@fluentui/react-components';
 
 interface MinimapProps {
@@ -32,7 +32,7 @@ export const Minimap: React.FC<MinimapProps> = (props) => {
         gridPixelHeight
     } = props;
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const styles = useComparisonDialogStyles();
+    const styles = useMinimapStyles();
     
     const isDragging = useRef(false);
     const dragStart = useRef({ x: 0, y: 0 });

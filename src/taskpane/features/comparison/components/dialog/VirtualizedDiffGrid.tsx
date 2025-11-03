@@ -11,7 +11,7 @@ import {
 } from 'react-window';
 import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import { Tooltip } from '@fluentui/react-components';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import { useVirtualizedDiffGridStyles } from './Styles/VirtualizedDiffGrid.styles';
 import { toA1 } from '../../../../shared/lib/address.converter';
 
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
@@ -45,7 +45,7 @@ const MainCell: React.FC<MainCellProps> = ({
     onCellClick,
     highlightOnlyMode 
 }) => {
-    const styles = useComparisonDialogStyles();
+    const styles = useVirtualizedDiffGridStyles();
     const dataRowIndex = rowIndex - startRow;
     const dataColIndex = columnIndex - startCol;
     const isOutOfBounds = 
@@ -124,7 +124,7 @@ type ColumnHeaderCustomData = {
 type ColumnHeaderProps = CellComponentProps & ColumnHeaderCustomData;
 
 const ColumnHeader: React.FC<ColumnHeaderProps> = ({ columnIndex, style, ariaAttributes, changedCols }) => {
-    const styles = useComparisonDialogStyles();
+    const styles = useVirtualizedDiffGridStyles();
     const columnLetter = toA1(0, columnIndex).replace(/[0-9]/g, '');
     const hasChanges = changedCols.has(columnIndex);
     
@@ -151,7 +151,7 @@ type RowHeaderCustomData = {
 type RowHeaderProps = RowComponentProps & RowHeaderCustomData;
 
 const RowHeader: React.FC<RowHeaderProps> = (props) => {
-  const styles = useComparisonDialogStyles();
+  const styles = useVirtualizedDiffGridStyles();
   const hasChanges = props.changedRows.has(props.index);
   
   return (
@@ -208,7 +208,7 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   changedRows,
   changedCols
 }) => {
-  const styles = useComparisonDialogStyles();
+  const styles = useVirtualizedDiffGridStyles();
   
   const columnHeaderRef = React.useRef<GridImperativeAPI | null>(null);
   const rowHeaderRef = useListRef(null);

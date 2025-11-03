@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Subtitle2, Body1, Divider } from '@fluentui/react-components';
 import { IHighLevelChange } from '../../../../types/types';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import { useComparisonSummaryStyles } from './Styles/ComparisonSummary.styles';
 
 interface ComparisonSummaryProps {
     totalChanges: number;
@@ -14,7 +14,7 @@ interface ComparisonSummaryProps {
 
 const ComparisonSummary: React.FC<ComparisonSummaryProps> = (props) => {
     const { totalChanges, valueChanges, formulaChanges, highLevelChanges } = props;
-    const styles = useComparisonDialogStyles();
+    const styles = useComparisonSummaryStyles();
 
     return (
         <div className={styles.summaryContainer}>

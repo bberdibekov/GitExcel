@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Badge, Tooltip, mergeClasses } from '@fluentui/react-components';
 import { IChange } from '../../../../types/types';
-import { useComparisonDialogStyles } from './ComparisonDialog.styles';
+import {useChangeHistoryItemStyles } from './Styles/ChangeHistoryItem.styles';
 import { diffChars, Change as DiffChange } from "diff";
 import { truncateComment } from '../../../../shared/lib/string.utils';
 
@@ -15,7 +15,7 @@ interface ChangeHistoryItemProps {
 }
 
 export const ChangeHistoryItem: React.FC<ChangeHistoryItemProps> = ({ item }) => {
-    const styles = useComparisonDialogStyles();
+    const styles = useChangeHistoryItemStyles();
 
     const isFormula = item.changeType === 'formula' || item.changeType === 'both';
     const before = isFormula ? item.oldFormula : item.oldValue;
