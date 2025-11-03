@@ -76,7 +76,6 @@ export function synthesizeChangesets(
   // --- Pass the name map into the resolver for better logging ---
   const resolvedTimeline = resolveTimeline(changesetSequence, sheetIdToFinalNameMap);
   
-  // --- START: ADDED DEBUG LOGGING ---
   const translatedKeysForLog = Array.from(resolvedTimeline.finalChangeHistory.keys()).map(key => {
     const [sheetId, cell] = key.split('!');
     const sheetName = sheetIdToFinalNameMap.get(sheetId as SheetId) || `[${sheetId}]`;
@@ -92,11 +91,9 @@ export function synthesizeChangesets(
       chronologicalStructuralChangeCount: resolvedTimeline.chronologicalStructuralChanges.length,
     },
   );
-  // --- END: ADDED DEBUG LOGGING ---
 
   const finalResult = consolidateReport(resolvedTimeline, sheetIdToFinalNameMap);
 
-  // --- START: ADDED DEBUG LOGGING ---
   debugService.addLogEntry(
     "Synthesizer Stage 2/2 (Report Consolidation) Complete",
     {
@@ -109,7 +106,6 @@ export function synthesizeChangesets(
       finalModifiedCellAddresses: finalResult.modifiedCells.map(c => `${c.sheet}!${c.address}`)
     }
   );
-  // --- END: ADDED DEBUG LOGGING ---
 
   finalResult.isPartialResult = isPartial;
   finalResult.hiddenChangeCount = hiddenCount;

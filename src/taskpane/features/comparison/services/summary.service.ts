@@ -8,7 +8,6 @@ import {
   IReportRowChange,
   ICombinedChange,
 } from "../../../types/types";
-// --- ADDED: Import the address converter to get column letters from indices ---
 import { toA1 } from "../../../shared/lib/address.converter";
 
 
@@ -35,7 +34,7 @@ function describeStructuralChanges(structuralChanges: IReportStructuralChange[])
           : `Row ${change.index! + 1} was deleted.`;
         break;
       
-      // --- START: ADDED COLUMN DESCRIPTION LOGIC ---
+      // --- START: COLUMN DESCRIPTION LOGIC ---
       case "column_insertion":
         {
           const startColLetter = toA1(0, change.index!).replace(/[0-9]/g, '');
@@ -58,7 +57,7 @@ function describeStructuralChanges(structuralChanges: IReportStructuralChange[])
           }
         }
         break;
-      // --- END: ADDED COLUMN DESCRIPTION LOGIC ---
+      // --- END: COLUMN DESCRIPTION LOGIC ---
     }
 
     if (description) {

@@ -4,7 +4,6 @@ import * as React from 'react';
 import {
     Button,
     Tooltip,
-    Switch,
     Menu,
     MenuTrigger,
     MenuList,
@@ -13,8 +12,9 @@ import {
     MenuCheckedValueChangeData,
 } from '@fluentui/react-components';
 import {
-    PanelLeft24Regular,
-    PanelRight24Regular,
+    // --- MODIFIED: Removed the 'SplitHorizontal' icon as it's no longer needed ---
+    PanelRightContract24Regular,
+    PanelLeftContract24Regular,
     Eye24Regular,
     ChevronDown20Regular,
 } from '@fluentui/react-icons';
@@ -49,7 +49,6 @@ const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
         onHighlightModeChange,
     } = props;
     const styles = useFloatingViewControlsStyles();
-    // --- ADDED: Use the draggable hook ---
     const { dragNodeRef, style, onMouseDown } = useDraggable();
 
     const handleSheetSelectionChange = (
@@ -62,6 +61,19 @@ const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
         }
     };
 
+    const handleVisibilityToggle = (targetPanel: 'start' | 'end') => {
+        // If the user clicks the button for the panel that is already exclusively visible,
+        // we toggle back to the 'both' view.
+        if (visiblePanel === targetPanel) {
+            onVisibilityChange('both');
+        } else {
+            // Otherwise, we switch to the target panel's view.
+            // This handles switching from 'both' to a single panel,
+            // and also from 'start' to 'end' (and vice-versa) directly.
+            onVisibilityChange(targetPanel);
+        }
+    };
+
     return (
         <div
             ref={dragNodeRef}
@@ -69,8 +81,13 @@ const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
             onMouseDown={onMouseDown}
             className={styles.root}
         >
-            {/* --- Sheet Selector --- /}
-{/ Stop propagation so clicking the menu doesn't start a drag */}
+            {/* Draggable handle remains unchanged */}
+            <div className={styles.dragHandle}>
+                <span>⋮⋮</span>
+            </div>
+            <div className={styles.separator} />
+
+            {/* Sheet Selector remains unchanged */}
             <div onMouseDown={(e) => e.stopPropagation()}>
                 <Menu>
                     <MenuTrigger disableButtonEnhancement>
@@ -102,30 +119,26 @@ const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
 
             <div className={styles.separator} />
 
-            {/* --- Panel Visibility Control --- */}
-            {/* Stop propagation so clicking buttons doesn't start a drag */}
+            {/* --- MODIFIED: Panel Visibility now uses the new two-button toggle logic --- */}
             <div onMouseDown={(e) => e.stopPropagation()}>
                 <Tooltip content="Show only left panel" relationship="label">
                     <Button
-                        icon={<PanelLeft24Regular />}
-                        onClick={() => onVisibilityChange('start')}
-                        appearance={visiblePanel === 'start' ? 'primary' : 'subtle'}
+                        icon={<PanelRightContract24Regular />}
+                        onClick={() => handleVisibilityToggle('start')}
+                        // The button is active only when its specific panel is visible
+                        appearance={visiblePanel === 'start' ? 'secondary' : 'subtle'}
                         shape="circular"
                     />
                 </Tooltip>
-                <Tooltip content="Show both panels" relationship="label">
-                    <Button
-                        icon={<Eye24Regular />}
-                        onClick={() => onVisibilityChange('both')}
-                        appearance={visiblePanel === 'both' ? 'primary' : 'subtle'}
-                        shape="circular"
-                    />
-                </Tooltip>
+                
+                {/* --- REMOVED: The middle "Show both panels" button has been deleted --- */}
+
                 <Tooltip content="Show only right panel" relationship="label">
                     <Button
-                        icon={<PanelRight24Regular />}
-                        onClick={() => onVisibilityChange('end')}
-                        appearance={visiblePanel === 'end' ? 'primary' : 'subtle'}
+                        icon={<PanelLeftContract24Regular />}
+                        onClick={() => handleVisibilityToggle('end')}
+                        // The button is active only when its specific panel is visible
+                        appearance={visiblePanel === 'end' ? 'secondary' : 'subtle'}
                         shape="circular"
                     />
                 </Tooltip>
@@ -133,21 +146,18 @@ const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
 
             <div className={styles.separator} />
 
-            {/* --- Highlight Only Mode Toggle --- */}
-            {/* Stop propagation so clicking the switch doesn't start a drag */}
-            <div className={styles.highlightToggle} onMouseDown={(e) => e.stopPropagation()}>
+            {/* Highlight Mode Control remains unchanged */}
+            <div onMouseDown={(e) => e.stopPropagation()}>
                 <Tooltip content="Show only changed cells" relationship="label">
-                    <Switch
-                        checked={highlightOnlyMode}
-                        onChange={(_, data) => onHighlightModeChange(data.checked)}
-                        label="Highlight changes"
+                    <Button
+                        icon={<Eye24Regular />}
+                        onClick={() => onHighlightModeChange(!highlightOnlyMode)}
+                        appearance={highlightOnlyMode ? 'secondary' : 'subtle'}
+                        shape="circular"
                     />
                 </Tooltip>
             </div>
         </div>
-
-
-
     );
 };
 

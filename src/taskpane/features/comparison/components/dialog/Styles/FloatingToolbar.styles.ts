@@ -30,4 +30,13 @@ export const useFloatingToolbarStyles = makeStyles({
       boxShadow: tokens.shadow28,
     },
   },
+  dragHandle: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    color: tokens.colorNeutralForeground4,
+    fontSize: '20px',
+    lineHeight: '1',
+    paddingBottom: '4px',
+  }
 });

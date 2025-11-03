@@ -1,7 +1,6 @@
 // src/taskpane/features/comparison/components/dialog/SideBySideDiffViewer.tsx
 
 import * as React from 'react';
-// --- ADDED: useCallback for memoizing resizer handlers ---
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange, ViewFilter } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';

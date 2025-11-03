@@ -27,9 +27,14 @@ export const useFloatingViewControlsStyles = makeStyles({
     fontWeight: tokens.fontWeightSemibold,
     cursor: 'pointer',
   },
-  highlightToggle: {
+
+  dragHandle: {
     display: 'flex',
     alignItems: 'center',
-    ...shorthands.gap('8px'),
+    color: tokens.colorNeutralForeground4,
+    fontSize: '20px',
+    lineHeight: '1',
+    paddingLeft: '4px',
+    paddingRight: '4px',
   }
 });

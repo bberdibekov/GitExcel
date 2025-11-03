@@ -8,7 +8,6 @@ import {
   SaveSyncRegular,
 } from "@fluentui/react-icons";
 import { useFloatingToolbarStyles } from "./Styles/FloatingToolbar.styles";
-// --- ADDED: Import the new hook ---
 import { useDraggable } from "../../hooks/useDraggable";
 
 
@@ -29,17 +28,19 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
     isRestoreDisabled,
   } = props;
   const styles = useFloatingToolbarStyles();
-  // --- ADDED: Use the draggable hook ---
   const { dragNodeRef, style, onMouseDown } = useDraggable();
 
   return (
-    // --- MODIFIED: Apply the ref, style, and onMouseDown handler from the hook ---
     <div
       ref={dragNodeRef}
       style={style}
       onMouseDown={onMouseDown}
       className={styles.toolbarContainer}
     >
+      <div className={styles.dragHandle}>
+        <span>⋮⋮</span>
+      </div>
+
       <Tooltip content="Summary" relationship="label">
         <Button
           icon={<TextBulletListSquare24Regular />}

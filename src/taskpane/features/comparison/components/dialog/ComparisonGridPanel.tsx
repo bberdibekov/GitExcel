@@ -49,7 +49,8 @@ const ComparisonGridPanel: React.FC<ComparisonGridPanelProps> = (props) => {
 
     return (
         <div className={styles.gridColumn} ref={containerRef}>
-            <div className={styles.versionCommentOverlay}>
+            {/* --- MODIFIED: Replaced the overlay with a proper header --- */}
+            <div className={styles.panelHeader}>
                 {versionComment}
             </div>
 
