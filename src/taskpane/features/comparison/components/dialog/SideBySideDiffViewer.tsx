@@ -4,7 +4,8 @@ import * as React from 'react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
-import { Tab, TabList, Subtitle2, Subtitle1, Switch } from '@fluentui/react-components';
+import { Tab, TabList, Subtitle2, Subtitle1, Switch, Button, Tooltip } from '@fluentui/react-components';
+import { PanelLeftContract24Regular, PanelRightContract24Regular, Eye24Regular } from '@fluentui/react-icons';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { type GridImperativeAPI } from 'react-window';
 import { useComparisonDialogStyles } from './ComparisonDialog.styles';
@@ -54,16 +55,18 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const styles = useComparisonDialogStyles();
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const [highlightOnlyMode, setHighlightOnlyMode] = useState(false);
-    
+    const [visiblePanel, setVisiblePanel] = useState<'both' | 'start' | 'end'>('both');
     const summary = useMemo(() => generateSummary(result), [result]);
-
     const affectedSheetNames = useMemo(() => {
         const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
         const sheetsFromStructure = summary.highLevelChanges.map(c => c.sheet);
         return [...new Set([...sheetsFromCells, ...sheetsFromStructure])];
     }, [result, summary]);
-
     const [selectedSheetName, setSelectedSheetName] = useState<string>(affectedSheetNames[0] ?? "");
+
+    useEffect(() => {
+        setVisiblePanel('both');
+    }, [selectedSheetName]);
 
     const changeMap = useMemo(() => {
         const map = new Map<string, ICombinedChange>();
@@ -124,12 +127,14 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         return unified;
     }, [startSheet, endSheet]);
 
-
     const gridStartRef = useRef<GridImperativeAPI | null>(null);
     const gridEndRef = useRef<GridImperativeAPI | null>(null);
     const isScrolling = useRef(false);
     
+    // Create refs for BOTH grid containers now.
+    const leftGridContainerRef = useRef<HTMLDivElement | null>(null);
     const rightGridContainerRef = useRef<HTMLDivElement | null>(null);
+
     const [viewport, setViewport] = useState({
         scrollTop: 0,
         scrollLeft: 0,
@@ -137,21 +142,34 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         viewportHeight: 1,
     });
 
+    // This effect is now aware of the panel visibility state to prevent crashes.
     useEffect(() => {
-        const container = rightGridContainerRef.current;
+        // Determine which container is currently active and should be observed.
+        let container: HTMLDivElement | null = null;
+        if (visiblePanel === 'start') {
+            container = leftGridContainerRef.current;
+        } else if (visiblePanel === 'end' || visiblePanel === 'both') {
+            // Default to the right panel if both are visible for minimap positioning.
+            container = rightGridContainerRef.current;
+        }
+
         if (!container) return () => {};
 
         const resizeObserver = new ResizeObserver(() => {
             const { width, height } = container.getBoundingClientRect();
-            const approxGridHeight = height - 30;
+            // Subtract header height to approximate grid area for the minimap.
+            const approxGridHeight = height - 30; 
             setViewport(prev => ({ ...prev, viewportWidth: width, viewportHeight: approxGridHeight }));
         });
 
         resizeObserver.observe(container);
+        
+        // This cleanup function now runs EVERY time `visiblePanel` changes,
+        // correctly disconnecting the observer from the old/unmounted element.
         return () => {
             resizeObserver.disconnect();
         };
-    }, []);
+    }, [visiblePanel]); // The dependency array is key to the fix.
 
     const onScrollStart = (scrollTop: number, scrollLeft: number) => {
         setViewport(prev => ({...prev, scrollTop, scrollLeft}));
@@ -244,6 +262,18 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 <TabList selectedValue={selectedSheetName} onTabSelect={(_, data) => setSelectedSheetName(data.value as string)}>
                     {affectedSheetNames.map((name) => <Tab key={name} value={name}>{name}</Tab>)}
                 </TabList>
+
+                {visiblePanel !== 'both' && (
+                    <Tooltip content="Show Both Panels" relationship="label">
+                        <Button 
+                            icon={<Eye24Regular />} 
+                            onClick={() => setVisiblePanel('both')}
+                            appearance="primary"
+                        >
+                            Show Both
+                        </Button>
+                    </Tooltip>
+                )}
                 
                 <div className={styles.highlightModeToggle}>
                     <Switch 
@@ -255,66 +285,93 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             </div>
             
             <div className={styles.gridsBody}>
-                <div className={styles.gridColumn}> {/* Left Grid */}
-                    <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
-                        {startVersionComment}
-                    </Subtitle1>
-                    <VirtualizedDiffGrid
-                        gridRef={gridStartRef}
-                        sheet={startSheet}
-                        changeMap={changeMap}
-                        sheetName={selectedSheetName}
-                        rowCount={rowCount}
-                        colCount={colCount}
-                        startRow={startSheet?.startRow ?? 0}
-                        startCol={startSheet?.startCol ?? 0}
-                        columnWidths={unifiedColumnWidths}
-                        onScroll={onScrollStart}
-                        onCellClick={handleCellClick}
-                        highlightOnlyMode={highlightOnlyMode}
-                        changedRows={changedRowsAndCols.rows}
-                        changedCols={changedRowsAndCols.cols}
-                    />
-                </div>
-                
-                <div className={styles.gridSeparator} />
-                
-                <div className={styles.gridColumn} ref={rightGridContainerRef}> {/* Right Grid */}
-                    <div className={styles.gridContentContainer}>
-                        <Subtitle1 as="h1" block align="center" className={styles.versionTitle}>
-                            {endVersionComment}
-                        </Subtitle1>
+                {visiblePanel !== 'end' && (
+                    <div className={styles.gridColumn} ref={leftGridContainerRef}>
+                        <div className={styles.gridPanelHeader}>
+                            <Subtitle1 as="h1" className={styles.versionTitle}>
+                                {startVersionComment}
+                            </Subtitle1>
+                            {visiblePanel === 'both' && (
+                                <Tooltip content="Focus on right panel" relationship="label">
+                                    <Button 
+                                        icon={<PanelLeftContract24Regular />} 
+                                        onClick={() => setVisiblePanel('end')}
+                                        appearance="subtle"
+                                    />
+                                </Tooltip>
+                            )}
+                        </div>
                         <VirtualizedDiffGrid
-                            gridRef={gridEndRef}
-                            sheet={endSheet}
+                            gridRef={gridStartRef}
+                            sheet={startSheet}
                             changeMap={changeMap}
                             sheetName={selectedSheetName}
                             rowCount={rowCount}
                             colCount={colCount}
-                            startRow={endSheet?.startRow ?? 0}
-                            startCol={endSheet?.startCol ?? 0}
+                            startRow={startSheet?.startRow ?? 0}
+                            startCol={startSheet?.startCol ?? 0}
                             columnWidths={unifiedColumnWidths}
-                            onScroll={onScrollEnd}
+                            onScroll={onScrollStart}
                             onCellClick={handleCellClick}
                             highlightOnlyMode={highlightOnlyMode}
                             changedRows={changedRowsAndCols.rows}
                             changedCols={changedRowsAndCols.cols}
                         />
                     </div>
-                    
-                    {/* The Minimap is now a sibling to the content wrapper, positioned correctly */}
-                    {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
-                        <Minimap
-                            totalRowCount={rowCount}
-                            totalColumnCount={colCount}
-                            changeCoordinates={changeCoordinates}
-                            viewport={viewport}
-                            onNavigate={handleMinimapNavigate}
-                            gridPixelWidth={totalGridContentWidth}
-                            gridPixelHeight={totalGridContentHeight}
-                        />
-                    )}
-                </div>
+                )}
+                
+                {visiblePanel === 'both' && (
+                    <div className={styles.gridSeparator} />
+                )}
+                
+                {visiblePanel !== 'start' && (
+                    <div className={styles.gridColumn} ref={rightGridContainerRef}>
+                        <div className={styles.gridContentContainer}>
+                            <div className={styles.gridPanelHeader}>
+                                <Subtitle1 as="h1" className={styles.versionTitle}>
+                                    {endVersionComment}
+                                </Subtitle1>
+                                {visiblePanel === 'both' && (
+                                    <Tooltip content="Focus on left panel" relationship="label">
+                                        <Button 
+                                            icon={<PanelRightContract24Regular />} 
+                                            onClick={() => setVisiblePanel('start')}
+                                            appearance="subtle"
+                                        />
+                                    </Tooltip>
+                                )}
+                            </div>
+                            <VirtualizedDiffGrid
+                                gridRef={gridEndRef}
+                                sheet={endSheet}
+                                changeMap={changeMap}
+                                sheetName={selectedSheetName}
+                                rowCount={rowCount}
+                                colCount={colCount}
+                                startRow={endSheet?.startRow ?? 0}
+                                startCol={endSheet?.startCol ?? 0}
+                                columnWidths={unifiedColumnWidths}
+                                onScroll={onScrollEnd}
+                                onCellClick={handleCellClick}
+                                highlightOnlyMode={highlightOnlyMode}
+                                changedRows={changedRowsAndCols.rows}
+                                changedCols={changedRowsAndCols.cols}
+                            />
+                        </div>
+                        
+                        {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
+                            <Minimap
+                                totalRowCount={rowCount}
+                                totalColumnCount={colCount}
+                                changeCoordinates={changeCoordinates}
+                                viewport={viewport}
+                                onNavigate={handleMinimapNavigate}
+                                gridPixelWidth={totalGridContentWidth}
+                                gridPixelHeight={totalGridContentHeight}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -24,7 +24,7 @@ class DialogService {
         reject(new Error(`Dialog '${view}' is already open.`));
         return;
       }
-      const dialogUrl = `${window.location.origin}/diff-viewer.html?view=${view}`;
+      const dialogUrl = `${window.location.origin}/diff-viewer.html?view=${view}`; // Corrected URL based on project structure
       loggingService.log(`[DialogService] Opening '${view}' with URL: ${dialogUrl}`);
 
       Office.context.ui.displayDialogAsync(dialogUrl, options, (asyncResult) => {
@@ -65,7 +65,8 @@ class DialogService {
   }
 
   public async openDiffViewer(): Promise<void> {
-    return this.open('diff-viewer', { height: 80, width: 60, displayInIframe: false });
+    // UPDATED: Changed height and width to 100% to open the dialog maximized by default.
+    return this.open('diff-viewer', { height: 100, width: 100, displayInIframe: false });
   }
 
   public sendInitializationData(view: DialogView): void {

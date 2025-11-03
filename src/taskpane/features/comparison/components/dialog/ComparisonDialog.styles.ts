@@ -45,11 +45,18 @@ export const useComparisonDialogStyles = makeStyles({
         minHeight: 0,  // This is crucial. It allows the container to shrink smaller than its content.
     },
     gridSeparator: {
-        width: '4px',
+        width: '2px',
         backgroundColor: tokens.colorBrandBackground,
         boxShadow: `0 0 8px ${tokens.colorNeutralShadowAmbient}`,
         flexShrink: 0,
         margin: '0 4px',
+    },
+    gridPanelHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexShrink: 0,
+        marginBottom: '4px',
     },
     versionTitle: {
         whiteSpace: 'nowrap',
