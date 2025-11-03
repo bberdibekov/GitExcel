@@ -1,8 +1,9 @@
 // src/taskpane/features/comparison/components/dialog/SideBySideDiffViewer.tsx
 
 import * as React from 'react';
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange, ViewFilter} from '../../../../types/types';
+// --- ADDED: useCallback for memoizing resizer handlers ---
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange, ViewFilter } from '../../../../types/types';
 import { generateSummary } from '../../services/summary.service';
 import { type GridImperativeAPI } from 'react-window';
 import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.styles';
@@ -43,7 +44,6 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
     return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
 };
 
-
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const { 
         result, 
@@ -57,6 +57,13 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
     const [highlightOnlyMode, setHighlightOnlyMode] = useState(false);
     const [visiblePanel, setVisiblePanel] = useState<'both' | 'start' | 'end'>('both');
+    
+    // --- State and refs for GRID RESIZING ---
+    const [isResizing, setIsResizing] = useState(false);
+    const [leftPanelWidth, setLeftPanelWidth] = useState<number>(50);
+    const resizerRef = useRef<HTMLDivElement | null>(null);
+    const gridsBodyRef = useRef<HTMLDivElement | null>(null);
+
     const summary = useMemo(() => generateSummary(result), [result]);
     const affectedSheetNames = useMemo(() => {
         const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
@@ -65,9 +72,51 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     }, [result, summary]);
     const [selectedSheetName, setSelectedSheetName] = useState<string>(affectedSheetNames[0] ?? "");
 
+    // --- Handlers and effect for GRID RESIZING ---
+    const handleResizeMouseMove = useCallback((e: MouseEvent) => {
+        if (!isResizing || !gridsBodyRef.current) return;
+        
+        const containerRect = gridsBodyRef.current.getBoundingClientRect();
+        const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+        const clampedWidth = Math.max(10, Math.min(newLeftWidth, 90));
+        setLeftPanelWidth(clampedWidth);
+    }, [isResizing]);
+
+    const handleResizeMouseUp = useCallback(() => {
+        setIsResizing(false);
+    }, []);
+
+    const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    useEffect(() => {
+        if (isResizing) {
+            window.addEventListener('mousemove', handleResizeMouseMove);
+            window.addEventListener('mouseup', handleResizeMouseUp);
+        } else {
+            window.removeEventListener('mousemove', handleResizeMouseMove);
+            window.removeEventListener('mouseup', handleResizeMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleResizeMouseMove);
+            window.removeEventListener('mouseup', handleResizeMouseUp);
+        };
+    }, [isResizing, handleResizeMouseMove, handleResizeMouseUp]);
+
     useEffect(() => {
         setVisiblePanel('both');
     }, [selectedSheetName]);
+    
+    const { startSheet, endSheet } = useMemo(() => {
+        const startSheetId = getSheetIdByName(startSnapshot, selectedSheetName);
+        const endSheetId = getSheetIdByName(endSnapshot, selectedSheetName);
+        return {
+            startSheet: startSheetId ? startSnapshot[startSheetId] : undefined,
+            endSheet: endSheetId ? endSnapshot[endSheetId] : undefined
+        };
+    }, [selectedSheetName, startSnapshot, endSnapshot]);
 
     const changeMap = useMemo(() => {
         const map = new Map<string, ICombinedChange>();
@@ -103,15 +152,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         
         return { rows, cols };
     }, [result, selectedSheetName]);
-
-    const { startSheet, endSheet } = useMemo(() => {
-        const startSheetId = getSheetIdByName(startSnapshot, selectedSheetName);
-        const endSheetId = getSheetIdByName(endSnapshot, selectedSheetName);
-        return {
-            startSheet: startSheetId ? startSnapshot[startSheetId] : undefined,
-            endSheet: endSheetId ? endSnapshot[endSheetId] : undefined
-        };
-    }, [selectedSheetName, startSnapshot, endSnapshot]);
         
     const unifiedColumnWidths = useMemo(() => {
         const startWidths = startSheet?.columnWidths || [];
@@ -240,9 +280,10 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
             endElement.scrollLeft = scrollLeft;
         }
     };
-
+    
     return (
-        <div className={styles.rootContainer}>
+        <div className={`${styles.rootContainer} ${isResizing ? styles.isResizingGrids : ''}`}>
+            {/* Draggable FloatingToolbar remains unchanged */}
             <FloatingToolbar
                 onSummaryClick={() => console.log("Summary clicked")}
                 onFilterClick={() => console.log("Filter clicked")}
@@ -257,11 +298,9 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 change={selectedChange}
                 licenseTier={licenseTier}
             />
-
-            {/* --- DELETED: The entire 'controlsBar' div has been removed. --- */}
             
-            <div className={styles.gridsBody}>
-                {/* --- ADDED: The new unified floating control panel --- */}
+            <div className={styles.gridsBody} ref={gridsBodyRef}>
+                {/* Draggable FloatingViewControls remains unchanged */}
                 <FloatingViewControls
                     affectedSheetNames={affectedSheetNames}
                     selectedSheetName={selectedSheetName}
@@ -273,59 +312,71 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 />
                 
                 {visiblePanel !== 'end' && (
-                    <ComparisonGridPanel
-                        panelType="start"
-                        versionComment={startVersionComment}
-                        containerRef={leftGridContainerRef}
-                        gridRef={gridStartRef}
-                        sheet={startSheet}
-                        changeMap={changeMap}
-                        sheetName={selectedSheetName}
-                        rowCount={rowCount}
-                        colCount={colCount}
-                        columnWidths={unifiedColumnWidths}
-                        onScroll={onScrollStart}
-                        onCellClick={handleCellClick}
-                        highlightOnlyMode={highlightOnlyMode}
-                        changedRows={changedRowsAndCols.rows}
-                        changedCols={changedRowsAndCols.cols}
-                    />
+                    <div style={{ width: `${leftPanelWidth}%`, flexShrink: 0, display: 'flex' }}>
+                        <ComparisonGridPanel
+                            panelType="start"
+                            versionComment={startVersionComment}
+                            containerRef={leftGridContainerRef}
+                            gridRef={gridStartRef}
+                            sheet={startSheet}
+                            changeMap={changeMap}
+                            sheetName={selectedSheetName}
+                            rowCount={rowCount}
+                            colCount={colCount}
+                            columnWidths={unifiedColumnWidths}
+                            onScroll={onScrollStart}
+                            onCellClick={handleCellClick}
+                            highlightOnlyMode={highlightOnlyMode}
+                            changedRows={changedRowsAndCols.rows}
+                            changedCols={changedRowsAndCols.cols}
+                        />
+                    </div>
                 )}
                 
                 {visiblePanel === 'both' && (
-                    <div className={styles.gridSeparator} />
+                    <div 
+                        className={styles.gridSeparator} 
+                        ref={resizerRef}
+                        onMouseDown={handleResizeMouseDown}
+                    >
+                        <div className={styles.dragHandle}>
+                            <span>&#8942;</span>
+                        </div>
+                    </div>
                 )}
                 
                 {visiblePanel !== 'start' && (
-                    <ComparisonGridPanel
-                        panelType="end"
-                        versionComment={endVersionComment}
-                        containerRef={rightGridContainerRef}
-                        gridRef={gridEndRef}
-                        sheet={endSheet}
-                        changeMap={changeMap}
-                        sheetName={selectedSheetName}
-                        rowCount={rowCount}
-                        colCount={colCount}
-                        columnWidths={unifiedColumnWidths}
-                        onScroll={onScrollEnd}
-                        onCellClick={handleCellClick}
-                        highlightOnlyMode={highlightOnlyMode}
-                        changedRows={changedRowsAndCols.rows}
-                        changedCols={changedRowsAndCols.cols}
-                    >
-                        {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
-                            <Minimap
-                                totalRowCount={rowCount}
-                                totalColumnCount={colCount}
-                                changeCoordinates={changeCoordinates}
-                                viewport={viewport}
-                                onNavigate={handleMinimapNavigate}
-                                gridPixelWidth={totalGridContentWidth}
-                                gridPixelHeight={totalGridContentHeight}
-                            />
-                        )}
-                    </ComparisonGridPanel>
+                    <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+                         <ComparisonGridPanel
+                            panelType="end"
+                            versionComment={endVersionComment}
+                            containerRef={rightGridContainerRef}
+                            gridRef={gridEndRef}
+                            sheet={endSheet}
+                            changeMap={changeMap}
+                            sheetName={selectedSheetName}
+                            rowCount={rowCount}
+                            colCount={colCount}
+                            columnWidths={unifiedColumnWidths}
+                            onScroll={onScrollEnd}
+                            onCellClick={handleCellClick}
+                            highlightOnlyMode={highlightOnlyMode}
+                            changedRows={changedRowsAndCols.rows}
+                            changedCols={changedRowsAndCols.cols}
+                        >
+                            {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
+                                <Minimap
+                                    totalRowCount={rowCount}
+                                    totalColumnCount={colCount}
+                                    changeCoordinates={changeCoordinates}
+                                    viewport={viewport}
+                                    onNavigate={handleMinimapNavigate}
+                                    gridPixelWidth={totalGridContentWidth}
+                                    gridPixelHeight={totalGridContentHeight}
+                                />
+                            )}
+                        </ComparisonGridPanel>
+                    </div>
                 )}
             </div>
         </div>

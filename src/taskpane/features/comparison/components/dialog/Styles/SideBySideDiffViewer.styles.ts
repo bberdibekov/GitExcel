@@ -1,9 +1,8 @@
 // src/taskpane/features/comparison/components/dialog/Styles/SideBySideDiffViewer.styles.ts
-import { makeStyles, tokens } from '@fluentui/react-components';
+import { makeStyles, shorthands, tokens } from '@fluentui/react-components';
 
 /**
- * Styles for the SideBySideDiffViewer component. This is now very minimal as
- * all controls have been moved to floating components.
+ * Styles for the SideBySideDiffViewer component.
  */
 export const useSideBySideDiffViewerStyles = makeStyles({
     rootContainer: {
@@ -13,6 +12,9 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         width: '100%',
         overflow: 'hidden',
         position: 'relative',
+    },
+    isResizingGrids: {
+        userSelect: 'none',
     },
     gridsBody: {
         display: 'flex',
@@ -31,5 +33,27 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         boxShadow: `0 0 8px ${tokens.colorNeutralShadowAmbient}`,
         flexShrink: 0,
         margin: '0 4px',
+        cursor: 'col-resize',
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        '::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: '-4px',
+            right: '-4px',
+        },
+    },
+    dragHandle: {
+        display: 'flex',
+        flexDirection: 'column',
+        ...shorthands.gap('2px'),
+        color: tokens.colorNeutralForegroundOnBrand,
+        fontSize: '16px',
+        lineHeight: '1',
+        textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
     },
 });

@@ -3,14 +3,12 @@ import { makeStyles, shorthands, tokens } from '@fluentui/react-components';
 
 export const useFloatingViewControlsStyles = makeStyles({
   root: {
-    // Positioning
     position: 'absolute',
     top: '8px',
     left: '50%',
-    transform: 'translateX(-50%)',
+    transform: 'translateX(-50%)', 
     zIndex: 10,
 
-    // Layout & Appearance
     display: 'flex',
     alignItems: 'center',
     ...shorthands.gap('12px'),
@@ -18,6 +16,7 @@ export const useFloatingViewControlsStyles = makeStyles({
     ...shorthands.padding('4px', '8px'),
     ...shorthands.borderRadius(tokens.borderRadiusMedium),
     boxShadow: tokens.shadow8,
+    cursor: 'move',
   },
   separator: {
     width: '1px',
@@ -25,8 +24,8 @@ export const useFloatingViewControlsStyles = makeStyles({
     backgroundColor: tokens.colorNeutralStroke2,
   },
   sheetSelectorButton: {
-    // Make the button less prominent until hovered
     fontWeight: tokens.fontWeightSemibold,
+    cursor: 'pointer',
   },
   highlightToggle: {
     display: 'flex',
