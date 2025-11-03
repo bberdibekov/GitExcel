@@ -281,6 +281,15 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         }
     };
     
+    // Create a dynamic style object for the left panel.
+    const leftPanelStyle: React.CSSProperties = {
+        // If it's the only panel visible, it should take up all the space.
+        // Otherwise, use the width from the resizable state.
+        width: visiblePanel === 'start' ? '100%' : `${leftPanelWidth}%`,
+        flexShrink: 0,
+        display: 'flex',
+    };
+    
     return (
         <div className={`${styles.rootContainer} ${isResizing ? styles.isResizingGrids : ''}`}>
             {/* Draggable FloatingToolbar remains unchanged */}
@@ -312,7 +321,7 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                 />
                 
                 {visiblePanel !== 'end' && (
-                    <div style={{ width: `${leftPanelWidth}%`, flexShrink: 0, display: 'flex' }}>
+                    <div style={leftPanelStyle}>
                         <ComparisonGridPanel
                             panelType="start"
                             versionComment={startVersionComment}
