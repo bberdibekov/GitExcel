@@ -1,11 +1,16 @@
 // src/taskpane/features/comparison/components/dialog/SideBySideDiffViewer.tsx
 
-
 import * as React from 'react';
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { IWorkbookSnapshot, IDiffResult, IHighLevelChange, ICombinedChange, ViewFilter } from '../../../../types/types';
-import { generateSummary } from '../../services/summary.service';
-import { type GridImperativeAPI } from 'react-window';
+import { useMemo } from 'react';
+import {
+    IWorkbookSnapshot,
+    IDiffResult,
+    IHighLevelChange,
+    ICombinedChange,
+    ViewFilter,
+    ISheetSnapshot,
+    VisiblePanel // Make sure VisiblePanel is exported from types.ts or defined locally
+} from '../../../../types/types';
 import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
@@ -14,394 +19,157 @@ import FloatingToolbar from './FloatingToolbar';
 import { ISummaryStats } from '../../services/summary.service';
 import ComparisonGridPanel from './ComparisonGridPanel';
 import FloatingViewControls from './FloatingViewControls';
+import { useResizablePanels } from '../../hooks/useResizablePanels';
+import { useSyncedGrids } from '../../hooks/useSyncedGrids';
 
+// --- THE PROPS ARE NOW EXTENSIVE, AS THIS IS A PURE COMPONENT ---
 interface SideBySideDiffViewerProps {
-result: IDiffResult;
-startSnapshot: IWorkbookSnapshot;
-endSnapshot: IWorkbookSnapshot;
-startVersionComment: string;
-endVersionComment: string;
-licenseTier: 'free' | 'pro';
+    result: IDiffResult;
+    startVersionComment: string;
+    endVersionComment: string;
+    licenseTier: 'free' | 'pro';
 
-// Props plumbed from DialogComparisonView
-highLevelChanges: IHighLevelChange[];
-summaryStats: ISummaryStats;
-activeViewFilter: ViewFilter;
-activeComparisonSettings: Set<string>;
-onViewFilterChange: (filter: ViewFilter) => void;
-onComparisonSettingChange: (changedSettings: Record<string, string[]>) => void;
+    // Data from the controller's useComparisonData hook
+    affectedSheetNames: string[];
+    startSheet: ISheetSnapshot | undefined;
+    endSheet: ISheetSnapshot | undefined;
+    changeMap: Map<string, ICombinedChange>;
+    changedRowsAndCols: { rows: Set<number>; cols: Set<number>; };
+    unifiedColumnWidths: number[];
+    changeCoordinates: { rowIndex: number; colIndex: number; }[];
+    rowCount: number;
+    colCount: number;
 
+    // State from the controller/store
+    visiblePanel: VisiblePanel;
+    highlightOnlyMode: boolean;
+
+    // Modal state and handlers from the controller
+    selectedChange: ICombinedChange | null;
+    onCellClick: (change: ICombinedChange) => void;
+    onModalClose: () => void;
 }
 
-const colLetterToIndex = (letters: string): number => {
-let result = 0;
-for (let i = 0; i < letters.length; i++) {
-result = result * 26 + (letters.charCodeAt(i) - 64);
-}
-return result - 1;
-};
-
-const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): string | undefined => {
-return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
-};
 
 const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
-const {
-result,
-startSnapshot,
-endSnapshot,
-startVersionComment,
-endVersionComment,
-licenseTier
-} = props;
-const styles = useSideBySideDiffViewerStyles();
-const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
-const [highlightOnlyMode, setHighlightOnlyMode] = useState(false);
-const [visiblePanel, setVisiblePanel] = useState<'both' | 'start' | 'end'>('both');
+    const {
+        result,
+        startVersionComment,
+        endVersionComment,
+        licenseTier,
+        affectedSheetNames,
+        startSheet,
+        endSheet,
+        changeMap,
+        changedRowsAndCols,
+        unifiedColumnWidths,
+        changeCoordinates,
+        rowCount,
+        colCount,
+        visiblePanel,
+        highlightOnlyMode,
+        selectedChange,
+        onCellClick,
+        onModalClose
+    } = props;
+    const styles = useSideBySideDiffViewerStyles();
 
-// --- State and refs for GRID RESIZING ---
-const [isResizing, setIsResizing] = useState(false);
-const [leftPanelWidth, setLeftPanelWidth] = useState<number>(50);
-const resizerRef = useRef<HTMLDivElement | null>(null);
-const gridsBodyRef = useRef<HTMLDivElement | null>(null);
+    // --- ALL STATE IS GONE. THE COMPONENT ONLY USES HOOKS FOR LOGIC AND REFS ---
+    const { leftPanelWidth, resizerRef, containerRef: gridsBodyRef, handleResizeMouseDown, isResizing } = useResizablePanels();
+    const { gridStartRef, gridEndRef, leftGridContainerRef, rightGridContainerRef, viewport, onScrollStart, onScrollEnd, handleMinimapNavigate } = useSyncedGrids(visiblePanel);
 
-const summary = useMemo(() => generateSummary(result), [result]);
-const affectedSheetNames = useMemo(() => {
-    const sheetsFromCells = result.modifiedCells.map(c => c.sheet);
-    const sheetsFromStructure = summary.highLevelChanges.map(c => c.sheet);
-    return [...new Set([...sheetsFromCells, ...sheetsFromStructure])];
-}, [result, summary]);
-const [selectedSheetName, setSelectedSheetName] = useState<string>(affectedSheetNames[0] ?? "");
-
-// --- Handlers and effect for GRID RESIZING ---
-const handleResizeMouseMove = useCallback((e: MouseEvent) => {
-    if (!isResizing || !gridsBodyRef.current) return;
-    
-    const containerRect = gridsBodyRef.current.getBoundingClientRect();
-    const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-    const clampedWidth = Math.max(10, Math.min(newLeftWidth, 90));
-    setLeftPanelWidth(clampedWidth);
-}, [isResizing]);
-
-const handleResizeMouseUp = useCallback(() => {
-    setIsResizing(false);
-}, []);
-
-const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-}, []);
-
-useEffect(() => {
-    if (isResizing) {
-        window.addEventListener('mousemove', handleResizeMouseMove);
-        window.addEventListener('mouseup', handleResizeMouseUp);
-    } else {
-        window.removeEventListener('mousemove', handleResizeMouseMove);
-        window.removeEventListener('mouseup', handleResizeMouseUp);
-    }
-    return () => {
-        window.removeEventListener('mousemove', handleResizeMouseMove);
-        window.removeEventListener('mouseup', handleResizeMouseUp);
-    };
-}, [isResizing, handleResizeMouseMove, handleResizeMouseUp]);
-
-useEffect(() => {
-    setVisiblePanel('both');
-}, [selectedSheetName]);
-
-const { startSheet, endSheet } = useMemo(() => {
-    const startSheetId = getSheetIdByName(startSnapshot, selectedSheetName);
-    const endSheetId = getSheetIdByName(endSnapshot, selectedSheetName);
-    return {
-        startSheet: startSheetId ? startSnapshot[startSheetId] : undefined,
-        endSheet: endSheetId ? endSnapshot[endSheetId] : undefined
-    };
-}, [selectedSheetName, startSnapshot, endSnapshot]);
-
-const changeMap = useMemo(() => {
-    const map = new Map<string, ICombinedChange>();
-    for (const change of result.modifiedCells) {
-        if (change.sheet === selectedSheetName) {
-            map.set(`${change.sheet}-${change.address}`, change);
+    const totalGridContentWidth = useMemo(() => {
+        let totalWidth = 0;
+        const DEFAULT_COL_WIDTH = 100;
+        for (let i = 0; i < colCount; i++) {
+            totalWidth += unifiedColumnWidths[i] ?? DEFAULT_COL_WIDTH;
         }
-    }
-    return map;
-}, [result, selectedSheetName]);
+        return totalWidth;
+    }, [unifiedColumnWidths, colCount]);
 
-const changedRowsAndCols = useMemo(() => {
-    const rows = new Set<number>();
-    const cols = new Set<number>();
-    
-    for (const change of result.modifiedCells) {
-        if (change.sheet === selectedSheetName) {
-            const match = change.address.match(/^([A-Z]+)(\d+)$/);
-            if (match) {
-                const colStr = match[1];
-                const rowNum = parseInt(match[2], 10);
-                
-                let colIndex = 0;
-                for (let i = 0; i < colStr.length; i++) {
-                    colIndex = colIndex * 26 + (colStr.charCodeAt(i) - 64);
-                }
-                
-                rows.add(rowNum - 1);
-                cols.add(colIndex - 1);
-            }
-        }
-    }
-    
-    return { rows, cols };
-}, [result, selectedSheetName]);
-    
-const unifiedColumnWidths = useMemo(() => {
-    const startWidths = startSheet?.columnWidths || [];
-    const endWidths = endSheet?.columnWidths || [];
-    const maxCols = Math.max(startWidths.length, endWidths.length);
-    const unified: number[] = [];
-    const DEFAULT_COL_WIDTH = 100;
+    const totalGridContentHeight = rowCount * 22;
 
-    for (let i = 0; i < maxCols; i++) {
-        const startWidth = startWidths[i] || DEFAULT_COL_WIDTH;
-        const endWidth = endWidths[i] || DEFAULT_COL_WIDTH;
-        unified.push(Math.max(startWidth, endWidth));
-    }
-    return unified;
-}, [startSheet, endSheet]);
-
-const gridStartRef = useRef<GridImperativeAPI | null>(null);
-const gridEndRef = useRef<GridImperativeAPI | null>(null);
-const isScrolling = useRef(false);
-
-const leftGridContainerRef = useRef<HTMLDivElement | null>(null);
-const rightGridContainerRef = useRef<HTMLDivElement | null>(null);
-
-const [viewport, setViewport] = useState({
-    scrollTop: 0,
-    scrollLeft: 0,
-    viewportWidth: 1,
-    viewportHeight: 1,
-});
-
-useEffect(() => {
-    let container: HTMLDivElement | null = null;
-    if (visiblePanel === 'start') {
-        container = leftGridContainerRef.current;
-    } else if (visiblePanel === 'end' || visiblePanel === 'both') {
-        container = rightGridContainerRef.current;
-    }
-
-    if (!container) return () => {};
-
-    const resizeObserver = new ResizeObserver(() => {
-        const { width, height } = container.getBoundingClientRect();
-        const approxGridHeight = height - 30; 
-        
-        // Subtract the fixed-size, non-scrollable headers from the dimensions
-        // to get the true scrollable viewport size.
-        // Row Header Width = 50px
-        // Column Header Height = 22px
-        setViewport(prev => ({ 
-            ...prev, 
-            viewportWidth: width - 50, 
-            viewportHeight: approxGridHeight - 22 
-        }));
-    });
-
-    resizeObserver.observe(container);
-    
-    return () => {
-        resizeObserver.disconnect();
+    const leftPanelStyle: React.CSSProperties = {
+        width: visiblePanel === 'start' ? '100%' : `${leftPanelWidth}%`,
+        flexShrink: 0,
+        display: 'flex',
     };
-}, [visiblePanel]);
 
-const onScrollStart = (scrollTop: number, scrollLeft: number) => {
-    setViewport(prev => ({...prev, scrollTop, scrollLeft}));
-    if (isScrolling.current) return;
-    isScrolling.current = true;
-    const targetElement = gridEndRef.current?.element;
-    if (targetElement) {
-        targetElement.scrollTop = scrollTop;
-        targetElement.scrollLeft = scrollLeft;
-    }
-    requestAnimationFrame(() => { isScrolling.current = false; });
-};
+    return (
+        <div className={`${styles.rootContainer} ${isResizing ? styles.isResizingGrids : ''}`}>
+            <FloatingToolbar onSummaryClick={() => { }} onFilterClick={() => { }} onSettingsClick={() => { }} onRestoreClick={() => { }} isRestoreDisabled={result.modifiedCells.length === 0
+                } />
 
-const onScrollEnd = (scrollTop: number, scrollLeft: number) => {
-    setViewport(prev => ({...prev, scrollTop, scrollLeft}));
-    if (isScrolling.current) return;
-    isScrolling.current = true;
-    const targetElement = gridStartRef.current?.element;
-    if (targetElement) {
-        targetElement.scrollTop = scrollTop;
-        targetElement.scrollLeft = scrollLeft;
-    }
-    requestAnimationFrame(() => { isScrolling.current = false; });
-};
+            <ChangeDetailModal isOpen={!!selectedChange} onClose={onModalClose} change={selectedChange} licenseTier={licenseTier} />
 
-const handleCellClick = (change: ICombinedChange) => {
-    loggingService.log("[SideBySideDiffViewer] Cell clicked. Staging change for detail view.", change);
-    setSelectedChange(change);
-};
+            <div className={styles.gridsBody} ref={gridsBodyRef}>
+                {/* --- FloatingViewControls now only needs one prop --- */}
+                <FloatingViewControls affectedSheetNames={affectedSheetNames} />
 
-const handleModalClose = () => {
-    loggingService.log("[SideBySideDiffViewer] Closing detail view modal.");
-    setSelectedChange(null);
-};
-
-const rowCount = Math.max(
-    (startSheet?.startRow ?? 0) + (startSheet?.data.length ?? 0),
-    (endSheet?.startRow ?? 0) + (endSheet?.data.length ?? 0)
-);
-const colCount = Math.max(
-    (startSheet?.startCol ?? 0) + (startSheet?.data[0]?.cells.length ?? 0),
-    (endSheet?.startCol ?? 0) + (endSheet?.data[0]?.cells.length ?? 0)
-);
-
-const changeCoordinates = useMemo(() => {
-    const coords = [];
-    for (const cell of result.modifiedCells) {
-        if (cell.sheet !== selectedSheetName) continue;
-        const match = cell.address.match(/^([A-Z]+)(\d+)$/);
-        if (match) {
-            const colIndex = colLetterToIndex(match[1]);
-            const rowIndex = parseInt(match[2], 10) - 1;
-            coords.push({ rowIndex, colIndex });
-        }
-    }
-    return coords;
-}, [result.modifiedCells, selectedSheetName]);
-
-const totalGridContentWidth = useMemo(() => {
-    // Ensure calculation accounts for all columns up to colCount ---
-    let totalWidth = 0;
-    const DEFAULT_COL_WIDTH = 100; // This must match the default in VirtualizedDiffGrid
-    for (let i = 0; i < colCount; i++) {
-        totalWidth += unifiedColumnWidths[i] ?? DEFAULT_COL_WIDTH;
-    }
-    return totalWidth;
-}, [unifiedColumnWidths, colCount]);
-
-const totalGridContentHeight = rowCount * 22;
-
-const handleMinimapNavigate = (scrollTop: number, scrollLeft: number) => {
-    const startElement = gridStartRef.current?.element;
-    if (startElement) {
-        startElement.scrollTop = scrollTop;
-        startElement.scrollLeft = scrollLeft;
-    }
-    const endElement = gridEndRef.current?.element;
-    if (endElement) {
-        endElement.scrollTop = scrollTop;
-        endElement.scrollLeft = scrollLeft;
-    }
-};
-
-const leftPanelStyle: React.CSSProperties = {
-    width: visiblePanel === 'start' ? '100%' : `${leftPanelWidth}%`,
-    flexShrink: 0,
-    display: 'flex',
-};
-
-return (
-    <div className={`${styles.rootContainer} ${isResizing ? styles.isResizingGrids : ''}`}>
-        <FloatingToolbar
-            onSummaryClick={() => console.log("Summary clicked")}
-            onFilterClick={() => console.log("Filter clicked")}
-            onSettingsClick={() => console.log("Settings clicked")}
-            onRestoreClick={() => console.log("Restore clicked")}
-            isRestoreDisabled={result.modifiedCells.length === 0}
-        />
-
-        <ChangeDetailModal
-            isOpen={!!selectedChange}
-            onClose={handleModalClose}
-            change={selectedChange}
-            licenseTier={licenseTier}
-        />
-        
-        <div className={styles.gridsBody} ref={gridsBodyRef}>
-            <FloatingViewControls
-                affectedSheetNames={affectedSheetNames}
-                selectedSheetName={selectedSheetName}
-                onSheetChange={setSelectedSheetName}
-                visiblePanel={visiblePanel}
-                onVisibilityChange={setVisiblePanel}
-                highlightOnlyMode={highlightOnlyMode}
-                onHighlightModeChange={setHighlightOnlyMode}
-            />
-            
-            {visiblePanel !== 'end' && (
-                <div style={leftPanelStyle}>
-                    <ComparisonGridPanel
-                        panelType="start"
-                        versionComment={startVersionComment}
-                        containerRef={leftGridContainerRef}
-                        gridRef={gridStartRef}
-                        sheet={startSheet}
-                        changeMap={changeMap}
-                        sheetName={selectedSheetName}
-                        rowCount={rowCount}
-                        colCount={colCount}
-                        columnWidths={unifiedColumnWidths}
-                        onScroll={onScrollStart}
-                        onCellClick={handleCellClick}
-                        highlightOnlyMode={highlightOnlyMode}
-                        changedRows={changedRowsAndCols.rows}
-                        changedCols={changedRowsAndCols.cols}
-                    />
-                </div>
-            )}
-            
-            {visiblePanel === 'both' && (
-                <div 
-                    className={styles.gridSeparator} 
-                    ref={resizerRef}
-                    onMouseDown={handleResizeMouseDown}
-                >
-                    <div className={styles.dragHandle}>
-                        <span>&#8942;</span>
+                {visiblePanel !== 'end' && (
+                    <div style={leftPanelStyle}>
+                        <ComparisonGridPanel
+                            panelType="start"
+                            versionComment={startVersionComment}
+                            containerRef={leftGridContainerRef}
+                            gridRef={gridStartRef}
+                            sheet={startSheet}
+                            changeMap={changeMap}
+                            sheetName={startSheet?.name ?? ''}
+                            rowCount={rowCount}
+                            colCount={colCount}
+                            columnWidths={unifiedColumnWidths}
+                            onScroll={onScrollStart}
+                            onCellClick={onCellClick}
+                            highlightOnlyMode={highlightOnlyMode}
+                            changedRows={changedRowsAndCols.rows}
+                            changedCols={changedRowsAndCols.cols}
+                        />
                     </div>
-                </div>
-            )}
-            
-            {visiblePanel !== 'start' && (
-                <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
-                     <ComparisonGridPanel
-                        panelType="end"
-                        versionComment={endVersionComment}
-                        containerRef={rightGridContainerRef}
-                        gridRef={gridEndRef}
-                        sheet={endSheet}
-                        changeMap={changeMap}
-                        sheetName={selectedSheetName}
-                        rowCount={rowCount}
-                        colCount={colCount}
-                        columnWidths={unifiedColumnWidths}
-                        onScroll={onScrollEnd}
-                        onCellClick={handleCellClick}
-                        highlightOnlyMode={highlightOnlyMode}
-                        changedRows={changedRowsAndCols.rows}
-                        changedCols={changedRowsAndCols.cols}
-                    >
-                        {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
-                            <Minimap
-                                totalRowCount={rowCount}
-                                totalColumnCount={colCount}
-                                changeCoordinates={changeCoordinates}
-                                viewport={viewport}
-                                onNavigate={handleMinimapNavigate}
-                                gridPixelWidth={totalGridContentWidth}
-                                gridPixelHeight={totalGridContentHeight}
-                            />
-                        )}
-                    </ComparisonGridPanel>
-                </div>
-            )}
-        </div>
-    </div>
-);
+                )}
 
+                {visiblePanel === 'both' && (
+                    <div className={styles.gridSeparator} ref={resizerRef} onMouseDown={handleResizeMouseDown}>
+                        <div className={styles.dragHandle}><span>&#8942;</span></div>
+                    </div>
+                )}
+
+                {visiblePanel !== 'start' && (
+                    <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+                        <ComparisonGridPanel
+                            panelType="end"
+                            versionComment={endVersionComment}
+                            containerRef={rightGridContainerRef}
+                            gridRef={gridEndRef}
+                            sheet={endSheet}
+                            changeMap={changeMap}
+                            sheetName={endSheet?.name ?? ''}
+                            rowCount={rowCount}
+                            colCount={colCount}
+                            columnWidths={unifiedColumnWidths}
+                            onScroll={onScrollEnd}
+                            onCellClick={onCellClick}
+                            highlightOnlyMode={highlightOnlyMode}
+                            changedRows={changedRowsAndCols.rows}
+                            changedCols={changedRowsAndCols.cols}
+                        >
+                            {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
+                                <Minimap
+                                    totalRowCount={rowCount}
+                                    totalColumnCount={colCount}
+                                    changeCoordinates={changeCoordinates}
+                                    viewport={viewport}
+                                    onNavigate={handleMinimapNavigate}
+                                    gridPixelWidth={totalGridContentWidth}
+                                    gridPixelHeight={totalGridContentHeight}
+                                />
+                            )}
+                        </ComparisonGridPanel>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default SideBySideDiffViewer;

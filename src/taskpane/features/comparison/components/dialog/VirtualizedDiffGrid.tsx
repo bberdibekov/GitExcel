@@ -212,7 +212,6 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
     <div className={styles.gridOuterWrapper}>
       <div className={styles.gridTopLeftCorner}></div>
 
-      {/* FIX: Use gridComponentContainer to match the provided styles */}
       <div className={styles.gridComponentContainer}>
         <Grid
           gridRef={columnHeaderRef}
@@ -226,7 +225,6 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
         />
       </div>
 
-      {/* FIX: Use gridComponentContainer to match the provided styles */}
       <div className={styles.gridComponentContainer}>
         <List
           listRef={rowHeaderRef}

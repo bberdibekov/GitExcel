@@ -2,16 +2,13 @@
 
 import * as React from "react";
 import { useState, useMemo, useEffect } from "react";
-import { IDiffResult, IWorkbookSnapshot, ViewFilter } from "../../../../types/types";
+import { IDiffResult, IWorkbookSnapshot, ICombinedChange } from "../../../../types/types";
 import { Spinner } from "@fluentui/react-components";
-import { crossWindowMessageBus } from "../../../../core/dialog/CrossWindowMessageBus";
-import { MessageType } from "../../../../types/messaging.types";
-import { generateSummary, calculateSummaryStats } from "../../services/summary.service";
 import { truncateComment } from "../../../../shared/lib/string.utils";
-
 import SideBySideDiffViewer from "./SideBySideDiffViewer";
 import { useDialogComparisonViewStyles } from "./Styles/DialogComparisonView.styles";
-import { IHighLevelChange } from "../../../../types/types";
+import { useComparisonStore } from "../../../../state/comparisonStore";
+import { useComparisonData } from "../../hooks/useComparisonData";
 
 interface DialogComparisonViewProps {
   result: IDiffResult | null;
@@ -25,30 +22,17 @@ interface DialogComparisonViewProps {
 const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
   const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
   const styles = useDialogComparisonViewStyles();
+
+  // --- Read state from the store, including the filter ---
+  const { activeSheetName, visiblePanel, highlightOnlyMode, setActiveSheet, activeViewFilter } = useComparisonStore();
+
+  const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
   
-  const [activeViewFilter, setActiveViewFilter] = useState<ViewFilter>('all');
-  const [activeComparisonSettings, setActiveComparisonSettings] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const MAX_LENGTH = 30;
-    if (startVersionComment && endVersionComment) {
-      const truncatedStart = truncateComment(startVersionComment, MAX_LENGTH);
-      const truncatedEnd = truncateComment(endVersionComment, MAX_LENGTH);
-      document.title = `Comparison: "${truncatedStart}" vs. "${truncatedEnd}"`;
-    } else {
-      document.title = "Excel Version Control - Comparison";
-    }
-  }, [startVersionComment, endVersionComment]);
-
-
-  const summary = useMemo(() => result ? generateSummary(result) : { highLevelChanges: [] as IHighLevelChange[], modifiedCells: [] }, [result]);
-  const summaryStats = useMemo(() => calculateSummaryStats(result), [result]);
-
+  // --- Restore the filtering logic implementation ---
   const filteredResult = useMemo((): IDiffResult | null => {
     if (!result) {
       return null;
     }
-    // This filtering logic will eventually move, but is fine here for now.
     switch (activeViewFilter) {
       case 'values':
         return {
@@ -68,45 +52,86 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
       default:
         return result;
     }
-  }, [result, activeViewFilter]);
+  }, [result, activeViewFilter]); // Add activeViewFilter to the dependency array
 
-  const handleComparisonSettingChange = (changedSettings: Record<string, string[]>) => {
-    const newSettingsArray = changedSettings['comparison-settings'];
-    if (newSettingsArray) {
-        const newSettings = new Set(newSettingsArray);
-        setActiveComparisonSettings(newSettings);
-        crossWindowMessageBus.messageParent({
-          type: MessageType.RUN_COMPARISON_WITH_FILTERS,
-          payload: { filterIds: Array.from(newSettings) }
-        });
-    }
-  };
-  
+  // Wait until we have a valid result to process further data
   if (!filteredResult) {
     return <Spinner label="Loading comparison data..." />;
   }
+
+  // --- Now that filteredResult is guaranteed to be valid, we can call the data hook ---
+  return <ComparisonViewCore {...props} result={filteredResult} />;
+};
+
+
+// --- Helper component to allow hooks to be called conditionally ---
+const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
+  const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
+  
+  const { activeSheetName, visiblePanel, highlightOnlyMode, setActiveSheet } = useComparisonStore();
+  const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
+
+  const {
+      affectedSheetNames,
+      startSheet,
+      endSheet,
+      changeMap,
+      changedRowsAndCols,
+      unifiedColumnWidths,
+      changeCoordinates,
+      rowCount,
+      colCount
+  } = useComparisonData(result!, activeSheetName ?? "", startSnapshot, endSnapshot);
+
+  useEffect(() => {
+    if (affectedSheetNames.length > 0 && !activeSheetName) {
+      setActiveSheet(affectedSheetNames[0]);
+    }
+  }, [affectedSheetNames, activeSheetName, setActiveSheet]);
+
+  useEffect(() => {
+    const MAX_LENGTH = 30;
+    if (startVersionComment && endVersionComment) {
+      const truncatedStart = truncateComment(startVersionComment, MAX_LENGTH);
+      const truncatedEnd = truncateComment(endVersionComment, MAX_LENGTH);
+      document.title = `Comparison: "${truncatedStart}" vs. "${truncatedEnd}"`;
+    } else {
+      document.title = "Excel Version Control - Comparison";
+    }
+  }, [startVersionComment, endVersionComment]);
+
+  // Handle the case where the sheet name is not yet initialized
+  if (!activeSheetName) {
+      return <Spinner label="Initializing view..." />;
+  }
       
   return (
-    <div className={styles.dialogViewContainer}>
+    <div style={{ height: '100vh', width: '100vw' }}>
       <SideBySideDiffViewer
-        // Core props
-        result={filteredResult}
-        startSnapshot={startSnapshot}
-        endSnapshot={endSnapshot}
+        result={result!}
         startVersionComment={startVersionComment}
         endVersionComment={endVersionComment}
         licenseTier={licenseTier}
         
-        // Props inherited from CollapsiblePane for future use
-        highLevelChanges={summary.highLevelChanges}
-        summaryStats={summaryStats}
-        activeViewFilter={activeViewFilter}
-        activeComparisonSettings={activeComparisonSettings}
-        onViewFilterChange={setActiveViewFilter}
-        onComparisonSettingChange={handleComparisonSettingChange}
+        affectedSheetNames={affectedSheetNames}
+        startSheet={startSheet}
+        endSheet={endSheet}
+        changeMap={changeMap}
+        changedRowsAndCols={changedRowsAndCols}
+        unifiedColumnWidths={unifiedColumnWidths}
+        changeCoordinates={changeCoordinates}
+        rowCount={rowCount}
+        colCount={colCount}
+        
+        visiblePanel={visiblePanel}
+        highlightOnlyMode={highlightOnlyMode}
+        
+        selectedChange={selectedChange}
+        onCellClick={setSelectedChange}
+        onModalClose={() => setSelectedChange(null)}
       />
     </div>
   );
-};
+}
 
 export default DialogComparisonView;

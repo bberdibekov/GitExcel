@@ -8,8 +8,7 @@ import {
   Eye24Regular,
 } from '@fluentui/react-icons';
 import { usePanelVisibilityControlStyles } from './Styles/PanelVisibilityControl.styles';
-
-type VisiblePanel = 'both' | 'start' | 'end';
+import { VisiblePanel } from '../../../../types/types';
 
 interface PanelVisibilityControlProps {
   visiblePanel: VisiblePanel;
