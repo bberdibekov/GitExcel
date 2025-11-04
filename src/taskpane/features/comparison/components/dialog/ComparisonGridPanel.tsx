@@ -1,11 +1,11 @@
 // src/taskpane/features/comparison/components/dialog/ComparisonGridPanel.tsx
 
 import * as React from 'react';
-// --- REMOVED: Unused imports for Button, Tooltip, and icons. ---
 import { GridImperativeAPI } from 'react-window';
 import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import VirtualizedDiffGrid from './VirtualizedDiffGrid';
 import { useComparisonGridPanelStyles } from './Styles/ComparisonGridPanel.styles';
+import { GridMap } from '../../hooks/useComparisonData';
 
 interface ComparisonGridPanelProps {
     panelType: 'start' | 'end';
@@ -24,6 +24,9 @@ interface ComparisonGridPanelProps {
     changedRows: Set<number>;
     changedCols: Set<number>;
     children?: React.ReactNode; // To allow passing the Minimap
+    
+    gridMap: GridMap;
+    showStructuralChanges: boolean;
 }
 
 const ComparisonGridPanel: React.FC<ComparisonGridPanelProps> = (props) => {
@@ -42,14 +45,15 @@ const ComparisonGridPanel: React.FC<ComparisonGridPanelProps> = (props) => {
         highlightOnlyMode,
         changedRows,
         changedCols,
-        children
+        children,
+        gridMap,
+        showStructuralChanges,
     } = props;
 
     const styles = useComparisonGridPanelStyles();
 
     return (
         <div className={styles.gridColumn} ref={containerRef}>
-            {/* --- MODIFIED: Replaced the overlay with a proper header --- */}
             <div className={styles.panelHeader}>
                 {versionComment}
             </div>
@@ -70,6 +74,8 @@ const ComparisonGridPanel: React.FC<ComparisonGridPanelProps> = (props) => {
                     highlightOnlyMode={highlightOnlyMode}
                     changedRows={changedRows}
                     changedCols={changedCols}
+                    gridMap={gridMap}
+                    showStructuralChanges={showStructuralChanges}
                 />
             </div>
 

@@ -3,24 +3,19 @@
 import * as React from 'react';
 import { useMemo } from 'react';
 import {
-    IWorkbookSnapshot,
     IDiffResult,
-    IHighLevelChange,
     ICombinedChange,
-    ViewFilter,
     ISheetSnapshot,
     VisiblePanel
 } from '../../../../types/types';
 import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.styles';
-import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
 import { Minimap } from './Minimap';
-// --- REMOVED FloatingToolbar import ---
-import { ISummaryStats } from '../../services/summary.service';
 import ComparisonGridPanel from './ComparisonGridPanel';
 import FloatingViewControls from './FloatingViewControls';
 import { useResizablePanels } from '../../hooks/useResizablePanels';
 import { useSyncedGrids } from '../../hooks/useSyncedGrids';
+import { GridMap } from '../../hooks/useComparisonData';
 
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
@@ -37,6 +32,10 @@ interface SideBySideDiffViewerProps {
     changeCoordinates: { rowIndex: number; colIndex: number; }[];
     rowCount: number;
     colCount: number;
+
+    startGridMap: GridMap;
+    endGridMap: GridMap;
+    showStructuralChanges: boolean;
 
     visiblePanel: VisiblePanel;
     highlightOnlyMode: boolean;
@@ -62,6 +61,9 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
         changeCoordinates,
         rowCount,
         colCount,
+        startGridMap,
+        endGridMap,
+        showStructuralChanges,
         visiblePanel,
         highlightOnlyMode,
         selectedChange,
@@ -92,8 +94,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
 
     return (
         <div className={`${styles.rootContainer} ${isResizing ? styles.isResizingGrids : ''}`}>
-            {/* --- THIS LINE HAS BEEN REMOVED --- */}
-            {/* <FloatingToolbar ... /> */}
 
             <ChangeDetailModal isOpen={!!selectedChange} onClose={onModalClose} change={selectedChange} licenseTier={licenseTier} />
 
@@ -118,6 +118,8 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                             highlightOnlyMode={highlightOnlyMode}
                             changedRows={changedRowsAndCols.rows}
                             changedCols={changedRowsAndCols.cols}
+                            gridMap={startGridMap}
+                            showStructuralChanges={showStructuralChanges}
                         />
                     </div>
                 )}
@@ -146,8 +148,10 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
                             highlightOnlyMode={highlightOnlyMode}
                             changedRows={changedRowsAndCols.rows}
                             changedCols={changedRowsAndCols.cols}
+                            gridMap={endGridMap}
+                            showStructuralChanges={showStructuralChanges}
                         >
-                            {affectedSheetNames.length > 0 && changeCoordinates.length > 0 && (
+                            {affectedSheetNames.length > 0 && (
                                 <Minimap
                                     totalRowCount={rowCount}
                                     totalColumnCount={colCount}

@@ -85,13 +85,6 @@ class CrossWindowMessageBus {
       // loggingService.logError(error, `[MessageBus] Failed to parse or process incoming message: ${rawMessage}`);
     }
   }
-
-  /**
-   * @deprecated The message bus is now stateless. The DialogService manages dialog objects.
-   */
-  public __internal_setActiveDialog(): void { // <-- FIX: Removed the unused 'dialog' parameter
-    loggingService.warn("[MessageBus] __internal_setActiveDialog is deprecated. The DialogService is now responsible for managing and targeting dialogs.");
-  }
 }
 
 export const crossWindowMessageBus = new CrossWindowMessageBus();

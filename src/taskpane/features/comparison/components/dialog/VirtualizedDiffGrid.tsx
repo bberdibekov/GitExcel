@@ -13,11 +13,23 @@ import { ICombinedChange, ISheetSnapshot } from '../../../../types/types';
 import { Tooltip } from '@fluentui/react-components';
 import { useVirtualizedDiffGridStyles } from './Styles/VirtualizedDiffGrid.styles';
 import { toA1 } from '../../../../shared/lib/address.converter';
+import { GridMap, GridMapItem } from '../../hooks/useComparisonData';
 
 const joinClasses = (...classes: (string | undefined | boolean)[]) => { return classes.filter(Boolean).join(' '); };
 
 const isRealFormula = (formula: any): boolean => {
   return typeof formula === 'string' && formula.startsWith("=");
+};
+
+const StructuralChangePlaceholder: React.FC<{ style: React.CSSProperties, type: GridMapItem['type'], description: string }> = ({ style, type, description }) => {
+    const styles = useVirtualizedDiffGridStyles();
+    const className = type === 'placeholder_inserted' ? styles.gridCell_placeholder_inserted : styles.gridCell_placeholder_deleted;
+
+    return (
+        <Tooltip content={description} relationship="label" withArrow>
+            <div style={style} className={joinClasses(styles.gridCell, className)}></div>
+        </Tooltip>
+    );
 };
 
 type CustomCellData = {
@@ -28,6 +40,8 @@ type CustomCellData = {
   startCol: number;
   onCellClick: (change: ICombinedChange) => void;
   highlightOnlyMode: boolean;
+  gridMap: GridMap;
+  showStructuralChanges: boolean;
 };
 
 type MainCellProps = CellComponentProps & CustomCellData;
@@ -43,11 +57,43 @@ const MainCell: React.FC<MainCellProps> = ({
     startRow, 
     startCol, 
     onCellClick,
-    highlightOnlyMode 
+    highlightOnlyMode,
+    gridMap,
+    showStructuralChanges 
 }) => {
+
+    if (rowIndex < 5 && columnIndex < 5) { // Only log for the top-left cells to avoid flooding the console
+        const rowMapInfo = gridMap.rowMap[rowIndex];
+        const colMapInfo = gridMap.colMap[columnIndex];
+        console.log(`[MainCell ${sheetName}] R${rowIndex}C${columnIndex}`, {
+            rowMapInfo,
+            colMapInfo,
+            showStructuralChanges,
+            isPlaceholder: showStructuralChanges && (rowMapInfo?.type.startsWith('placeholder') || colMapInfo?.type.startsWith('placeholder')),
+            isOutOfBounds: !rowMapInfo || rowMapInfo.sourceIndex === -1 || !colMapInfo || colMapInfo.sourceIndex === -1,
+            dataRowIndex: rowMapInfo?.sourceIndex,
+            dataColIndex: colMapInfo?.sourceIndex,
+        });
+    }
     const styles = useVirtualizedDiffGridStyles();
-    const dataRowIndex = rowIndex - startRow;
-    const dataColIndex = columnIndex - startCol;
+
+    const rowMapInfo = gridMap.rowMap[rowIndex];
+    const colMapInfo = gridMap.colMap[columnIndex];
+
+    if (showStructuralChanges && rowMapInfo?.type.startsWith('placeholder')) {
+        return <StructuralChangePlaceholder style={style} type={rowMapInfo.type} description={rowMapInfo.description || ''} />;
+    }
+    if (showStructuralChanges && colMapInfo?.type.startsWith('placeholder')) {
+        return <StructuralChangePlaceholder style={style} type={colMapInfo.type} description={colMapInfo.description || ''} />;
+    }
+    
+    if (!rowMapInfo || rowMapInfo.sourceIndex === -1 || !colMapInfo || colMapInfo.sourceIndex === -1) {
+        return <div style={style} {...ariaAttributes} className={joinClasses(styles.gridCell, styles.gridCell_blank)}></div>;
+    }
+
+    const dataRowIndex = rowMapInfo.sourceIndex - startRow;
+    const dataColIndex = colMapInfo.sourceIndex - startCol;
+
     const isOutOfBounds = 
         dataRowIndex < 0 || dataColIndex < 0 || 
         !sheet || dataRowIndex >= sheet.data.length || 
@@ -68,15 +114,19 @@ const MainCell: React.FC<MainCellProps> = ({
     const hasContent = cell && (cell.value !== '' || isFormula);
     const shouldHideRow = highlightOnlyMode && !isChanged;
     
+    const isDeletedRow = showStructuralChanges && rowMapInfo.type === 'deleted';
+    const isInsertedRow = showStructuralChanges && rowMapInfo.type === 'inserted';
+    
     const className = joinClasses(
       styles.gridCell, 
       !hasContent && styles.gridCell_blank,
       isChanged && styles.gridCell_changed,
       isChanged && styles.gridCell_changedBorder,
-      shouldHideRow && styles.gridCell_hidden
+      shouldHideRow && styles.gridCell_hidden,
+      isDeletedRow && styles.gridCell_deleted,
+      isInsertedRow && styles.gridCell_inserted
     );
     
-    // --- ADDED: Logic to conditionally style the text ---
     const textClassName = joinClasses(
         styles.cellText,
         !isChanged && hasContent && styles.cellText_unchanged
@@ -107,7 +157,6 @@ const MainCell: React.FC<MainCellProps> = ({
       <div style={style} {...ariaAttributes} className={className} onClick={handleClick}>
         <div className={styles.cellContentWrapper}>
           <Tooltip content={tooltipContent} relationship="label">
-            {/* --- MODIFIED: Apply the conditional class name here --- */}
             <span className={textClassName}>{displayValue}</span>
           </Tooltip>
           {isFormula && <span className={styles.fxBadge}>fx</span>}
@@ -163,16 +212,27 @@ interface VirtualizedDiffGridProps {
   highlightOnlyMode: boolean;
   changedRows: Set<number>;
   changedCols: Set<number>;
+  gridMap: GridMap;
+  showStructuralChanges: boolean;
 }
 
 type GridCellComponent = (props: CellComponentProps) => React.ReactElement;
 type ListRowComponent = (props: RowComponentProps) => React.ReactElement;
 
 const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
-  sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef, onCellClick, highlightOnlyMode, changedRows, changedCols
+  sheet, changeMap, sheetName, rowCount, colCount, startRow, startCol, columnWidths, onScroll, gridRef, onCellClick, highlightOnlyMode, changedRows, changedCols,
+  gridMap, showStructuralChanges
 }) => {
   const styles = useVirtualizedDiffGridStyles();
-  
+  React.useEffect(() => {
+    console.log(`[VirtualizedDiffGrid - ${sheetName}] Props Received`, {
+        rowCount,
+        colCount,
+        gridMapRows: gridMap.rowMap.length,
+        showStructuralChanges,
+        hasSheet: !!sheet,
+    });
+  }, [rowCount, colCount, gridMap, showStructuralChanges, sheet, sheetName]);
   const columnHeaderRef = React.useRef<GridImperativeAPI | null>(null);
   const rowHeaderRef = useListRef();
   
@@ -192,7 +252,7 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
   
   const getColumnWidth = (index: number) => columnWidths?.[index] ?? 100;
 
-  const cellProps = React.useMemo(() => ({ sheet, changeMap, sheetName, startRow, startCol, onCellClick, highlightOnlyMode }), [sheet, changeMap, sheetName, startRow, startCol, onCellClick, highlightOnlyMode]);
+  const cellProps = React.useMemo(() => ({ sheet, changeMap, sheetName, startRow, startCol, onCellClick, highlightOnlyMode, gridMap, showStructuralChanges }), [sheet, changeMap, sheetName, startRow, startCol, onCellClick, highlightOnlyMode, gridMap, showStructuralChanges]);
   const columnHeaderProps = React.useMemo(() => ({ changedCols }), [changedCols]);
   const rowHeaderProps = React.useMemo(() => ({ changedRows }), [changedRows]);
 
@@ -204,8 +264,15 @@ const VirtualizedDiffGrid: React.FC<VirtualizedDiffGridProps> = ({
     onScroll(scrollTop, scrollLeft);
   };
 
+  // We keep this guard. If the entire sheet is undefined (e.g. added sheet, looking at the 'start' panel),
+  // we shouldn't attempt to render the grid for it. Placeholders are for changes *within* a sheet.
   if (!sheet) {
-    return <div className={styles.gridOuterWrapper}></div>;
+    // A special case to render an empty grid if there are structural changes to display
+    if (showStructuralChanges && gridMap.rowMap.some(r => r.type.startsWith('placeholder'))) {
+      // Render the grid, the cells will handle the empty sheet and show placeholders
+    } else {
+      return <div className={styles.gridOuterWrapper}></div>;
+    }
   }
 
   return (

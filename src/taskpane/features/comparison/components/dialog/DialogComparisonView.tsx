@@ -27,39 +27,42 @@ interface DialogComparisonViewProps {
 }
 
 const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
-  const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
+  const { result } = props;
   const styles = useDialogComparisonViewStyles();
 
-  const { activeSheetName, visiblePanel, highlightOnlyMode, setActiveSheet, activeViewFilter } = useComparisonStore();
+  const { activeViewFilters } = useComparisonStore();
 
-  const [selectedChange, setSelectedChange] = useState<ICombinedChange | null>(null);
-  
   const filteredResult = useMemo((): IDiffResult | null => {
     if (!result) {
       return null;
     }
-    // NOTE: This basic filtering by type is still useful for the main view filter.
-    // The advanced filters will be handled separately and will eventually modify the `result` object itself.
-    switch (activeViewFilter) {
-      case 'values':
-        return {
-          ...result,
-          modifiedCells: result.modifiedCells.filter(
-            (c) => c.changeType === 'value' || c.changeType === 'both'
-          ),
-        };
-      case 'formulas':
-        return {
-          ...result,
-          modifiedCells: result.modifiedCells.filter(
-            (c) => c.changeType === 'formula' || c.changeType === 'both'
-          ),
-        };
-      case 'all':
-      default:
-        return result;
+    
+    // --- Filtering logic for multiple filters ---
+    // If 'all' is present, or if no specific cell-level filters are selected, show all cells.
+    // Structural changes are handled by the grid mapping, not by filtering this result object.
+    if (activeViewFilters.has('all') || (!activeViewFilters.has('values') && !activeViewFilters.has('formulas'))) {
+      return result; 
     }
-  }, [result, activeViewFilter]);
+
+    const shouldShowValues = activeViewFilters.has('values');
+    const shouldShowFormulas = activeViewFilters.has('formulas');
+
+    const filteredCells = result.modifiedCells.filter((c) => {
+      if (shouldShowValues && (c.changeType === 'value' || c.changeType === 'both')) {
+        return true;
+      }
+      if (shouldShowFormulas && (c.changeType === 'formula' || c.changeType === 'both')) {
+        return true;
+      }
+      return false;
+    });
+
+    return {
+      ...result,
+      modifiedCells: filteredCells,
+    };
+
+  }, [result, activeViewFilters]);
 
   if (!filteredResult) {
     return <Spinner label="Loading comparison data..." />;
@@ -72,17 +75,18 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
 // --- Helper component to allow hooks to be called conditionally ---
 const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
   const { result, startSnapshot, endSnapshot, licenseTier, startVersionComment, endVersionComment } = props;
-  
-  // --- START: EXPANDED STATE MANAGEMENT ---
+  console.log("DEBUG: Data received by ComparisonViewCore", { 
+    start: startVersionComment, 
+    end: endVersionComment, 
+    cellChangeAddress: result?.modifiedCells[0]?.address 
+});
   const { 
     activeSheetName, 
     visiblePanel, 
     highlightOnlyMode, 
     setActiveSheet,
-    
-    activeViewFilter,
-    setViewFilter,
-    // New state for flyouts
+    activeViewFilters,
+    toggleViewFilter,
     activeFlyout,
     flyoutPositions,
     setActiveFlyout,
@@ -93,7 +97,6 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
   
   // State for the advanced filter options panel
   const [activeFilters, setActiveFilters] = React.useState(new Set<string>());
-  // --- END: EXPANDED STATE MANAGEMENT ---
 
   const {
       affectedSheetNames,
@@ -104,7 +107,9 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
       unifiedColumnWidths,
       changeCoordinates,
       rowCount,
-      colCount
+      colCount,
+      startGridMap,
+      endGridMap,  
   } = useComparisonData(result!, activeSheetName ?? "", startSnapshot, endSnapshot);
 
   // --- START: DATA PREPARATION FOR FLYOUTS ---
@@ -121,7 +126,6 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
         }
         return newSet;
     });
-    // In a future step, you would trigger a re-comparison with these active filters.
   };
   // --- END: DATA PREPARATION FOR FLYOUTS ---
 
@@ -171,20 +175,15 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
                 </FloatingPanel>
             );
         case 'filters':
-             // This panel now renders both sets of filter controls
              return (
                 <FloatingPanel title="Filters" {...panelProps}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {/* 1. The original, high-level view filters */}
+                        {/* --- Pass new props to ViewFilterGroup --- */}
                         <ViewFilterGroup 
-                            activeFilter={activeViewFilter} 
-                            onFilterChange={setViewFilter} 
+                            activeFilters={activeViewFilters} 
+                            onFilterChange={toggleViewFilter} 
                         />
-
-                        {/* 2. A clear separator */}
                         <Divider />
-                        
-                        {/* 3. The new, advanced refinement filters */}
                         <DiffFilterOptions 
                             activeFilters={activeFilters} 
                             onFilterChange={handleFilterChange} 
@@ -200,9 +199,7 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
   };
   // --- END: FLYOUT RENDERING LOGIC ---
 
-  // --- START: MODIFIED RENDER OUTPUT ---
   return (
-    // The parent div needs to be a positioning context for the absolute panels.
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
       <SideBySideDiffViewer
         result={result!}
@@ -217,8 +214,12 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
         changedRowsAndCols={changedRowsAndCols}
         unifiedColumnWidths={unifiedColumnWidths}
         changeCoordinates={changeCoordinates}
+        
         rowCount={rowCount}
         colCount={colCount}
+        startGridMap={startGridMap}
+        endGridMap={endGridMap}
+        showStructuralChanges={activeViewFilters.has('structural') || activeViewFilters.has('all')}
         
         visiblePanel={visiblePanel}
         highlightOnlyMode={highlightOnlyMode}
@@ -238,7 +239,6 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
 
     </div>
   );
-  // --- END: MODIFIED RENDER OUTPUT ---
 }
 
 export default DialogComparisonView;

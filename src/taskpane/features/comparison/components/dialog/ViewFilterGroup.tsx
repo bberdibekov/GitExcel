@@ -1,11 +1,11 @@
 // src/taskpane/features/comparison/components/dialog/ViewFilterGroup.tsx
 
 import * as React from 'react';
-import { Button, Label, Divider, makeStyles, shorthands } from '@fluentui/react-components';
+import { Button, Label, makeStyles, shorthands } from '@fluentui/react-components';
 import { ViewFilter } from '../../../../types/types';
 
 interface ViewFilterGroupProps {
-    activeFilter: ViewFilter;
+    activeFilters: Set<ViewFilter>; // This interface is correct from my previous change
     onFilterChange: (filter: ViewFilter) => void;
 }
 
@@ -25,7 +25,8 @@ const useViewFilterGroupStyles = makeStyles({
     }
 });
 
-const ViewFilterGroup: React.FC<ViewFilterGroupProps> = ({ activeFilter, onFilterChange }) => {
+// --- Destructure `activeFilters` instead of `activeFilter` ---
+const ViewFilterGroup: React.FC<ViewFilterGroupProps> = ({ activeFilters, onFilterChange }) => {
     const styles = useViewFilterGroupStyles();
     
     return (
@@ -33,27 +34,28 @@ const ViewFilterGroup: React.FC<ViewFilterGroupProps> = ({ activeFilter, onFilte
             <Label className={styles.label}>View Changes</Label>
             <div className={styles.buttonGroup}>
                 <Button
-                    appearance={activeFilter === 'all' ? 'primary' : 'outline'}
+                    // --- Check for the filter in the Set ---
+                    appearance={activeFilters.has('all') ? 'primary' : 'outline'}
                     onClick={() => onFilterChange('all')}
                 >
                     All
                 </Button>
                 <Button
-                    appearance={activeFilter === 'values' ? 'primary' : 'outline'}
+                    appearance={activeFilters.has('values') ? 'primary' : 'outline'}
                     onClick={() => onFilterChange('values')}
                 >
                     Values
                 </Button>
                 <Button
-                    appearance={activeFilter === 'formulas' ? 'primary' : 'outline'}
+                    appearance={activeFilters.has('formulas') ? 'primary' : 'outline'}
                     onClick={() => onFilterChange('formulas')}
                 >
                     Formulas
                 </Button>
                 <Button
-                    appearance={activeFilter === 'structural' ? 'primary' : 'outline'}
+                    appearance={activeFilters.has('structural') ? 'primary' : 'outline'}
                     onClick={() => onFilterChange('structural')}
-                    disabled // Assuming 'structural' view is not yet implemented
+                    // No longer disabled
                 >
                     Structural
                 </Button>

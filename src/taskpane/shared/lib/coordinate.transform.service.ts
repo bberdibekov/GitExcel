@@ -63,7 +63,7 @@ export function transformAddress(initialAddress: string, changes: IStructuralCha
         }
         break;
       
-      // --- START: ADDED COLUMN LOGIC ---
+      // --- START: COLUMN LOGIC ---
       case "column_insertion":
         // If a column is inserted at or before the cell's current position, shift the cell right.
         if (change.index! <= currentCoords.col) {
@@ -88,7 +88,7 @@ export function transformAddress(initialAddress: string, changes: IStructuralCha
           }
         }
         break;
-      // --- END: ADDED COLUMN LOGIC ---
+      // --- END: COLUMN LOGIC ---
       
       // NOTE: Sheet logic would follow a similar pattern if needed.
       // case "sheet_rename": ...

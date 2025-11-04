@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { useAppStore } from '../../../state/appStore';
-// import { useDialogStore } from '../../../state/dialogStore'; // <-- No longer needed here
 import { Button, Subtitle1, Body1 } from '@fluentui/react-components';
 import { ArrowLeft16Filled } from '@fluentui/react-icons';
 import { loggingService } from '../../../core/services/LoggingService';
@@ -18,9 +17,7 @@ export const TaskPaneComparisonView: React.FC = () => {
   const startSnapshot = useAppStore((state) => state.startSnapshot);
   const endSnapshot = useAppStore((state) => state.endSnapshot);
   const clearComparison = useAppStore((state) => state.clearComparison);
-  
-  // const openDialog = useDialogStore((s) => s.open); // <-- FIX: This was removed.
-  
+ 
   if (!diffResult || !startSnapshot || !endSnapshot) {
     return (
         <div>

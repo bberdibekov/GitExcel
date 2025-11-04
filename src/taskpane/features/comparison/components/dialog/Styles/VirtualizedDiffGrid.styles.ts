@@ -1,4 +1,3 @@
-// src/taskpane/features/comparison/components/dialog/Styles/VirtualizedDiffGrid.styles.ts
 import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 
 /**
@@ -42,6 +41,46 @@ export const useVirtualizedDiffGridStyles = makeStyles({
     },
     gridCell_hidden: {
         display: "none",
+    },
+
+    gridCell_deleted: {
+        backgroundColor: tokens.colorPaletteRedBackground1,
+        "& .cell-text": { // Target the inner span for the strikethrough
+            textDecorationLine: 'line-through',
+        }
+    },
+    gridCell_inserted: {
+        backgroundColor: tokens.colorPaletteGreenBackground1,
+    },
+    gridCell_placeholder_deleted: {
+        cursor: 'default',
+        backgroundColor: tokens.colorNeutralBackground4,
+        backgroundImage: `repeating-linear-gradient(
+            -45deg,
+            ${tokens.colorNeutralBackground5},
+            ${tokens.colorNeutralBackground5} 5px,
+            transparent 5px,
+            transparent 10px
+        )`,
+        ":hover": {
+            cursor: 'default',
+            backgroundColor: tokens.colorNeutralBackground4,
+        }
+    },
+    gridCell_placeholder_inserted: {
+        cursor: 'default',
+        backgroundColor: tokens.colorNeutralBackground4,
+        backgroundImage: `repeating-linear-gradient(
+            45deg,
+            ${tokens.colorNeutralBackground5},
+            ${tokens.colorNeutralBackground5} 5px,
+            transparent 5px,
+            transparent 10px
+        )`,
+         ":hover": {
+            cursor: 'default',
+            backgroundColor: tokens.colorNeutralBackground4,
+        }
     },
     gridOuterWrapper: {
         display: "grid",
@@ -101,6 +140,7 @@ export const useVirtualizedDiffGridStyles = makeStyles({
         minWidth: 0,
     },
     cellText: {
+        className: 'cell-text', 
         flexGrow: 1,
         minWidth: 0,
         whiteSpace: "nowrap",

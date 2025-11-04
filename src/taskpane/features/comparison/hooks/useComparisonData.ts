@@ -1,7 +1,7 @@
 // src/taskpane/features/comparison/hooks/useComparisonData.ts
 
 import { useMemo } from 'react';
-import { IDiffResult, IWorkbookSnapshot, ICombinedChange, ISheetSnapshot } from '../../../types/types';
+import { IDiffResult, IWorkbookSnapshot, ICombinedChange, ISheetSnapshot, IReportStructuralChange } from '../../../types/types';
 import { generateSummary } from '../services/summary.service';
 
 // --- Helper Functions (co-located with the hook that uses them) ---
@@ -18,15 +18,23 @@ const getSheetIdByName = (snapshot: IWorkbookSnapshot, sheetName: string): strin
     return Object.keys(snapshot).find(id => snapshot[id].name === sheetName);
 };
 
+// --- Type definitions for our grid mapping, exported for use in other components ---
+export type GridMapItem = {
+    type: 'original' | 'placeholder_inserted' | 'placeholder_deleted' | 'inserted' | 'deleted';
+    sourceIndex: number; // The index in the original ISheetSnapshot.data or columnWidths array. -1 for placeholders.
+    description?: string;
+    count?: number; // How many rows/cols this item represents
+};
+
+export type GridMap = {
+    rowMap: GridMapItem[];
+    colMap: GridMapItem[];
+};
+
 
 /**
  * A custom hook that encapsulates the logic for transforming raw comparison results
  * into memoized, view-specific data structures needed for rendering the diff grids.
- * @param result The raw diff result from the synthesizer service.
- * @param selectedSheetName The name of the sheet currently being viewed.
- * @param startSnapshot The "before" snapshot.
- * @param endSnapshot The "after" snapshot.
- * @returns An object containing all the derived data for the view.
  */
 export const useComparisonData = (
     result: IDiffResult, 
@@ -53,6 +61,7 @@ export const useComparisonData = (
     }, [selectedSheetName, startSnapshot, endSnapshot]);
 
     const changeMap = useMemo(() => {
+        console.log("[useComparisonData] Calculating changeMap. Input 'result' contains change at address:", result.modifiedCells[0]?.address);
         const map = new Map<string, ICombinedChange>();
         for (const change of result.modifiedCells) {
             if (change.sheet === selectedSheetName) {
@@ -79,19 +88,122 @@ export const useComparisonData = (
         return { rows, cols };
     }, [result, selectedSheetName]);
 
+    const {
+        unifiedRowCount,
+        unifiedColCount,
+        startGridMap,
+        endGridMap
+    } = useMemo(() => {
+        console.log(`[useComparisonData] Calculating GridMap for sheet: ${selectedSheetName}. Received structural changes:`, result.structuralChanges);
+        const structuralChanges = result.structuralChanges.filter(c => c.sheet === selectedSheetName);
+        const rowInsertions = structuralChanges.filter(c => c.type === 'row_insertion');
+        const rowDeletions = structuralChanges.filter(c => c.type === 'row_deletion');
+        const colInsertions = structuralChanges.filter(c => c.type === 'column_insertion');
+        const colDeletions = structuralChanges.filter(c => c.type === 'column_deletion');
+
+        const startSheetLogicalRows = startSheet ? startSheet.startRow + startSheet.data.length : 0;
+        const endSheetLogicalRows = endSheet ? endSheet.startRow + endSheet.data.length : 0;
+
+        const startSheetLogicalCols = startSheet ? startSheet.startCol + (startSheet.columnWidths?.length ?? 0) : 0;
+        const endSheetLogicalCols = endSheet ? endSheet.startCol + (endSheet.columnWidths?.length ?? 0) : 0;
+
+        const processMap = (
+            startLength: number, 
+            endLength: number, 
+            insertions: IReportStructuralChange[], 
+            deletions: IReportStructuralChange[]
+        ): { startMap: GridMapItem[], endMap: GridMapItem[] } => {
+            const startMap: GridMapItem[] = [];
+            const endMap: GridMapItem[] = [];
+            let startIdx = 0;
+            let endIdx = 0;
+
+            const deletionMap = new Map(deletions.map(d => [d.index, d]));
+            const insertionMap = new Map(insertions.map(i => [i.index, i]));
+
+            while (startIdx < startLength || endIdx < endLength) {
+                const deletion = deletionMap.get(startIdx);
+                if (deletion) {
+                    const count = deletion.count ?? 1;
+                    const desc = count > 1 ? `Rows ${startIdx + 1}-${startIdx + count} were deleted.` : `Row ${startIdx + 1} was deleted.`;
+                    for(let i = 0; i < count; i++) {
+                        startMap.push({ type: 'deleted', sourceIndex: startIdx + i, description: desc });
+                        endMap.push({ type: 'placeholder_deleted', sourceIndex: -1, description: desc });
+                    }
+                    startIdx += count;
+                    continue;
+                }
+
+                const insertion = insertionMap.get(endIdx);
+                if (insertion) {
+                    const count = insertion.count ?? 1;
+                    const desc = count > 1 ? `Rows ${endIdx + 1}-${endIdx + count} were inserted.` : `Row ${endIdx + 1} was inserted.`;
+                    for(let i = 0; i < count; i++) {
+                        startMap.push({ type: 'placeholder_inserted', sourceIndex: -1, description: desc });
+                        endMap.push({ type: 'inserted', sourceIndex: endIdx + i, description: desc });
+                    }
+                    endIdx += count;
+                    continue;
+                }
+                
+                if (startIdx < startLength && endIdx < endLength) {
+                    startMap.push({ type: 'original', sourceIndex: startIdx });
+                    endMap.push({ type: 'original', sourceIndex: endIdx });
+                    startIdx++;
+                    endIdx++;
+                } else if (startIdx < startLength) {
+                    const desc = `Row ${startIdx + 1} was deleted.`;
+                    startMap.push({ type: 'deleted', sourceIndex: startIdx, description: desc });
+                    endMap.push({ type: 'placeholder_deleted', sourceIndex: -1, description: desc });
+                    startIdx++;
+                } else if (endIdx < endLength) {
+                    const desc = `Row ${endIdx + 1} was inserted.`;
+                    startMap.push({ type: 'placeholder_inserted', sourceIndex: -1, description: desc });
+                    endMap.push({ type: 'inserted', sourceIndex: endIdx, description: desc });
+                    endIdx++;
+                } else {
+                    break; 
+                }
+            }
+            return { startMap, endMap };
+        };
+
+        const { startMap: rowStartMap, endMap: rowEndMap } = processMap(startSheetLogicalRows, endSheetLogicalRows, rowInsertions, rowDeletions);
+        const { startMap: colStartMap, endMap: colEndMap } = processMap(startSheetLogicalCols, endSheetLogicalCols, colInsertions, colDeletions);
+
+        const startGridMap: GridMap = { rowMap: rowStartMap, colMap: colStartMap };
+        const endGridMap: GridMap = { rowMap: rowEndMap, colMap: colEndMap };
+        
+        return {
+            unifiedRowCount: startGridMap.rowMap.length,
+            unifiedColCount: startGridMap.colMap.length,
+            startGridMap,
+            endGridMap
+        };
+    }, [result.structuralChanges, selectedSheetName, startSheet, endSheet]);
+
     const unifiedColumnWidths = useMemo(() => {
-        const startWidths = startSheet?.columnWidths || [];
-        const endWidths = endSheet?.columnWidths || [];
-        const maxCols = Math.max(startWidths.length, endWidths.length);
         const unified: number[] = [];
         const DEFAULT_COL_WIDTH = 100;
-        for (let i = 0; i < maxCols; i++) {
-            const startWidth = startWidths[i] || DEFAULT_COL_WIDTH;
-            const endWidth = endWidths[i] || DEFAULT_COL_WIDTH;
+        const PLACEHOLDER_WIDTH = 40;
+        
+        for (let i = 0; i < unifiedColCount; i++) {
+            const startMapItem = startGridMap.colMap[i];
+            const endMapItem = endGridMap.colMap[i];
+            let startWidth = PLACEHOLDER_WIDTH;
+            let endWidth = PLACEHOLDER_WIDTH;
+
+            if (startMapItem && (startMapItem.type === 'original' || startMapItem.type === 'deleted')) {
+                startWidth = startSheet?.columnWidths?.[startMapItem.sourceIndex] || DEFAULT_COL_WIDTH;
+            }
+            if (endMapItem && (endMapItem.type === 'original' || endMapItem.type === 'inserted')) {
+                endWidth = endSheet?.columnWidths?.[endMapItem.sourceIndex] || DEFAULT_COL_WIDTH;
+            }
+
             unified.push(Math.max(startWidth, endWidth));
         }
         return unified;
-    }, [startSheet, endSheet]);
+    }, [startSheet, endSheet, unifiedColCount, startGridMap, endGridMap]);
 
     const changeCoordinates = useMemo(() => {
         const coords: { rowIndex: number; colIndex: number }[] = [];
@@ -107,15 +219,8 @@ export const useComparisonData = (
         return coords;
     }, [result.modifiedCells, selectedSheetName]);
 
-    const rowCount = Math.max(
-        (startSheet?.startRow ?? 0) + (startSheet?.data.length ?? 0),
-        (endSheet?.startRow ?? 0) + (endSheet?.data.length ?? 0)
-    );
-    
-    const colCount = Math.max(
-        (startSheet?.startCol ?? 0) + (startSheet?.data[0]?.cells.length ?? 0),
-        (endSheet?.startCol ?? 0) + (endSheet?.data[0]?.cells.length ?? 0)
-    );
+    // --- (OPTIONAL) Remove the debugging log from the previous step ---
+    // console.log("[useComparisonData] Output", { ... });
 
     return {
         affectedSheetNames,
@@ -125,7 +230,9 @@ export const useComparisonData = (
         changedRowsAndCols,
         unifiedColumnWidths,
         changeCoordinates,
-        rowCount,
-        colCount
+        rowCount: unifiedRowCount,
+        colCount: unifiedColCount,
+        startGridMap,
+        endGridMap,
     };
 };
