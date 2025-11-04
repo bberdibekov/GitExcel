@@ -9,7 +9,7 @@ import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 export const useVirtualizedDiffGridStyles = makeStyles({
     gridCell: {
         ...shorthands.padding("2px", "6px"),
-        ...shorthands.border("1px", "solid", tokens.colorNeutralStroke2),
+        ...shorthands.border("1px", "solid", tokens.colorNeutralStroke3),
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -23,10 +23,10 @@ export const useVirtualizedDiffGridStyles = makeStyles({
         },
     },
     gridCell_blank: {
-        backgroundColor: tokens.colorNeutralBackground2,
+        backgroundColor: tokens.colorNeutralBackground1,
         ":hover": {
             cursor: "default",
-            backgroundColor: tokens.colorNeutralBackground2,
+            backgroundColor: tokens.colorNeutralBackground1,
         },
     },
     gridCell_changed: {
@@ -40,12 +40,6 @@ export const useVirtualizedDiffGridStyles = makeStyles({
     gridCell_changedBorder: {
         boxShadow: `inset 0 0 0 2px ${tokens.colorPaletteDarkOrangeBorder1}`,
     },
-    gridCell_faded: {
-        opacity: 0.5,
-        ":hover": {
-            opacity: 0.7,
-        },
-    },
     gridCell_hidden: {
         display: "none",
     },
@@ -56,13 +50,13 @@ export const useVirtualizedDiffGridStyles = makeStyles({
         flex: "1 1 0",
         minHeight: 0,
         minWidth: 0,
-        border: `1px solid ${tokens.colorNeutralStroke2}`,
+        border: `1px solid ${tokens.colorNeutralStroke3}`,
         overflow: "hidden",
     },
     gridTopLeftCorner: {
         backgroundColor: tokens.colorNeutralBackground3,
-        borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
+        borderRight: `1px solid ${tokens.colorNeutralStroke3}`,
     },
     gridHeaderCell: {
         display: "flex",
@@ -71,8 +65,8 @@ export const useVirtualizedDiffGridStyles = makeStyles({
         backgroundColor: tokens.colorNeutralBackground3,
         color: tokens.colorNeutralForeground3,
         fontWeight: tokens.fontWeightSemibold,
-        borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
-        borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+        borderRight: `1px solid ${tokens.colorNeutralStroke3}`,
+        borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
         boxSizing: "border-box",
         position: "relative",
     },
@@ -113,13 +107,16 @@ export const useVirtualizedDiffGridStyles = makeStyles({
         overflow: "hidden",
         textOverflow: "ellipsis",
     },
+    cellText_unchanged: {
+        color: '#c4c4c4ff'
+    },
     fxBadge: {
         position: "absolute",
         top: "0px",
         right: "0px",
         fontSize: "9px",
         lineHeight: "9px",
-        color: tokens.colorNeutralForeground4,
+        color: '#d6d6d6ff',
         fontStyle: "italic",
         userSelect: "none",
     },

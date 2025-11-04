@@ -8,8 +8,8 @@ import { makeStyles, tokens } from '@fluentui/react-components';
  */
 export const useDialogComparisonViewStyles = makeStyles({
     dialogViewContainer: {
-        display: 'flex', // Make this a flex container
-        flexDirection: 'column', // Children will stack vertically
+        display: 'flex',
+        flexDirection: 'column',
         height: '100vh',
         width: '100vw',
         overflow: 'hidden',

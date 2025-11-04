@@ -29,8 +29,7 @@ export const useSideBySideDiffViewerStyles = makeStyles({
     },
     gridSeparator: {
         width: '2px',
-        backgroundColor: tokens.colorBrandBackground,
-        boxShadow: `0 0 8px ${tokens.colorNeutralShadowAmbient}`,
+        backgroundColor: 'transparent',
         flexShrink: 0,
         margin: '0 4px',
         cursor: 'col-resize',
@@ -51,9 +50,8 @@ export const useSideBySideDiffViewerStyles = makeStyles({
         display: 'flex',
         flexDirection: 'column',
         ...shorthands.gap('2px'),
-        color: tokens.colorNeutralForegroundOnBrand,
+        color: tokens.colorNeutralForeground2,
         fontSize: '16px',
         lineHeight: '1',
-        textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
     },
 });

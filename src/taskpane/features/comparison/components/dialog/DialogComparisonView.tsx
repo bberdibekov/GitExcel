@@ -1,12 +1,13 @@
 // src/taskpane/features/comparison/components/dialog/DialogComparisonView.tsx
 
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { IDiffResult, IWorkbookSnapshot, ViewFilter } from "../../../../types/types";
 import { Spinner } from "@fluentui/react-components";
 import { crossWindowMessageBus } from "../../../../core/dialog/CrossWindowMessageBus";
 import { MessageType } from "../../../../types/messaging.types";
 import { generateSummary, calculateSummaryStats } from "../../services/summary.service";
+import { truncateComment } from "../../../../shared/lib/string.utils";
 
 import SideBySideDiffViewer from "./SideBySideDiffViewer";
 import { useDialogComparisonViewStyles } from "./Styles/DialogComparisonView.styles";
@@ -27,6 +28,18 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
   
   const [activeViewFilter, setActiveViewFilter] = useState<ViewFilter>('all');
   const [activeComparisonSettings, setActiveComparisonSettings] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const MAX_LENGTH = 30;
+    if (startVersionComment && endVersionComment) {
+      const truncatedStart = truncateComment(startVersionComment, MAX_LENGTH);
+      const truncatedEnd = truncateComment(endVersionComment, MAX_LENGTH);
+      document.title = `Comparison: "${truncatedStart}" vs. "${truncatedEnd}"`;
+    } else {
+      document.title = "Excel Version Control - Comparison";
+    }
+  }, [startVersionComment, endVersionComment]);
+
 
   const summary = useMemo(() => result ? generateSummary(result) : { highLevelChanges: [] as IHighLevelChange[], modifiedCells: [] }, [result]);
   const summaryStats = useMemo(() => calculateSummaryStats(result), [result]);
@@ -75,8 +88,6 @@ const DialogComparisonView: React.FC<DialogComparisonViewProps> = (props) => {
       
   return (
     <div className={styles.dialogViewContainer}>
-      {/* The CollapsiblePane is now removed. */}
-      {/* All necessary props are passed directly into the SideBySideDiffViewer. */}
       <SideBySideDiffViewer
         // Core props
         result={filteredResult}

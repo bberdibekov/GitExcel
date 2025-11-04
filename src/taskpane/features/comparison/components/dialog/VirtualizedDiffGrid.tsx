@@ -73,10 +73,15 @@ const MainCell: React.FC<MainCellProps> = ({
       !hasContent && styles.gridCell_blank,
       isChanged && styles.gridCell_changed,
       isChanged && styles.gridCell_changedBorder,
-      !isChanged && hasContent && styles.gridCell_faded,
       shouldHideRow && styles.gridCell_hidden
     );
     
+    // --- ADDED: Logic to conditionally style the text ---
+    const textClassName = joinClasses(
+        styles.cellText,
+        !isChanged && hasContent && styles.cellText_unchanged
+    );
+
     const handleClick = () => {
       if (!hasContent) { return; }
       
@@ -102,7 +107,8 @@ const MainCell: React.FC<MainCellProps> = ({
       <div style={style} {...ariaAttributes} className={className} onClick={handleClick}>
         <div className={styles.cellContentWrapper}>
           <Tooltip content={tooltipContent} relationship="label">
-            <span className={styles.cellText}>{displayValue}</span>
+            {/* --- MODIFIED: Apply the conditional class name here --- */}
+            <span className={textClassName}>{displayValue}</span>
           </Tooltip>
           {isFormula && <span className={styles.fxBadge}>fx</span>}
         </div>
