@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useMemo, useEffect } from "react";
 import { IDiffResult, IWorkbookSnapshot, ICombinedChange } from "../../../../types/types";
-import { Spinner } from "@fluentui/react-components";
+import { Spinner, Divider } from "@fluentui/react-components";
 import { truncateComment } from "../../../../shared/lib/string.utils";
 import SideBySideDiffViewer from "./SideBySideDiffViewer";
 import { useDialogComparisonViewStyles } from "./Styles/DialogComparisonView.styles";
@@ -14,6 +14,7 @@ import FloatingPanel from "./FloatingPanel";
 import ComparisonSummary from "./ComparisonSummary";
 import DiffFilterOptions from "../DiffFilterOptions";
 import { generateSummary, calculateSummaryStats } from "../../services/summary.service";
+import ViewFilterGroup from './ViewFilterGroup';
 
 
 interface DialogComparisonViewProps {
@@ -78,6 +79,9 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
     visiblePanel, 
     highlightOnlyMode, 
     setActiveSheet,
+    
+    activeViewFilter,
+    setViewFilter,
     // New state for flyouts
     activeFlyout,
     flyoutPositions,
@@ -167,13 +171,28 @@ const ComparisonViewCore: React.FC<DialogComparisonViewProps> = (props) => {
                 </FloatingPanel>
             );
         case 'filters':
+             // This panel now renders both sets of filter controls
              return (
                 <FloatingPanel title="Filters" {...panelProps}>
-                    <DiffFilterOptions activeFilters={activeFilters} onFilterChange={handleFilterChange} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {/* 1. The original, high-level view filters */}
+                        <ViewFilterGroup 
+                            activeFilter={activeViewFilter} 
+                            onFilterChange={setViewFilter} 
+                        />
+
+                        {/* 2. A clear separator */}
+                        <Divider />
+                        
+                        {/* 3. The new, advanced refinement filters */}
+                        <DiffFilterOptions 
+                            activeFilters={activeFilters} 
+                            onFilterChange={handleFilterChange} 
+                        />
+                    </div>
                 </FloatingPanel>
             );
         case 'settings':
-             // Placeholder for settings panel
             return <FloatingPanel title="Settings" {...panelProps}><div style={{padding: '12px'}}>Settings will be available soon.</div></FloatingPanel>;
         default:
             return null;

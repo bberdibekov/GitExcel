@@ -1,8 +1,9 @@
-// src/taskpane/components/DiffFilterOptions.tsx
+// src/taskpane/features/comparison/components/DiffFilterOptions.tsx
 
 import * as React from 'react';
-import { Checkbox, Label, Popover, PopoverSurface, PopoverTrigger, Tooltip, Button } from '@fluentui/react-components';
-import { Settings20Filled } from '@fluentui/react-icons';
+import { useState, useRef, useEffect } from 'react';
+import { Checkbox, Label, Button, Divider } from '@fluentui/react-components';
+import { ChevronRight20Filled, ChevronDown20Filled } from '@fluentui/react-icons';
 import { valueFilters, formulaFilters } from '../services/comparison.filters';
 import FeatureBadge from '../../../shared/paywall/FeatureBadge';
 import { useSharedStyles } from '../../../shared/styles/sharedStyles';
@@ -12,70 +13,91 @@ interface DiffFilterOptionsProps {
   onFilterChange: (filterId: string) => void;
 }
 
-/**
- * A UI component that renders a set of checkboxes and advanced options
- * for filtering a comparison result. It is driven by a filter registry.
- */
 const DiffFilterOptions: React.FC<DiffFilterOptionsProps> = ({ activeFilters, onFilterChange }) => {
     const styles = useSharedStyles();
+    const [isAdvancedVisible, setIsAdvancedVisible] = useState(false);
+    
+    // --- START: Add Ref for the Checkbox ---
+    const masterCheckboxRef = useRef<HTMLInputElement>(null);
+    // --- END: Add Ref for the Checkbox ---
 
-    // Combine all filters for easier rendering logic
     const allFilters = [...valueFilters, ...formulaFilters];
     
-    // A master switch for all "pro" filters for a simpler UI.
     const proFilterIds = allFilters.filter(f => f.tier === 'pro').map(f => f.id);
-    const areAllProFiltersActive = proFilterIds.every(id => activeFilters.has(id));
+    const activeProFilterCount = proFilterIds.filter(id => activeFilters.has(id)).length;
+
+    const isMasterChecked = activeProFilterCount === proFilterIds.length;
+    const isMasterIndeterminate = activeProFilterCount > 0 && activeProFilterCount < proFilterIds.length;
+
+    // --- START: Add useEffect to set indeterminate state ---
+    // This effect runs whenever the indeterminate state changes.
+    // It directly manipulates the DOM element, which is the correct
+    // pattern for this specific property in Fluent UI v9.
+    useEffect(() => {
+        if (masterCheckboxRef.current) {
+            masterCheckboxRef.current.indeterminate = isMasterIndeterminate;
+        }
+    }, [isMasterIndeterminate]);
+    // --- END: Add useEffect to set indeterminate state ---
 
     const handleMasterSwitchChange = () => {
-        // If they are all on, turn them all off. Otherwise, turn them all on.
-        const turnOn = !areAllProFiltersActive;
+        const shouldTurnOn = !isMasterChecked && !isMasterIndeterminate;
+        
         proFilterIds.forEach(id => {
-            if (activeFilters.has(id) !== turnOn) {
+            if (activeFilters.has(id) !== shouldTurnOn) {
                 onFilterChange(id);
             }
         });
     };
 
     return (
-        <div className={styles.card} style={{ marginBottom: '15px' }}>
-            <div className={styles.flexRowSpaceBetween}>
-                {/* Master Switch */}
-                <div>
-                    <Checkbox
-                        id="master_switch"
-                        checked={areAllProFiltersActive}
-                        onChange={handleMasterSwitchChange}
-                    />
-                    <Label htmlFor="master_switch" style={{ marginLeft: '8px', cursor: 'pointer' }}>
-                        Ignore insignificant changes
-                    </Label>
-                    <FeatureBadge tier="pro" />
-                </div>
-
-                {/* Advanced Settings Popover */}
-                <Popover>
-                    <PopoverTrigger>
-                        <Tooltip content="Advanced filter settings" relationship="label">
-                            <Button appearance="subtle" icon={<Settings20Filled />} />
-                        </Tooltip>
-                    </PopoverTrigger>
-                    <PopoverSurface style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {allFilters.map(filter => (
-                            <div key={filter.id}>
-                                <Checkbox
-                                    id={filter.id}
-                                    checked={activeFilters.has(filter.id)}
-                                    onChange={() => onFilterChange(filter.id)}
-                                />
-                                <Label htmlFor={filter.id} style={{ marginLeft: '8px', cursor: 'pointer' }}>
-                                    {filter.label}
-                                </Label>
-                                {filter.tier === 'pro' && <FeatureBadge tier="pro" />}
-                            </div>
-                        ))}
-                    </PopoverSurface>
-                </Popover>
+        <div className={styles.card} style={{ padding: '12px', background: 'transparent', boxShadow: 'none' }}>
+            <div className={styles.flexRow} style={{ alignItems: 'center', gap: '8px' }}>
+                <Checkbox
+                    id="master_switch"
+                    // --- Attach the ref to the component ---
+                    ref={masterCheckboxRef}
+                    // --- The `checked` prop now handles both full and partial states for its visual ---
+                    checked={isMasterChecked || isMasterIndeterminate}
+                    // --- The `indeterminate` prop is removed as it's not supported ---
+                    onChange={handleMasterSwitchChange}
+                />
+                <Label htmlFor="master_switch" style={{ cursor: 'pointer', fontWeight: '600' }}>
+                    Ignore insignificant changes
+                </Label>
+                <FeatureBadge tier="pro" />
             </div>
+
+            <Divider style={{ margin: '12px 0' }} />
+            
+            <Button
+                appearance="subtle"
+                icon={isAdvancedVisible ? <ChevronDown20Filled /> : <ChevronRight20Filled />}
+                onClick={() => setIsAdvancedVisible(!isAdvancedVisible)}
+                style={{ marginBottom: isAdvancedVisible ? '8px' : '0' }}
+            >
+                Advanced
+            </Button>
+
+            {isAdvancedVisible && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '20px' }}
+                     onMouseDown={(e) => e.stopPropagation()}
+                >
+                    {allFilters.map(filter => (
+                        <div key={filter.id}>
+                            <Checkbox
+                                id={filter.id}
+                                checked={activeFilters.has(filter.id)}
+                                onChange={() => onFilterChange(filter.id)}
+                            />
+                            <Label htmlFor={filter.id} style={{ marginLeft: '8px', cursor: 'pointer' }}>
+                                {filter.label}
+                            </Label>
+                            {filter.tier === 'pro' && <FeatureBadge tier="pro" />}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };
