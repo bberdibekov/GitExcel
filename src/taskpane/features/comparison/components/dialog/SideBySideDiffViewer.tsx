@@ -9,27 +9,25 @@ import {
     ICombinedChange,
     ViewFilter,
     ISheetSnapshot,
-    VisiblePanel // Make sure VisiblePanel is exported from types.ts or defined locally
+    VisiblePanel
 } from '../../../../types/types';
 import { useSideBySideDiffViewerStyles } from './Styles/SideBySideDiffViewer.styles';
 import { loggingService } from '../../../../core/services/LoggingService';
 import { ChangeDetailModal } from './ChangeDetailModal';
 import { Minimap } from './Minimap';
-import FloatingToolbar from './FloatingToolbar';
+// --- REMOVED FloatingToolbar import ---
 import { ISummaryStats } from '../../services/summary.service';
 import ComparisonGridPanel from './ComparisonGridPanel';
 import FloatingViewControls from './FloatingViewControls';
 import { useResizablePanels } from '../../hooks/useResizablePanels';
 import { useSyncedGrids } from '../../hooks/useSyncedGrids';
 
-// --- THE PROPS ARE NOW EXTENSIVE, AS THIS IS A PURE COMPONENT ---
 interface SideBySideDiffViewerProps {
     result: IDiffResult;
     startVersionComment: string;
     endVersionComment: string;
     licenseTier: 'free' | 'pro';
 
-    // Data from the controller's useComparisonData hook
     affectedSheetNames: string[];
     startSheet: ISheetSnapshot | undefined;
     endSheet: ISheetSnapshot | undefined;
@@ -40,11 +38,9 @@ interface SideBySideDiffViewerProps {
     rowCount: number;
     colCount: number;
 
-    // State from the controller/store
     visiblePanel: VisiblePanel;
     highlightOnlyMode: boolean;
 
-    // Modal state and handlers from the controller
     selectedChange: ICombinedChange | null;
     onCellClick: (change: ICombinedChange) => void;
     onModalClose: () => void;
@@ -74,7 +70,6 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
     } = props;
     const styles = useSideBySideDiffViewerStyles();
 
-    // --- ALL STATE IS GONE. THE COMPONENT ONLY USES HOOKS FOR LOGIC AND REFS ---
     const { leftPanelWidth, resizerRef, containerRef: gridsBodyRef, handleResizeMouseDown, isResizing } = useResizablePanels();
     const { gridStartRef, gridEndRef, leftGridContainerRef, rightGridContainerRef, viewport, onScrollStart, onScrollEnd, handleMinimapNavigate } = useSyncedGrids(visiblePanel);
 
@@ -97,13 +92,12 @@ const SideBySideDiffViewer: React.FC<SideBySideDiffViewerProps> = (props) => {
 
     return (
         <div className={`${styles.rootContainer} ${isResizing ? styles.isResizingGrids : ''}`}>
-            <FloatingToolbar onSummaryClick={() => { }} onFilterClick={() => { }} onSettingsClick={() => { }} onRestoreClick={() => { }} isRestoreDisabled={result.modifiedCells.length === 0
-                } />
+            {/* --- THIS LINE HAS BEEN REMOVED --- */}
+            {/* <FloatingToolbar ... /> */}
 
             <ChangeDetailModal isOpen={!!selectedChange} onClose={onModalClose} change={selectedChange} licenseTier={licenseTier} />
 
             <div className={styles.gridsBody} ref={gridsBodyRef}>
-                {/* --- FloatingViewControls now only needs one prop --- */}
                 <FloatingViewControls affectedSheetNames={affectedSheetNames} />
 
                 {visiblePanel !== 'end' && (

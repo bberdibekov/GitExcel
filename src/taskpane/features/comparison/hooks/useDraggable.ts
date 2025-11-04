@@ -1,63 +1,79 @@
 // src/taskpane/features/comparison/hooks/useDraggable.ts
-import { useState, useRef, useEffect, useCallback } from 'react';
 
-export const useDraggable = () => {
-    const [isDragging, setIsDragging] = useState(false);
-    const [position, setPosition] = useState({ x: 0, y: 0 });
+import { useRef, useState, useCallback, useEffect, CSSProperties, MouseEvent } from 'react';
+
+interface DraggableOptions {
+    initialPosition?: { x: number; y: number };
+    onDragEnd?: (position: { x: number; y: number }) => void;
+}
+
+export const useDraggable = (options: DraggableOptions = {}) => {
+    const { initialPosition, onDragEnd } = options;
     
-    const dragNodeRef = useRef<HTMLDivElement | null>(null);
-    const initialMousePosRef = useRef({ x: 0, y: 0 });
-    const initialNodePosRef = useRef({ x: 0, y: 0 });
+    const dragNodeRef = useRef<HTMLDivElement>(null);
 
-    const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
+    const isDraggingRef = useRef(false);
+    const hasSetInitialPositionRef = useRef(!!initialPosition);
+    const offsetRef = useRef({ x: 0, y: 0 });
+
+    // This effect handles the case where `initialPosition` is calculated asynchronously
+    // by the parent component.
+    useEffect(() => {
+        // If we receive a valid `initialPosition` prop and we haven't set it yet,
+        // update the hook's internal state to match.
+        if (initialPosition && !hasSetInitialPositionRef.current) {
+            setPosition(initialPosition);
+            hasSetInitialPositionRef.current = true;
+        }
+    }, [initialPosition]);
+
+    const onMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
         if (!dragNodeRef.current) return;
+        isDraggingRef.current = true;
         
-        setIsDragging(true);
-        initialMousePosRef.current = { x: e.clientX, y: e.clientY };
-        initialNodePosRef.current = { ...position };
-
-        // Prevent default text selection behavior
+        offsetRef.current = {
+            x: e.clientX - position.x,
+            y: e.clientY - position.y,
+        };
+        
         e.preventDefault();
-    }, [position]);
+    }, [position.x, position.y]);
 
-    const handleMouseMove = useCallback((e: MouseEvent) => {
-        if (!isDragging) return;
-
-        const deltaX = e.clientX - initialMousePosRef.current.x;
-        const deltaY = e.clientY - initialMousePosRef.current.y;
+    const onMouseMove = useCallback((e: globalThis.MouseEvent) => {
+        if (!isDraggingRef.current) return;
         
-        setPosition({
-            x: initialNodePosRef.current.x + deltaX,
-            y: initialNodePosRef.current.y + deltaY,
-        });
-    }, [isDragging]);
+        const newPos = {
+            x: e.clientX - offsetRef.current.x,
+            y: e.clientY - offsetRef.current.y,
+        };
+        setPosition(newPos);
 
-    const handleMouseUp = useCallback(() => {
-        setIsDragging(false);
     }, []);
 
-    useEffect(() => {
-        if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        } else {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+    const onMouseUp = useCallback(() => {
+        if (isDraggingRef.current && onDragEnd) {
+            onDragEnd(position);
         }
+        isDraggingRef.current = false;
+    }, [onDragEnd, position]);
+
+    useEffect(() => {
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
 
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
         };
-    }, [isDragging, handleMouseMove, handleMouseUp]);
+    }, [onMouseMove, onMouseUp]);
 
-    const style: React.CSSProperties = {
+    const style: CSSProperties = {
+        position: 'absolute',
+        top: 0, 
+        left: 0,
         transform: `translate(${position.x}px, ${position.y}px)`,
     };
 
-    return {
-        dragNodeRef,
-        style,
-        onMouseDown: handleMouseDown,
-    };
+    return { dragNodeRef, style, onMouseDown };
 };

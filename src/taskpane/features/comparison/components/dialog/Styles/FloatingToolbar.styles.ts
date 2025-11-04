@@ -8,8 +8,6 @@ import { makeStyles, shorthands, tokens } from "@fluentui/react-components";
 export const useFloatingToolbarStyles = makeStyles({
   toolbarContainer: {
     position: "absolute",
-    top: "150px",
-    left: "16px",
     zIndex: 10,
 
     display: "flex",

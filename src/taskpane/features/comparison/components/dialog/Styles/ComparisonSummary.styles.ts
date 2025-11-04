@@ -21,6 +21,7 @@ export const useComparisonSummaryStyles = makeStyles({
     summaryStatItem: {
         display: 'flex',
         flexDirection: 'column',
+        textAlign: 'center',
     },
     summaryStatValue: {
         fontSize: tokens.fontSizeHero800,
@@ -40,5 +41,6 @@ export const useComparisonSummaryStyles = makeStyles({
         fontSize: tokens.fontSizeBase300,
         fontWeight: tokens.fontWeightSemibold,
         color: tokens.colorNeutralForeground2,
+        paddingTop: '8px' // Add a little space after the divider
     },
 });

@@ -9,26 +9,23 @@ import {
 } from "@fluentui/react-icons";
 import { useFloatingToolbarStyles } from "./Styles/FloatingToolbar.styles";
 import { useDraggable } from "../../hooks/useDraggable";
+import { ActiveFlyout } from "../../../../state/comparisonStore"; // Import the type
 
-
+// The props now just need to inform the parent which button was clicked.
 interface FloatingToolbarProps {
-  onSummaryClick: () => void;
-  onFilterClick: () => void;
-  onSettingsClick: () => void;
+  onFlyoutClick: (flyout: NonNullable<ActiveFlyout>) => void;
   onRestoreClick: () => void;
   isRestoreDisabled: boolean;
 }
 
 const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
-  const {
-    onSummaryClick,
-    onFilterClick,
-    onSettingsClick,
-    onRestoreClick,
-    isRestoreDisabled,
-  } = props;
+  const { onFlyoutClick, onRestoreClick, isRestoreDisabled } = props;
   const styles = useFloatingToolbarStyles();
-  const { dragNodeRef, style, onMouseDown } = useDraggable();
+  const { dragNodeRef, style, onMouseDown } = useDraggable({
+    initialPosition: { x: 16, y: 150 }
+  });
+  
+  // The simple useDraggable is still perfect for the toolbar itself.
 
   return (
     <div
@@ -44,21 +41,21 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = (props) => {
       <Tooltip content="Summary" relationship="label">
         <Button
           icon={<TextBulletListSquare24Regular />}
-          onClick={onSummaryClick}
+          onClick={() => onFlyoutClick('summary')}
           appearance="subtle"
         />
       </Tooltip>
       <Tooltip content="Filters" relationship="label">
         <Button
           icon={<Filter24Regular />}
-          onClick={onFilterClick}
+          onClick={() => onFlyoutClick('filters')}
           appearance="subtle"
         />
       </Tooltip>
       <Tooltip content="Settings" relationship="label">
         <Button
           icon={<Settings24Regular />}
-          onClick={onSettingsClick}
+          onClick={() => onFlyoutClick('settings')}
           appearance="subtle"
         />
       </Tooltip>

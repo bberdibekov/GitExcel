@@ -18,10 +18,6 @@ const ComparisonSummary: React.FC<ComparisonSummaryProps> = (props) => {
 
     return (
         <div className={styles.summaryContainer}>
-            <Subtitle2 as="h3" block className={styles.paneSectionHeader}>
-                Summary
-            </Subtitle2>
-
             <div className={styles.summaryStatsGrid}>
                 <div className={styles.summaryStatItem}>
                     <Body1 block className={styles.summaryStatValue}>{totalChanges}</Body1>

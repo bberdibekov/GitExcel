@@ -1,6 +1,7 @@
 // src/taskpane/features/comparison/components/dialog/FloatingViewControls.tsx
 
 import * as React from 'react';
+import { useState, useEffect } from 'react';
 import {
     Button,
     Tooltip,
@@ -29,7 +30,25 @@ interface FloatingViewControlsProps {
 const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
     const { affectedSheetNames } = props;
     const styles = useFloatingViewControlsStyles();
-    const { dragNodeRef, style, onMouseDown } = useDraggable();
+
+    const [initialPosition, setInitialPosition] = useState<{ x: number; y: number } | undefined>(undefined);
+
+    // This effect runs once after the component mounts to calculate the centered starting position.
+    useEffect(() => {
+        const parentWidth = document.body.clientWidth;
+        // Estimate component width. A precise measurement isn't necessary,
+        // as the user can drag it from this reasonable default.
+        const componentWidth = 350; 
+        
+        setInitialPosition({
+            x: (parentWidth / 2) - (componentWidth / 2),
+            y: 8 // Desired gap from the top
+        });
+    }, []); // Empty dependency array ensures this runs only once.
+
+    // Pass the (initially undefined) position to the hook. The hook is now smart
+    // enough to wait for this value and update its internal state.
+    const { dragNodeRef, style, onMouseDown } = useDraggable({ initialPosition });
 
     const {
         activeSheetName,
@@ -58,12 +77,11 @@ const FloatingViewControls: React.FC<FloatingViewControlsProps> = (props) => {
         }
     };
 
-    // --- Use a fallback if the active sheet hasn't been initialized yet ---
+    // Use a fallback if the active sheet hasn't been initialized yet
     const selectedSheetName = activeSheetName ?? affectedSheetNames[0] ?? "";
 
     return (
         <div ref={dragNodeRef} style={style} onMouseDown={onMouseDown} className={styles.root}>
-            {/* ... dragger ... */}
             <div className={styles.dragHandle}><span>⋮⋮</span></div>
             <div className={styles.separator} />
 

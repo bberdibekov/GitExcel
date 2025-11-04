@@ -4,9 +4,6 @@ import { makeStyles, shorthands, tokens } from '@fluentui/react-components';
 export const useFloatingViewControlsStyles = makeStyles({
   root: {
     position: 'absolute',
-    top: '8px',
-    left: '50%',
-    transform: 'translateX(-50%)', 
     zIndex: 10,
 
     display: 'flex',
