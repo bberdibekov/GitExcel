@@ -228,6 +228,7 @@ export function diffSheetContent(
   const result: IChangeset = { modifiedCells: [], addedRows: [], deletedRows: [], structuralChanges: [] };
   const oldCoords = oldSheet.address ? fromA1(oldSheet.address) : null;
   const startRowOffset = oldCoords ? oldCoords.row : 0;
+  const startColOffset = oldCoords ? oldCoords.col : 0;
   const oldData = normalizeSheetData(oldSheet.data);
   const newData = normalizeSheetData(newSheet.data);
 
@@ -246,11 +247,26 @@ export function diffSheetContent(
     const nextPart = i + 1 < rowHashChanges.length ? rowHashChanges[i + 1] : null;
 
     if (part.removed && nextPart && nextPart.added && part.count === nextPart.count) {
+      // --- START: DIAGNOSTIC LOGGING ---
+      console.log(`[Diff Diagnosis] Found a modified block of ${part.count} rows. Analyzing...`);
+      // ---  END: DIAGNOSTIC LOGGING  ---
+
       // This block represents modified rows.
       modifiedRowCount += part.count;
       for (let j = 0; j < part.count; j++) {
         const oldRow = oldData[oldIdx];
         const newRow = newData[newIdx];
+
+        // --- START: DIAGNOSTIC LOGGING ---
+        if (j < 5 || j > part.count - 5) { // Log the first and last 5 rows of a large block
+            console.log(`[Diff Diagnosis] Comparing old row index ${oldIdx} with new row index ${newIdx}.`);
+            console.log(`[Diff Diagnosis] Hashes:`, { old: oldRow.hash, new: newRow.hash });
+            console.log(`[Diff Diagnosis] Cell Data Sample (first 5 cells):`, {
+                oldCells: oldRow.cells.slice(0, 5).map(c => ({ v: c.value, f: c.formula })),
+                newCells: newRow.cells.slice(0, 5).map(c => ({ v: c.value, f: c.formula })),
+            });
+        }
+        // ---  END: DIAGNOSTIC LOGGING  ---
         
         // Granular diff on cells to detect intra-row shifts.
         const cellChanges = diffArrays(oldRow.cells, newRow.cells, {
@@ -304,7 +320,8 @@ export function diffSheetContent(
       }
     } else if (part.removed) {
       for (let j = 0; j < part.count; j++) {
-        result.deletedRows.push({ sheet: sheetId, rowIndex: oldIdx + startRowOffset, rowData: oldData[oldIdx] });
+        // Store the relative index; the offset will be applied consistently later.
+        result.deletedRows.push({ sheet: sheetId, rowIndex: oldIdx, rowData: oldData[oldIdx] });
         oldIdx++;
       }
     } else { // Unchanged rows
@@ -319,7 +336,13 @@ export function diffSheetContent(
   if (inferredColumnChanges.length > 0) {
     // STRATEGY: A uniform column change was detected. Report it as a structural event.
     // We discard the bufferedModifiedCells because they are just noise/ripple effects.
-    result.structuralChanges.push(...inferredColumnChanges.map(c => ({...c, sheet: sheetId})));
+    // --- FIX: The diff heuristic produces a flawed index. Correct it by reversing the errors. ---
+    const absoluteColumnChanges = inferredColumnChanges.map(change => ({
+      ...change,
+      sheet: sheetId,
+      index: change.index - startColOffset - 1,
+    }));
+    result.structuralChanges.push(...absoluteColumnChanges);
   } else {
     // STRATEGY: Fallback. No uniform change detected. This was a "shift cells" or manual edit.
     // Report the detailed, cell-by-cell changes.
@@ -329,7 +352,8 @@ export function diffSheetContent(
   const trueInsertions = result.addedRows.filter(row => row.rowIndex < oldData.length);
   result.structuralChanges.push(
     ...coalesceRowChanges(sheetId, trueInsertions, "row_insertion", startRowOffset),
-    ...coalesceRowChanges(sheetId, result.deletedRows, "row_deletion", 0)
+    // Apply the offset consistently for deletions here.
+    ...coalesceRowChanges(sheetId, result.deletedRows, "row_deletion", startRowOffset)
   );
 
   return result;

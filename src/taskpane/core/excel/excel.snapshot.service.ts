@@ -46,21 +46,22 @@ class ExcelSnapshotService {
       const mergedAreas = usedRange.getMergedAreasOrNullObject();
       
       // Load the top-level properties of the range first, including columnCount.
-      usedRange.load("isNullObject, address, rowIndex, columnIndex, values, formulas, columnCount");
+      usedRange.load("isNullObject, address, rowIndex, columnIndex, values, formulas, rowCount, columnCount");
       mergedAreas.load("isNullObject, address");
       
       await context.sync();
 
       if (usedRange.isNullObject) {
-        workbookSnapshot[sheetId] = { 
-            name: sheet.name, 
-            position: sheet.position, 
-            address: "", 
-            data: [], 
-            mergedCells: [], 
+        workbookSnapshot[sheetId] = {
+            name: sheet.name,
+            position: sheet.position,
+            address: "",
+            data: [],
+            mergedCells: [],
             columnWidths: [],
             startRow: 0,
-            startCol: 0
+            startCol: 0,
+            columnCount: 0
         };
         continue;
       }
@@ -92,8 +93,9 @@ class ExcelSnapshotService {
         address: usedRange.address,
         startRow: usedRange.rowIndex,
         startCol: usedRange.columnIndex,
+        columnCount: usedRange.columnCount,
         data: this.buildRowData(
-            usedRange.values, 
+            usedRange.values,
             formulas,
             precedentsMap,
             usedRange.rowIndex,
@@ -195,7 +197,7 @@ class ExcelSnapshotService {
       for (const range of rangeArea.areas.items) {
         const addressParts = range.address.split('!');
         const address = addressParts.pop()!;
-        const sheetName = addressParts.pop() || currentSheetName; 
+        const sheetName = addressParts.pop() || currentSheetName;
         
         const precedentSheetId = nameToSheetIdMap.get(sheetName);
         

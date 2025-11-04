@@ -59,6 +59,7 @@ export interface ISheetSnapshot {
   mergedCells?: string[];
   startRow: number; 
   startCol: number;
+  columnCount: number;
 }
 
 export interface IWorkbookSnapshot {

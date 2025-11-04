@@ -37,9 +37,9 @@ export type GridMap = {
  * into memoized, view-specific data structures needed for rendering the diff grids.
  */
 export const useComparisonData = (
-    result: IDiffResult, 
-    selectedSheetName: string, 
-    startSnapshot: IWorkbookSnapshot, 
+    result: IDiffResult,
+    selectedSheetName: string,
+    startSnapshot: IWorkbookSnapshot,
     endSnapshot: IWorkbookSnapshot
 ) => {
 
@@ -80,7 +80,7 @@ export const useComparisonData = (
                 if (match) {
                     const colStr = match[1];
                     const rowNum = parseInt(match[2], 10);
-                    rows.add(rowNum - 1); 
+                    rows.add(rowNum - 1);
                     cols.add(colLetterToIndex(colStr));
                 }
             }
@@ -94,7 +94,9 @@ export const useComparisonData = (
         startGridMap,
         endGridMap
     } = useMemo(() => {
+        // --- START OF DEBUGGING LOG ---
         console.log(`[useComparisonData] Calculating GridMap for sheet: ${selectedSheetName}. Received structural changes:`, result.structuralChanges);
+        // ---  END OF DEBUGGING LOG  ---
         const structuralChanges = result.structuralChanges.filter(c => c.sheet === selectedSheetName);
         const rowInsertions = structuralChanges.filter(c => c.type === 'row_insertion');
         const rowDeletions = structuralChanges.filter(c => c.type === 'row_deletion');
@@ -104,13 +106,13 @@ export const useComparisonData = (
         const startSheetLogicalRows = startSheet ? startSheet.startRow + startSheet.data.length : 0;
         const endSheetLogicalRows = endSheet ? endSheet.startRow + endSheet.data.length : 0;
 
-        const startSheetLogicalCols = startSheet ? startSheet.startCol + (startSheet.columnWidths?.length ?? 0) : 0;
-        const endSheetLogicalCols = endSheet ? endSheet.startCol + (endSheet.columnWidths?.length ?? 0) : 0;
+        const startSheetLogicalCols = startSheet ? startSheet.startCol + startSheet.columnCount : 0;
+        const endSheetLogicalCols = endSheet ? endSheet.startCol + endSheet.columnCount : 0;
 
         const processMap = (
-            startLength: number, 
-            endLength: number, 
-            insertions: IReportStructuralChange[], 
+            startLength: number,
+            endLength: number,
+            insertions: IReportStructuralChange[],
             deletions: IReportStructuralChange[]
         ): { startMap: GridMapItem[], endMap: GridMapItem[] } => {
             const startMap: GridMapItem[] = [];
@@ -162,7 +164,7 @@ export const useComparisonData = (
                     endMap.push({ type: 'inserted', sourceIndex: endIdx, description: desc });
                     endIdx++;
                 } else {
-                    break; 
+                    break;
                 }
             }
             return { startMap, endMap };
@@ -218,9 +220,6 @@ export const useComparisonData = (
         }
         return coords;
     }, [result.modifiedCells, selectedSheetName]);
-
-    // --- (OPTIONAL) Remove the debugging log from the previous step ---
-    // console.log("[useComparisonData] Output", { ... });
 
     return {
         affectedSheetNames,
