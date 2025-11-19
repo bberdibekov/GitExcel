@@ -12,8 +12,10 @@ class ExcelInteractionService {
   private eventBuffer: Excel.WorksheetChangedEventArgs[] = [];
   private flushBufferTimer: NodeJS.Timeout | null = null;
 
-  // ... [navigateToCell, showChangesOnSheet, clearChangesFromSheet, setupSelectionListener remain unchanged] ...
-
+  public getRawEvents(): any[] {
+    return [...this.capturedChangeEvents];
+  }
+  
   public async navigateToCell(sheetName: string, address: string) {
     await Excel.run(async (context) => {
       const sheet = context.workbook.worksheets.getItem(sheetName);

@@ -21,14 +21,17 @@ module.exports = async (env, options) => {
       polyfill: ["core-js/stable", "regenerator-runtime/runtime"],
       react: ["react", "react-dom"],
       taskpane: {
-        import: ["./src/taskpane/index.tsx", "./src/taskpane/taskpane.html"],
+        // CHANGE: Add commands.ts here so it loads with the main app
+        import: ["./src/commands/commands.ts", "./src/taskpane/index.tsx", "./src/taskpane/taskpane.html"],
         dependOn: "react",
       },
+      // We can leave the separate 'commands' entry if we want, 
+      // but it's no longer strictly necessary for the runtime. 
+      // Keeping it avoids breaking existing file output expectations.
       commands: "./src/commands/commands.ts",
       
-      // This single 'dialog' entry point will serve the JS for all our dialog windows.
       dialog: {
-        import: ["./src/dialog_app/index.tsx"], // HTML is now handled by the plugin below
+        import: ["./src/dialog_app/index.tsx"], 
         dependOn: "react",
       },
     },

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
-import { Button, Divider } from "@fluentui/react-components";
+import { Button, Divider, Textarea, Subtitle2 } from "@fluentui/react-components";
 import { debugService } from "../../../core/services/debug.service";
 import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import { authService } from "../../../core/services/AuthService";
@@ -26,7 +26,11 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
   const styles = useSharedStyles();
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
-  const [isCapturingEvents, setIsCapturingEvents] = useState(false);
+  const [isCapturingEvents, setIsCapturingEvents] = useState(true); // Default to true now due to Shared Runtime
+
+  // New State for Live Monitor
+  const [liveLogText, setLiveLogText] = useState("");
+  const [liveEventCount, setLiveEventCount] = useState(0);
 
   const versionsRef = useRef(versions);
   useEffect(() => {
@@ -73,6 +77,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
     window.location.reload();
   };
 
+  // Updated to reflect that tracking is likely already running
   const handleToggleEventCapture = async () => {
     if (isRunning) return;
 
@@ -80,7 +85,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
       if (isCapturingEvents) {
         setStatus("Stopping event capture...");
         await excelInteractionService.stopAndSaveChangeTracking();
-        setStatus("Capture stopped. Saved combined (Raw + Sanitized) log.");
+        setStatus("Capture stopped. Log saved to disk.");
         setIsCapturingEvents(false);
       } else {
         setStatus("Starting event capture...");
@@ -93,6 +98,14 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         setStatus(`Event capture failed: ${errorMessage}`);
         setIsCapturingEvents(false);
     }
+  };
+
+  // NEW: Reads the in-memory buffer from the background service
+  const handleRefreshLiveLog = () => {
+    const events = excelInteractionService.getRawEvents();
+    setLiveEventCount(events.length);
+    setLiveLogText(JSON.stringify(events, null, 2));
+    setStatus(`Fetched ${events.length} events from background service.`);
   };
 
   return (
@@ -160,10 +173,25 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         onClick={handleToggleEventCapture}
         disabled={isRunning}
         appearance={isCapturingEvents ? "primary" : "secondary"}
-        style={{ width: '100%' }}
+        style={{ width: '100%', marginBottom: '8px' }}
       >
-        {isCapturingEvents ? "Stop & Save Events" : "Start Event Capture"}
+        {isCapturingEvents ? "Stop & Save to File" : "Restart Capture"}
       </Button>
+
+      {/* NEW: Live Monitor Section */}
+      <div style={{ backgroundColor: 'white', padding: '5px', borderRadius: '3px', border: '1px solid #e0e0e0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <Subtitle2>Live Buffer ({liveEventCount})</Subtitle2>
+            <Button size="small" onClick={handleRefreshLiveLog}>Refresh</Button>
+        </div>
+        <Textarea 
+            value={liveLogText}
+            readOnly
+            rows={6}
+            style={{ width: '100%', fontFamily: 'monospace', fontSize: '10px', whiteSpace: 'pre' }}
+            placeholder="Events captured while pane was closed will appear here..."
+        />
+      </div>
 
       <div style={{ fontSize: '10px', color: '#666', fontStyle: 'italic', marginTop: '4px' }}>
         {status}

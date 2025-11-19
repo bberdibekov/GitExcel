@@ -1,36 +1,47 @@
-// src/taskpane/index.tsx
-
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./components/App";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { excelInteractionService } from "./core/excel/excel.interaction.service";
 
-
-console.log("[Trace] 1. index.tsx module loaded.");
-
-/* global document, Office, module, require, HTMLElement */
-
-const title = "Contoso Task Pane Add-in";
+/* global document, Office, module, require */
 
 const rootElement: HTMLElement | null = document.getElementById("container");
 const root = rootElement ? createRoot(rootElement) : undefined;
 
-console.log("[Trace] 2. About to call Office.onReady().");
-
-/* Render application after Office initializes */
-Office.onReady(() => {
-  console.log("[Trace] 3. Office.onReady() has fired.");
+/* Render application */
+const render = (Component: typeof App) => {
   root?.render(
     <FluentProvider theme={webLightTheme}>
-      <App/>
+      {/* Props removed to match your App component definition */}
+      <Component />
     </FluentProvider>
   );
-  console.log("[Trace] 4. React root.render() has been called.");
+};
+
+/* Initial render */
+Office.onReady(async (info) => {
+  if (info.host === Office.HostType.Excel) {
+    
+    // --- SHARED RUNTIME BOOTSTRAP ---
+    console.log("[LifeCycle] Office.onReady fired. Shared Runtime is active.");
+    
+    try {
+      // 1. Start the continuous event listener immediately.
+      await excelInteractionService.startChangeTracking();
+      console.log("[LifeCycle] Background change tracking started.");
+    } catch (e) {
+      console.error("[LifeCycle] Failed to start background tracking:", e);
+    }
+
+    // 2. Render the React UI.
+    render(App);
+  }
 });
 
 if ((module as any).hot) {
   (module as any).hot.accept("./components/App", () => {
     const NextApp = require("./components/App").default;
-    root?.render(NextApp);
+    render(NextApp);
   });
 }
