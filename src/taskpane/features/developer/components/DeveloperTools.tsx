@@ -10,6 +10,7 @@ import { devHarnessService } from "../../../features/developer/services/dev.harn
 import { testSteps } from "../../../features/developer/services/test.cases";
 import { useAppStore } from "../../../state/appStore";
 import { comparisonWorkflowService } from "../../comparison/services/comparison.workflow.service";
+import { excelInteractionService } from "../../../core/excel/excel.interaction.service";
 
 interface DevToolsProps { }
 
@@ -25,6 +26,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
   const styles = useSharedStyles();
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
+  const [isCapturingEvents, setIsCapturingEvents] = useState(false);
 
   const versionsRef = useRef(versions);
   useEffect(() => {
@@ -71,6 +73,28 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
     window.location.reload();
   };
 
+  const handleToggleEventCapture = async () => {
+    if (isRunning) return;
+
+    try {
+      if (isCapturingEvents) {
+        setStatus("Stopping event capture...");
+        await excelInteractionService.stopAndSaveChangeTracking();
+        setStatus("Capture stopped. Saved combined (Raw + Sanitized) log.");
+        setIsCapturingEvents(false);
+      } else {
+        setStatus("Starting event capture...");
+        await excelInteractionService.startChangeTracking();
+        setStatus("Capturing worksheet 'onChanged' events...");
+        setIsCapturingEvents(true);
+      }
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        setStatus(`Event capture failed: ${errorMessage}`);
+        setIsCapturingEvents(false);
+    }
+  };
+
   return (
     <div style={{
       backgroundColor: '#fff3f3',
@@ -112,7 +136,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
           appearance="primary"
           size="small"
           onClick={handleRunTest}
-          disabled={isRunning}
+          disabled={isRunning || isCapturingEvents}
           style={{ flex: 1 }}
         >
           {isRunning ? "Running..." : `Test v1-${testSteps.length}`}
@@ -122,12 +146,24 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
           appearance="secondary"
           size="small"
           onClick={handleSaveLog}
-          disabled={isRunning}
+          disabled={isRunning || isCapturingEvents}
           style={{ flex: 1 }}
         >
           Save Log
         </Button>
       </div>
+
+      <Divider style={{ margin: "6px 0" }} />
+
+      <Button
+        size="small"
+        onClick={handleToggleEventCapture}
+        disabled={isRunning}
+        appearance={isCapturingEvents ? "primary" : "secondary"}
+        style={{ width: '100%' }}
+      >
+        {isCapturingEvents ? "Stop & Save Events" : "Start Event Capture"}
+      </Button>
 
       <div style={{ fontSize: '10px', color: '#666', fontStyle: 'italic', marginTop: '4px' }}>
         {status}

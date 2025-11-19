@@ -247,9 +247,7 @@ export function diffSheetContent(
     const nextPart = i + 1 < rowHashChanges.length ? rowHashChanges[i + 1] : null;
 
     if (part.removed && nextPart && nextPart.added && part.count === nextPart.count) {
-      // --- START: DIAGNOSTIC LOGGING ---
       console.log(`[Diff Diagnosis] Found a modified block of ${part.count} rows. Analyzing...`);
-      // ---  END: DIAGNOSTIC LOGGING  ---
 
       // This block represents modified rows.
       modifiedRowCount += part.count;

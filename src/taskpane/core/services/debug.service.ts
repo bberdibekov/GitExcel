@@ -1,4 +1,4 @@
-// src/taskpane/services/debug.service.ts
+// src/taskpane/core/services/debug.service.ts
 
 interface ILogEntry {
   timestamp: string;
@@ -61,22 +61,49 @@ class DebugService {
         capturedState: this.capturedState,
       };
 
-      const jsonString = JSON.stringify(logData, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.style.display = "none";
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      this.triggerDownload(filename, logData);
       console.log(`[DebugService] Log session saved to "${filename}".`);
     } catch (error) {
       console.error("[DebugService] Failed to save log session:", error);
     }
   }
-}
 
+  /**
+   * Saves raw data (array of events or structured object) to a JSON file.
+   * Updated to accept any data structure, not just an array.
+   */
+  public saveRawEventLog(filename: string, data: any): void {
+    const isEmptyArray = Array.isArray(data) && data.length === 0;
+    const isEmptyObject = typeof data === 'object' && data !== null && !Array.isArray(data) && Object.keys(data).length === 0;
+
+    if (!data || isEmptyArray || isEmptyObject) {
+      console.warn("[DebugService] Save requested, but the data is empty.");
+      return;
+    }
+
+    try {
+      this.triggerDownload(filename, data);
+      console.log(`[DebugService] Raw event log saved to "${filename}".`);
+    } catch (error) {
+      console.error("[DebugService] Failed to save raw event log:", error);
+    }
+  }
+
+  private triggerDownload(filename: string, data: any) {
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.style.display = "none";
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+      console.log(`[DebugService] Log session saved to "${filename}".`);
+    } catch (error) {
+      console.error("[DebugService] Failed to save log session:", error);
+    }
+  }
 export const debugService = new DebugService();
