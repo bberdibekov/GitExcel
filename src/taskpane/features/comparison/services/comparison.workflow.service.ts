@@ -5,21 +5,25 @@ import { useDialogStore } from "../../../state/dialogStore";
 import { synthesizeChangesets } from "./synthesizer.service";
 import { debugService } from "../../../core/services/debug.service";
 import { excelSnapshotService } from "../../../core/excel/excel.snapshot.service";
-import { IVersion } from "../../../types/types";
+import { IRawEvent, IVersion } from "../../../types/types";
+import { excelInteractionService } from "../../../core/excel/excel.interaction.service";
+import { EventSanitizer } from "../../../core/services/event.sanitizer";
 
 /**
- * A stateless service to orchestrate the complex "Run Comparison" workflow.
- * It intelligently handles two modes:
- *  1. "Audit Trail" (Historical vs. Historical)
- *  2. "Safety Check" (Live vs. Historical)
- */
+
+    A stateless service to orchestrate the complex "Run Comparison" workflow.
+    It intelligently handles two modes:
+        "Audit Trail" (Historical vs. Historical)
+        "Safety Check" (Live vs. Historical)
+        */
 class ComparisonWorkflowService {
-  /**
-   * Runs a comparison based on the current selections in the appStore.
-   * This is now the primary entry point for all comparisons.
-   */
+  /*
+    Runs a comparison based on the current selections in the appStore.
+    This is now the primary entry point for all comparisons.
+    */
   public async runComparison(): Promise<void> {
-    const { versions, selectedVersions, license, activeFilters } = useAppStore.getState();
+    const { versions, selectedVersions, license, activeFilters } = useAppStore
+      .getState();
 
     if (selectedVersions.length !== 2 || !license) {
       return;
@@ -30,10 +34,10 @@ class ComparisonWorkflowService {
     let startSelectionId: number | string;
     let endSelectionId: number | string;
 
-    if (selection1 === 'current' || selection2 === 'current') {
+    if (selection1 === "current" || selection2 === "current") {
       // "Safety Check" mode: 'current' is always the end version.
-      endSelectionId = 'current';
-      startSelectionId = (selection1 === 'current') ? selection2 : selection1;
+      endSelectionId = "current";
+      startSelectionId = (selection1 === "current") ? selection2 : selection1;
     } else {
       // "Audit Trail" mode: Compare the numeric IDs (timestamps) to find the true start and end.
       if (selection1 > selection2) {
@@ -47,28 +51,40 @@ class ComparisonWorkflowService {
 
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
-    
+    let sanitizedEvents: IRawEvent[] = []; // Initialize empty event array
+
     // --- Part 1: Resolve the Start Version (must be historical) ---
-    startVersion = versions.find(v => v.id === startSelectionId);
+    startVersion = versions.find((v) => v.id === startSelectionId);
     if (!startVersion) {
-        console.error("Comparison failed: Could not resolve start version.");
-        return;
+      console.error("Comparison failed: Could not resolve start version.");
+      return;
     }
 
     // --- Part 2: Resolve the End Version (could be historical or live) ---
-    if (endSelectionId === 'current') {
+    if (endSelectionId === "current") {
       // --- "SAFETY CHECK" MODE ---
-      console.log("[ComparisonWorkflow] Running in 'Safety Check' mode (Live vs. Historical)");
+      console.log(
+        "[ComparisonWorkflow] Running in 'Safety Check' mode (Live vs. Historical)",
+      );
+
+      // === HYBRID DIFF INTEGRATION: Fetching Live Events ===
+      const rawEvents = excelInteractionService.getRawEvents();
+      sanitizedEvents = EventSanitizer.sanitize(rawEvents);
+      console.log(
+        `[ComparisonWorkflow] Events fetched. Raw: ${rawEvents.length}, Sanitized: ${sanitizedEvents.length}`,
+      );
+      // ======================================================
+
       try {
         const liveSnapshot = await Excel.run(async (context) => {
-            return await excelSnapshotService.createWorkbookSnapshot(context);
+          return await excelSnapshotService.createWorkbookSnapshot(context);
         });
         // Create a temporary, in-memory IVersion object for the live workbook
         endVersion = {
-            id: Date.now(),
-            comment: "Current Workbook",
-            timestamp: new Date().toLocaleString(),
-            snapshot: liveSnapshot,
+          id: Date.now(),
+          comment: "Current Workbook",
+          timestamp: new Date().toLocaleString(),
+          snapshot: liveSnapshot,
         };
       } catch (error) {
         console.error("Failed to create snapshot of current workbook:", error);
@@ -76,46 +92,59 @@ class ComparisonWorkflowService {
       }
     } else {
       // --- "AUDIT TRAIL" MODE ---
-      console.log("[ComparisonWorkflow] Running in 'Audit Trail' mode (Historical vs. Historical)");
-      endVersion = versions.find(v => v.id === endSelectionId);
+      console.log(
+        "[ComparisonWorkflow] Running in 'Audit Trail' mode (Historical vs. Historical). Events are ignored.",
+      );
+      endVersion = versions.find((v) => v.id === endSelectionId);
     }
-    
+
     if (!endVersion) {
       console.error("Comparison failed: Could not resolve end version.");
       return;
     }
 
     // --- Part 3: Execute the comparison (dynamically resolved versions) ---
-    const result = synthesizeChangesets(startVersion, endVersion, versions, license, activeFilters);
-    debugService.addLogEntry(`Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`, result);
+    // NOTE: If endVersion is historical, events is []. If live, events contains the intent log.
+    const result = synthesizeChangesets(
+      startVersion,
+      endVersion,
+      versions,
+      license,
+      activeFilters,
+      sanitizedEvents, // PASSING HYBRID DIFF DATA UPSTREAM
+    );
+    debugService.addLogEntry(
+      `Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`,
+      result,
+    );
 
     const payloadForDialog = {
-        diffResult: result,
-        licenseTier: license.tier,
-        startSnapshot: startVersion.snapshot,
-        endSnapshot: endVersion.snapshot,
-        startVersionComment: startVersion.comment,
-        endVersionComment: endVersion.comment,
+      diffResult: result,
+      licenseTier: license.tier,
+      startSnapshot: startVersion.snapshot,
+      endSnapshot: endVersion.snapshot,
+      startVersionComment: startVersion.comment,
+      endVersionComment: endVersion.comment,
     };
-
 
     await useDialogStore.getState().openDiffViewer(payloadForDialog);
-    
+
     const comparisonPayload = {
-        result: result,
-        startSnapshot: startVersion.snapshot,
-        endSnapshot: endVersion.snapshot
+      result: result,
+      startSnapshot: startVersion.snapshot,
+      endSnapshot: endVersion.snapshot,
     };
-    
+
     useAppStore.getState()._setComparisonResult(comparisonPayload);
   }
 
   /**
-   * A helper method to compare a version with its immediate predecessor.
-   */
+
+    A helper method to compare a version with its immediate predecessor.
+    */
   public async compareWithPrevious(versionId: number): Promise<void> {
     const versions = useAppStore.getState().versions;
-    const currentIndex = versions.findIndex(v => v.id === versionId);
+    const currentIndex = versions.findIndex((v) => v.id === versionId);
     if (currentIndex > 0) {
       const previousVersionId = versions[currentIndex - 1].id;
       // Manually set the selection and run the main comparison logic

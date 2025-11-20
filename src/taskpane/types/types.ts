@@ -1,17 +1,17 @@
 // src/taskpane/types/types.ts
 
-export type ViewFilter = 'all' | 'values' | 'formulas' | 'structural';
-export type VisiblePanel = 'both' | 'start' | 'end';
-export type RestoreAction = 'selected' | 'sheet' | 'workbook';
-export type SheetId = string & { readonly __brand: 'SheetId' };
+export type ViewFilter = "all" | "values" | "formulas" | "structural";
+export type VisiblePanel = "both" | "start" | "end";
+export type RestoreAction = "selected" | "sheet" | "workbook";
+export type SheetId = string & { readonly __brand: "SheetId" };
 export type SheetName = string;
 
 export interface IFormulaPrecedent {
   sheetId: SheetId; // The persistent ID of the sheet the precedent is on.
-  address: string;  // The A1-style address of the precedent cell(s) (e.g., "A1", "C2:D4").
+  address: string; // The A1-style address of the precedent cell(s) (e.g., "A1", "C2:D4").
 }
 
-export interface IInteractionChange extends Omit<IChange, 'sheet'> {
+export interface IInteractionChange extends Omit<IChange, "sheet"> {
   sheet: SheetName;
 }
 /** Represents the formatting of a single cell. */
@@ -29,12 +29,19 @@ export interface IFormat {
     /* TBD: Border implementation is complex */
   };
   alignment?: {
-    horizontal?: 'General' | 'Left' | 'Center' | 'Right' | 'Fill' | 'Justify' | 'CenterAcrossSelection' | 'Distributed';
-    vertical?: 'Top' | 'Center' | 'Bottom' | 'Justify' | 'Distributed';
+    horizontal?:
+      | "General"
+      | "Left"
+      | "Center"
+      | "Right"
+      | "Fill"
+      | "Justify"
+      | "CenterAcrossSelection"
+      | "Distributed";
+    vertical?: "Top" | "Center" | "Bottom" | "Justify" | "Distributed";
   };
   numberFormat?: string;
 }
-
 
 export interface ICellData {
   address: string;
@@ -57,7 +64,7 @@ export interface ISheetSnapshot {
   rowHeights?: { [key: number]: number };
   columnWidths?: number[];
   mergedCells?: string[];
-  startRow: number; 
+  startRow: number;
   startCol: number;
   columnCount: number;
 }
@@ -79,7 +86,7 @@ export type StructuralChangeType =
 export interface IStructuralChange {
   type: StructuralChangeType;
   sheet: SheetId;
-  
+
   // Properties for row/column changes
   index?: number;
   count?: number;
@@ -96,12 +103,12 @@ export interface IStructuralChange {
 export interface IChange {
   sheet: SheetId;
   address: string;
-  changeType: 'value' | 'formula' | 'both';
+  changeType: "value" | "formula" | "both";
   oldValue: string | number | boolean;
   newValue: string | number | boolean;
   oldFormula: string | number | boolean;
   newFormula: string | number | boolean;
-  metadata?: { [key: string]: any; };
+  metadata?: { [key: string]: any };
   fromVersionComment?: string;
   toVersionComment?: string;
 }
@@ -114,7 +121,7 @@ export interface ICombinedChange {
   endValue: string | number | boolean;
   startFormula: string | number | boolean;
   endFormula: string | number | boolean;
-  changeType: 'value' | 'formula' | 'both';
+  changeType: "value" | "formula" | "both";
   history: IChange[];
   metadata: {
     [key: string]: any;
@@ -148,7 +155,6 @@ export interface IDiffResult {
   hiddenChangeCount?: number;
 }
 
-
 export interface IVersion {
   id: number;
   timestamp: string;
@@ -158,7 +164,7 @@ export interface IVersion {
 }
 
 export interface IVersionViewModel extends IVersion {
-    /** Is the user allowed to initiate a restore for this specific version? */
+  /** Is the user allowed to initiate a restore for this specific version? */
   isRestorable: boolean;
   /** The tooltip to display for the restore button, contextual to the user's permissions. */
   restoreTooltip: string;
@@ -167,7 +173,7 @@ export interface IVersionViewModel extends IVersion {
 }
 
 export interface IHighLevelChange {
-  type: 'structural' | 'column_insertion' | 'column_deletion';
+  type: "structural" | "column_insertion" | "column_deletion";
   sheet: SheetName;
   description: string;
   involvedCells: IChange[];
@@ -181,7 +187,7 @@ export interface ISummaryResult {
 
 // Represents a single, chronological row event.
 export interface IRowEvent {
-  type: 'add' | 'delete';
+  type: "add" | "delete";
   data: IRowChange;
 }
 
@@ -192,12 +198,34 @@ export interface IResolvedTimeline {
   chronologicalStructuralChanges: IStructuralChange[];
 }
 
-export interface IReportRowChange extends Omit<IRowChange, 'sheet'> {
-    sheet: SheetName;
+export interface IReportRowChange extends Omit<IRowChange, "sheet"> {
+  sheet: SheetName;
 }
 
-export interface IReportStructuralChange extends Omit<IStructuralChange, 'sheet' | 'oldName' | 'newName'> {
-    sheet: SheetName;
-    oldName?: SheetName;
-    newName?: SheetName;
+export interface IReportStructuralChange
+  extends Omit<IStructuralChange, "sheet" | "oldName" | "newName"> {
+  sheet: SheetName;
+  oldName?: SheetName;
+  newName?: SheetName;
+}
+
+export interface IRawEvent {
+  changeType: string;
+  address: string;
+  worksheetId: string;
+  worksheetName?: string;
+  timestamp: string;
+  source?: string;
+  triggerSource?: string;
+  changeDirectionState?: {
+    insertShiftDirection?: Excel.InsertShiftDirection | "N/A";
+    deleteShiftDirection?: Excel.DeleteShiftDirection | "N/A";
+  };
+  details?: {
+    valueBefore?: any;
+    valueAfter?: any;
+    valueTypeBefore?: any;
+    valueTypeAfter?: any;
+  };
+  [key: string]: any;
 }

@@ -1,19 +1,24 @@
 // src/taskpane/features/comparison/services/sheet-content-diff.service.ts
 
-import { diffArrays, Change } from "diff";
+import { Change, diffArrays } from "diff";
 import {
   ICellData,
   IChange,
   IChangeset,
+  IRawEvent,
   IRowChange,
   IRowData,
-  IStructuralChange,
   ISheetSnapshot,
+  IStructuralChange,
   SheetId,
 } from "../../../types/types";
 import { fromA1 } from "../../../shared/lib/address.converter";
 import { generateRowHash } from "../../../shared/lib/hashing.service";
-import { valueFilters, formulaFilters, IComparisonFilter } from "./comparison.filters";
+import {
+  formulaFilters,
+  IComparisonFilter,
+  valueFilters,
+} from "./comparison.filters";
 import { ISheetRename } from "./sheet.diff.service";
 
 // This file contains the low-level, specialized logic for comparing the
@@ -21,40 +26,175 @@ import { ISheetRename } from "./sheet.diff.service";
 
 // --- HELPER TYPES for column analysis ---
 interface IColumnChangeCandidate {
-  type: 'add' | 'delete';
+  type: "add" | "delete";
   index: number;
   count: number;
 }
 
-// --- START: NEW COLUMN ANALYSIS LOGIC ---
+// === START: HYBRID DIFF HELPERS ===
+
+interface IRowAlignmentItem {
+  type: "match" | "inserted" | "deleted";
+  oldIndex: number; // -1 for inserted rows (index in oldData)
+  newIndex: number; // -1 for deleted rows (index in newData)
+}
 
 /**
- * The confidence threshold for promoting a series of cell shifts to a structural column change.
- * If 70% of modified rows show the same column add/delete pattern, we treat it as structural.
- */
+
+Parses raw structural events for a sheet and creates a strict alignment map
+
+showing which old row corresponds to which new row.
+
+NOTE: This is a complex heuristic assuming simple, non-overlapping structural changes.
+*/
+function buildRowAlignmentMap(
+  sheetId: SheetId,
+  oldDataLength: number,
+  newDataLength: number,
+  sanitizedEvents: IRawEvent[],
+  startRowOffset: number,
+): IRowAlignmentItem[] {
+  const map: IRowAlignmentItem[] = [];
+  const events = sanitizedEvents.filter(
+    (e) =>
+      e.worksheetId === sheetId &&
+      (e.changeType === "RowInserted" || e.changeType === "RowDeleted"),
+  );
+
+  let currentOldRow = 0;
+  let currentNewRow = 0;
+
+  // Events must be sorted by index to process structural changes correctly
+  events.sort((a, b) => {
+    // Convert A1 address (e.g., "A10:Z10") to its 1-based row index
+    const aRow = fromA1(a.address).row;
+    const bRow = fromA1(b.address).row;
+    return aRow - bRow;
+  });
+
+  // Pre-process event indices relative to the sheet's logical structure (1-based row index)
+  const insertionLogicalIndices = events
+    .filter((e) => e.changeType === "RowInserted")
+    .map((e) => fromA1(e.address).row);
+
+  const deletionLogicalIndices = events
+    .filter((e) => e.changeType === "RowDeleted")
+    .map((e) => fromA1(e.address).row);
+
+  // Determine the maximum logical index we need to track.
+  const maxLogicalRow = Math.max(
+    oldDataLength + startRowOffset,
+    newDataLength + startRowOffset,
+    ...insertionLogicalIndices,
+    ...deletionLogicalIndices,
+  );
+
+  // Iterate through the logical indices (1-based row index in Excel)
+  for (
+    let logicalRowIndex = 1; logicalRowIndex <= maxLogicalRow; logicalRowIndex++
+  ) {
+    const isInsertionPoint = insertionLogicalIndices.includes(logicalRowIndex);
+    const isDeletionPoint = deletionLogicalIndices.includes(logicalRowIndex);
+
+    // Check for Deletions first (as a deletion in the old snapshot affects indices)
+    if (isDeletionPoint) {
+      if (currentOldRow < oldDataLength) {
+        map.push({ type: "deleted", oldIndex: currentOldRow, newIndex: -1 });
+        currentOldRow++;
+      }
+    }
+
+    // Check for Insertions
+    if (isInsertionPoint) {
+      if (currentNewRow < newDataLength) {
+        map.push({ type: "inserted", oldIndex: -1, newIndex: currentNewRow });
+        currentNewRow++;
+      }
+    }
+
+    // Check for Match (content that was neither deleted nor inserted at this logical row)
+    const oldExists = currentOldRow < oldDataLength;
+    const newExists = currentNewRow < newDataLength;
+
+    if (oldExists && newExists) {
+      // If we haven't processed an insertion or deletion event at this logical row,
+      // it means the row, even if shifted, aligns content-wise here.
+      if (!isInsertionPoint && !isDeletionPoint) {
+        map.push({
+          type: "match",
+          oldIndex: currentOldRow,
+          newIndex: currentNewRow,
+        });
+        currentOldRow++;
+        currentNewRow++;
+      }
+    }
+  }
+
+  // Fallback catch for rows remaining outside the event-logged range (e.g., changes outside used range, large block ops)
+  while (currentOldRow < oldDataLength) {
+    map.push({ type: "deleted", oldIndex: currentOldRow++, newIndex: -1 });
+  }
+  while (currentNewRow < newDataLength) {
+    map.push({ type: "inserted", oldIndex: -1, newIndex: currentNewRow++ });
+  }
+
+  return map;
+}
+
+/**
+
+Creates a fast lookup map for all cell addresses modified by a user (RangeEdited events).
+*/
+function getRangeEditedLookup(
+  sheetId: SheetId,
+  sanitizedEvents: IRawEvent[],
+): Set<string> {
+  const lookup = new Set<string>();
+
+  // RangeEdited is the only event that definitively proves a user touched a cell value/formula.
+  const rangeEditedEvents = sanitizedEvents.filter(
+    (e) => e.worksheetId === sheetId && e.changeType === "RangeEdited",
+  );
+
+  for (const event of rangeEditedEvents) {
+    // We rely on the event.address being accurate.
+    lookup.add(event.address);
+  }
+
+  return lookup;
+}
+
+// === END: HYBRID DIFF HELPERS ===
+
+/**
+
+The confidence threshold for promoting a series of cell shifts to a structural column change.
+
+If 70% of modified rows show the same column add/delete pattern, we treat it as structural.
+*/
 const COLUMN_CHANGE_CONFIDENCE_THRESHOLD = 0.7;
 
 /**
- * Analyzes the collected evidence of cell shifts across all modified rows to determine
- * if a uniform column insertion or deletion occurred.
- * @param candidates A map where the key is a row index and the value is the list of cell shifts in that row.
- * @param modifiedRowCount The total number of rows that had content modifications.
- * @returns A definitive list of IStructuralChange events if a uniform change is detected, otherwise an empty array.
- */
+
+Analyzes the collected evidence of cell shifts across all modified rows to determine
+
+if a uniform column insertion or deletion occurred.
+*/
 function analyzeColumnChanges(
   candidates: Map<number, IColumnChangeCandidate[]>,
-  modifiedRowCount: number
+  modifiedRowCount: number,
 ): IStructuralChange[] {
   if (modifiedRowCount === 0 || candidates.size === 0) {
     return [];
   }
-  
+
   const voteCounter = new Map<string, number>();
   let dominantCandidateKey: string | null = null;
   let maxVotes = 0;
 
   // Each row "votes" for the structural change it observed.
-  candidates.forEach(rowCandidates => {
+  candidates.forEach((rowCandidates) => {
     if (rowCandidates.length === 1) { // Only consider simple, unambiguous changes (one add or one delete per row)
       const candidate = rowCandidates[0];
       const key = `${candidate.type}:${candidate.index}:${candidate.count}`;
@@ -68,15 +208,18 @@ function analyzeColumnChanges(
   });
 
   // If a single candidate wins a sufficient majority of the votes, we have a winner.
-  if (dominantCandidateKey && maxVotes >= modifiedRowCount * COLUMN_CHANGE_CONFIDENCE_THRESHOLD) {
-    const [type, indexStr, countStr] = dominantCandidateKey.split(':');
+  if (
+    dominantCandidateKey &&
+    maxVotes >= modifiedRowCount * COLUMN_CHANGE_CONFIDENCE_THRESHOLD
+  ) {
+    const [type, indexStr, countStr] = dominantCandidateKey.split(":");
     const index = parseInt(indexStr, 10);
     const count = parseInt(countStr, 10);
-    
+
     // This is a high-confidence structural change.
     return [{
-      type: type === 'add' ? 'column_insertion' : 'column_deletion',
-      sheet: '' as SheetId, // The sheetId will be added by the caller
+      type: type === "add" ? "column_insertion" : "column_deletion",
+      sheet: "" as SheetId, // The sheetId will be added by the caller
       index: index,
       count: count,
     }];
@@ -85,8 +228,6 @@ function analyzeColumnChanges(
   // The changes were not uniform enough; likely a "shift cells" operation.
   return [];
 }
-// --- END: NEW COLUMN ANALYSIS LOGIC ---
-
 
 function isRealFormula(formula: any): boolean {
   return typeof formula === "string" && formula.startsWith("=");
@@ -96,9 +237,9 @@ function applyFilters(
   oldValue: any,
   newValue: any,
   activeFilterIds: Set<string>,
-  filterRegistry: IComparisonFilter[]
+  filterRegistry: IComparisonFilter[],
 ): boolean {
-  return filterRegistry.some(filter =>
+  return filterRegistry.some((filter) =>
     activeFilterIds.has(filter.id) && filter.apply(oldValue, newValue)
   );
 }
@@ -130,17 +271,55 @@ function normalizeFormula(formula: string, renames: ISheetRename[]): string {
   return normalizedFormula;
 }
 
-// This function now handles the "fallback" case: a direct cell-by-cell comparison
-// for rows that are modified but NOT part of a uniform structural change.
-function compareCells(
+function coalesceRowChanges(
+  sheetId: SheetId,
+  rowChanges: IRowChange[],
+  type: "row_insertion" | "row_deletion",
+  startRowOffset: number,
+): IStructuralChange[] {
+  if (rowChanges.length === 0) return [];
+  const structuralChanges: IStructuralChange[] = [];
+  const sortedChanges = [...rowChanges].sort((a, b) => a.rowIndex - b.rowIndex);
+
+  let currentBlock: IStructuralChange = {
+    type,
+    sheet: sheetId,
+    index: sortedChanges[0].rowIndex + startRowOffset,
+    count: 1,
+  };
+
+  for (let i = 1; i < sortedChanges.length; i++) {
+    if (sortedChanges[i].rowIndex === sortedChanges[i - 1].rowIndex + 1) {
+      currentBlock.count!++;
+    } else {
+      structuralChanges.push(currentBlock);
+      currentBlock = {
+        type,
+        sheet: sheetId,
+        index: sortedChanges[i].rowIndex + startRowOffset,
+        count: 1,
+      };
+    }
+  }
+  structuralChanges.push(currentBlock);
+  return structuralChanges;
+}
+
+/**
+
+Updated compareCells to include the "Negative Proof" filter.
+*/
+function compareCellsHybrid(
   sheetId: SheetId,
   oldRow: IRowData,
   newRow: IRowData,
   activeFilterIds: Set<string>,
   renames: ISheetRename[],
-  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[],
+  deletions:
+    (IStructuralChange & { type: "sheet_deletion"; sheetId: SheetId })[],
   fromVersionComment: string,
-  toVersionComment: string
+  toVersionComment: string,
+  rangeEditedLookup: Set<string>, // NEW ARGUMENT
 ): IChange[] {
   const modifiedCells: IChange[] = [];
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
@@ -148,37 +327,92 @@ function compareCells(
     const oldCell = oldRow.cells[c];
     const newCell = newRow.cells[c];
 
-    const canonicalAddress = (newCell?.address || oldCell?.address);
+    const canonicalAddress = newCell?.address || oldCell?.address;
     if (!canonicalAddress) continue;
 
     const _oldCell = oldCell || { value: "", formula: "", precedents: [] };
     const _newCell = newCell || { value: "", formula: "" };
 
-    if (isRealFormula(_oldCell.formula) && String(_newCell.formula).includes("#REF!")) {
-      const deletedSheetIds = new Set(deletions.map(d => d.sheetId!));
-      if (_oldCell.precedents?.some(p => deletedSheetIds.has(p.sheetId))) {
+    // --- CONVOLUTED FORMULA CHECK (Unchanged) ---
+    if (
+      isRealFormula(_oldCell.formula) &&
+      String(_newCell.formula).includes("#REF!")
+    ) {
+      const deletedSheetIds = new Set(deletions.map((d) => d.sheetId!));
+      if (_oldCell.precedents?.some((p) => deletedSheetIds.has(p.sheetId))) {
         modifiedCells.push({
-          sheet: sheetId, address: canonicalAddress, changeType: "formula",
-          oldValue: _oldCell.value, newValue: _newCell.value,
-          oldFormula: _oldCell.formula, newFormula: _newCell.formula,
+          sheet: sheetId,
+          address: canonicalAddress,
+          changeType: "formula",
+          oldValue: _oldCell.value,
+          newValue: _newCell.value,
+          oldFormula: _oldCell.formula,
+          newFormula: _newCell.formula,
           fromVersionComment,
           toVersionComment,
-          metadata: { isConsequential: true, reason: "ref_error_sheet_deleted" },
+          metadata: {
+            isConsequential: true,
+            reason: "ref_error_sheet_deleted",
+          },
         });
         continue;
       }
     }
 
-    const valueChanged = !applyFilters(_oldCell.value, _newCell.value, activeFilterIds, valueFilters) && String(_oldCell.value) !== String(_newCell.value);
-    const normalizedOldFormula = normalizeFormula(String(_oldCell.formula), renames);
-    const formulaChanged = (isRealFormula(_oldCell.formula) || isRealFormula(_newCell.formula)) && !applyFilters(normalizedOldFormula, _newCell.formula, activeFilterIds, formulaFilters) && (normalizedOldFormula !== String(_newCell.formula));
+    const valueChanged =
+      !applyFilters(
+        _oldCell.value,
+        _newCell.value,
+        activeFilterIds,
+        valueFilters,
+      ) && String(_oldCell.value) !== String(_newCell.value);
+    const normalizedOldFormula = normalizeFormula(
+      String(_oldCell.formula),
+      renames,
+    );
+    const formulaChanged =
+      (isRealFormula(_oldCell.formula) || isRealFormula(_newCell.formula)) &&
+      !applyFilters(
+        normalizedOldFormula,
+        _newCell.formula,
+        activeFilterIds,
+        formulaFilters,
+      ) && (normalizedOldFormula !== String(_newCell.formula));
 
     if (valueChanged || formulaChanged) {
+      // --- HYBRID DIFF: NEGATIVE PROOF FILTER ---
+      const isUserEdit = rangeEditedLookup.has(canonicalAddress);
+
+      if (!isUserEdit && (valueChanged || formulaChanged)) {
+        // Case 2: Old != New BUT Log is Empty for Address -> System Recalc (Dim/Ignore)
+        modifiedCells.push({
+          sheet: sheetId,
+          address: canonicalAddress,
+          changeType: formulaChanged
+            ? (valueChanged ? "both" : "formula")
+            : "value",
+          oldValue: _oldCell.value,
+          newValue: _newCell.value,
+          oldFormula: _oldCell.formula,
+          newFormula: _newCell.formula,
+          fromVersionComment,
+          toVersionComment,
+          metadata: { source: "system_recalc", isConsequential: true }, // Mark as consequential/recalc
+        });
+        continue;
+      }
+
+      // Case 1: Old != New AND Log contains RangeEdited(Address) -> User Edit (Highlight)
       modifiedCells.push({
-        sheet: sheetId, address: canonicalAddress,
-        changeType: formulaChanged ? (valueChanged ? "both" : "formula") : "value",
-        oldValue: _oldCell.value, newValue: _newCell.value,
-        oldFormula: _oldCell.formula, newFormula: _newCell.formula,
+        sheet: sheetId,
+        address: canonicalAddress,
+        changeType: formulaChanged
+          ? (valueChanged ? "both" : "formula")
+          : "value",
+        oldValue: _oldCell.value,
+        newValue: _newCell.value,
+        oldFormula: _oldCell.formula,
+        newFormula: _newCell.formula, // Corrected assignment
         fromVersionComment,
         toVersionComment,
       });
@@ -187,171 +421,123 @@ function compareCells(
   return modifiedCells;
 }
 
-function coalesceRowChanges(
-  sheetId: SheetId,
-  rowChanges: IRowChange[],
-  type: "row_insertion" | "row_deletion",
-  startRowOffset: number
-): IStructuralChange[] {
-  if (rowChanges.length === 0) return [];
-  const structuralChanges: IStructuralChange[] = [];
-  const sortedChanges = [...rowChanges].sort((a, b) => a.rowIndex - b.rowIndex);
-
-  let currentBlock: IStructuralChange = {
-    type, sheet: sheetId,
-    index: sortedChanges[0].rowIndex + startRowOffset,
-    count: 1,
-  };
-
-  for (let i = 1; i < sortedChanges.length; i++) {
-    if (sortedChanges[i].rowIndex === sortedChanges[i - 1].rowIndex + 1) {
-        currentBlock.count!++;
-    } else {
-      structuralChanges.push(currentBlock);
-      currentBlock = { type, sheet: sheetId, index: sortedChanges[i].rowIndex + startRowOffset, count: 1 };
-    }
-  }
-  structuralChanges.push(currentBlock);
-  return structuralChanges;
-}
-
 export function diffSheetContent(
   sheetId: SheetId,
   oldSheet: ISheetSnapshot,
   newSheet: ISheetSnapshot,
   activeFilterIds: Set<string>,
   renames: ISheetRename[],
-  deletions: (IStructuralChange & { type: 'sheet_deletion', sheetId: SheetId })[],
+  deletions:
+    (IStructuralChange & { type: "sheet_deletion"; sheetId: SheetId })[],
   fromVersionComment: string,
-  toVersionComment: string
+  toVersionComment: string,
+  sanitizedEvents: IRawEvent[],
 ): IChangeset {
-  const result: IChangeset = { modifiedCells: [], addedRows: [], deletedRows: [], structuralChanges: [] };
+  const result: IChangeset = {
+    modifiedCells: [],
+    addedRows: [],
+    deletedRows: [],
+    structuralChanges: [],
+  };
   const oldCoords = oldSheet.address ? fromA1(oldSheet.address) : null;
-  const startRowOffset = oldCoords ? oldCoords.row : 0;
-  const startColOffset = oldCoords ? oldCoords.col : 0;
+  // startRow is 0-based index of the first row containing data. We use this offset for 1-based structural changes.
+  const startRowOffset = oldSheet.startRow;
+  const startColOffset = oldSheet.startCol;
   const oldData = normalizeSheetData(oldSheet.data);
   const newData = normalizeSheetData(newSheet.data);
 
-  const rowHashChanges = diffArrays(oldData.map(r => r.hash), newData.map(r => r.hash));
+  // --- HYBRID DIFF PHASE 1: Alignment Map & Lookup ---
+  const alignmentMap = buildRowAlignmentMap(
+    sheetId,
+    oldData.length,
+    newData.length,
+    sanitizedEvents,
+    startRowOffset,
+  );
+  const rangeEditedLookup = getRangeEditedLookup(sheetId, sanitizedEvents);
 
-  const columnChangeCandidates = new Map<number, IColumnChangeCandidate[]>();
+  let tempAddedRows: IRowChange[] = [];
+  let tempDeletedRows: IRowChange[] = [];
   const bufferedModifiedCells: IChange[] = [];
-  let modifiedRowCount = 0;
 
-  let oldIdx = 0;
-  let newIdx = 0;
+  // --- HYBRID DIFF PHASE 2: Iterating the Alignment Map ---
+  for (const item of alignmentMap) {
+    if (item.type === "inserted") {
+      const addedRowData = newData[item.newIndex];
+      tempAddedRows.push({
+        sheet: sheetId,
+        rowIndex: item.newIndex,
+        rowData: addedRowData,
+      });
 
-  // --- PASS 1: GATHER EVIDENCE from row and cell diffs ---
-  for (let i = 0; i < rowHashChanges.length; i++) {
-    const part = rowHashChanges[i];
-    const nextPart = i + 1 < rowHashChanges.length ? rowHashChanges[i + 1] : null;
-
-    if (part.removed && nextPart && nextPart.added && part.count === nextPart.count) {
-      console.log(`[Diff Diagnosis] Found a modified block of ${part.count} rows. Analyzing...`);
-
-      // This block represents modified rows.
-      modifiedRowCount += part.count;
-      for (let j = 0; j < part.count; j++) {
-        const oldRow = oldData[oldIdx];
-        const newRow = newData[newIdx];
-
-        // --- START: DIAGNOSTIC LOGGING ---
-        if (j < 5 || j > part.count - 5) { // Log the first and last 5 rows of a large block
-            console.log(`[Diff Diagnosis] Comparing old row index ${oldIdx} with new row index ${newIdx}.`);
-            console.log(`[Diff Diagnosis] Hashes:`, { old: oldRow.hash, new: newRow.hash });
-            console.log(`[Diff Diagnosis] Cell Data Sample (first 5 cells):`, {
-                oldCells: oldRow.cells.slice(0, 5).map(c => ({ v: c.value, f: c.formula })),
-                newCells: newRow.cells.slice(0, 5).map(c => ({ v: c.value, f: c.formula })),
-            });
+      // Cells in an inserted row are always "modified cells" if they contain content.
+      addedRowData.cells.forEach((cell) => {
+        const hasContent = (cell.value !== "" && cell.value != null) ||
+          isRealFormula(cell.formula);
+        if (hasContent) {
+          // Treat cell content in newly added rows as user edits.
+          result.modifiedCells.push({
+            sheet: sheetId,
+            address: cell.address,
+            changeType: isRealFormula(cell.formula) ? "both" : "value",
+            oldValue: "",
+            newValue: cell.value,
+            oldFormula: "",
+            newFormula: cell.formula,
+            fromVersionComment,
+            toVersionComment,
+          });
         }
-        // ---  END: DIAGNOSTIC LOGGING  ---
-        
-        // Granular diff on cells to detect intra-row shifts.
-        const cellChanges = diffArrays(oldRow.cells, newRow.cells, {
-          comparator: (a, b) => a.value === b.value && a.formula === b.formula
-        });
+      });
+    } else if (item.type === "deleted") {
+      tempDeletedRows.push({
+        sheet: sheetId,
+        rowIndex: item.oldIndex,
+        rowData: oldData[item.oldIndex],
+      });
+    } else if (item.type === "match") {
+      const oldRow = oldData[item.oldIndex];
+      const newRow = newData[item.newIndex];
 
-        const rowCandidates: IColumnChangeCandidate[] = [];
-        let oldCellIdx = 0;
-        let newCellIdx = 0;
-        
-        cellChanges.forEach(cellPart => {
-          if (cellPart.added) {
-            rowCandidates.push({ type: 'add', index: newCellIdx, count: cellPart.count });
-            newCellIdx += cellPart.count;
-          } else if (cellPart.removed) {
-            rowCandidates.push({ type: 'delete', index: oldCellIdx, count: cellPart.count });
-            oldCellIdx += cellPart.count;
-          } else {
-            oldCellIdx += cellPart.count;
-            newCellIdx += cellPart.count;
-          }
-        });
-
-        if (rowCandidates.length > 0) {
-          columnChangeCandidates.set(oldIdx, rowCandidates);
-        }
-        
-        // Buffer the detailed changes in case this is a fallback scenario.
-        bufferedModifiedCells.push(...compareCells(sheetId, oldRow, newRow, activeFilterIds, renames, deletions, fromVersionComment, toVersionComment));
-        
-        oldIdx++;
-        newIdx++;
+      // Check content hash: If hashes match, the content is identical.
+      // This eliminates most ripple-effect changes caused by shifts.
+      if (oldRow.hash !== newRow.hash) {
+        // Perform the granular comparison using the hybrid logic
+        const changes = compareCellsHybrid(
+          sheetId,
+          oldRow,
+          newRow,
+          activeFilterIds,
+          renames,
+          deletions,
+          fromVersionComment,
+          toVersionComment,
+          rangeEditedLookup,
+        );
+        bufferedModifiedCells.push(...changes);
       }
-      i++; // Skip the next part since we've processed it.
-    } else if (part.added) {
-      for (let j = 0; j < part.count; j++) {
-        const addedRowData = newData[newIdx];
-        result.addedRows.push({ sheet: sheetId, rowIndex: newIdx, rowData: addedRowData });
-        addedRowData.cells.forEach(cell => {
-          const hasContent = (cell.value !== "" && cell.value != null) || isRealFormula(cell.formula);
-          if (hasContent) {
-            result.modifiedCells.push({
-              sheet: sheetId, address: cell.address, changeType: isRealFormula(cell.formula) ? 'both' : 'value',
-              oldValue: "", newValue: cell.value, oldFormula: "", newFormula: cell.formula,
-              fromVersionComment,
-              toVersionComment,
-            });
-          }
-        });
-        newIdx++;
-      }
-    } else if (part.removed) {
-      for (let j = 0; j < part.count; j++) {
-        // Store the relative index; the offset will be applied consistently later.
-        result.deletedRows.push({ sheet: sheetId, rowIndex: oldIdx, rowData: oldData[oldIdx] });
-        oldIdx++;
-      }
-    } else { // Unchanged rows
-      oldIdx += part.count;
-      newIdx += part.count;
     }
   }
 
-  // --- PASS 2: INFER STRUCTURAL CHANGES and decide on a strategy ---
-  const inferredColumnChanges = analyzeColumnChanges(columnChangeCandidates, modifiedRowCount);
+  // --- PASS 3: Coalesce Results ---
+  result.modifiedCells.push(...bufferedModifiedCells);
+  result.addedRows.push(...tempAddedRows);
+  result.deletedRows.push(...tempDeletedRows);
 
-  if (inferredColumnChanges.length > 0) {
-    // STRATEGY: A uniform column change was detected. Report it as a structural event.
-    // We discard the bufferedModifiedCells because they are just noise/ripple effects.
-    // --- FIX: The diff heuristic produces a flawed index. Correct it by reversing the errors. ---
-    const absoluteColumnChanges = inferredColumnChanges.map(change => ({
-      ...change,
-      sheet: sheetId,
-      index: change.index - startColOffset - 1,
-    }));
-    result.structuralChanges.push(...absoluteColumnChanges);
-  } else {
-    // STRATEGY: Fallback. No uniform change detected. This was a "shift cells" or manual edit.
-    // Report the detailed, cell-by-cell changes.
-    result.modifiedCells.push(...bufferedModifiedCells);
-  }
-
-  const trueInsertions = result.addedRows.filter(row => row.rowIndex < oldData.length);
+  // Convert row changes into structural blocks, applying the startRowOffset
   result.structuralChanges.push(
-    ...coalesceRowChanges(sheetId, trueInsertions, "row_insertion", startRowOffset),
-    // Apply the offset consistently for deletions here.
-    ...coalesceRowChanges(sheetId, result.deletedRows, "row_deletion", startRowOffset)
+    ...coalesceRowChanges(
+      sheetId,
+      tempAddedRows,
+      "row_insertion",
+      startRowOffset,
+    ),
+    ...coalesceRowChanges(
+      sheetId,
+      tempDeletedRows,
+      "row_deletion",
+      startRowOffset,
+    ),
   );
 
   return result;

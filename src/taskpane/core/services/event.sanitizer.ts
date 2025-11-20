@@ -1,16 +1,8 @@
 // src/taskpane/core/services/event.sanitizer.ts
 
 import { AppConfig } from "../../../config";
+import { IRawEvent } from "../../types/types";
 
-export interface IRawEvent {
-  changeType: string;
-  address: string;
-  worksheetId: string;
-  worksheetName?: string;
-  timestamp: string;
-  source?: string;
-  [key: string]: any;
-}
 
 export class EventSanitizer {
   
