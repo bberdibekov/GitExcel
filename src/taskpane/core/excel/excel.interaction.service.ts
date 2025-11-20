@@ -3,6 +3,7 @@
 import { IInteractionChange } from "../../types/types";
 import { debugService } from "../services/debug.service";
 import { EventSanitizer } from "../services/event.sanitizer"; 
+import { AppConfig } from "../../../config"; // Import Config
 
 let selectionChangedHandler: any = null;
 
@@ -12,10 +13,13 @@ class ExcelInteractionService {
   private eventBuffer: Excel.WorksheetChangedEventArgs[] = [];
   private flushBufferTimer: NodeJS.Timeout | null = null;
 
+  // ... [Keep navigateToCell, showChangesOnSheet, clearChangesFromSheet, setupSelectionListener unchanged] ...
+  
+  // Add the getter for the UI/Workflow
   public getRawEvents(): any[] {
     return [...this.capturedChangeEvents];
   }
-  
+
   public async navigateToCell(sheetName: string, address: string) {
     await Excel.run(async (context) => {
       const sheet = context.workbook.worksheets.getItem(sheetName);
@@ -50,6 +54,8 @@ class ExcelInteractionService {
           try {
             const range = sheet.getRange(change.address);
             range.clear(Excel.ClearApplyTo.formats);
+            // Check if comment exists before deleting to avoid errors
+            // (Simplified for brevity, keeping your existing logic is fine)
             sheet.comments.getItemByCell(change.address).delete();
           } catch (error) {
             console.warn(`Could not clear cell ${change.sheet}!${change.address}.`, error);
@@ -94,8 +100,15 @@ class ExcelInteractionService {
         worksheets.load("items/name");
         await context.sync();
 
-        this.capturedChangeEvents = []; 
-        this.eventBuffer = []; 
+        // Don't clear array if we want to persist history across pane re-opens.
+        // Only clear if we explicitly want a fresh session.
+        // For now, we keep appending.
+        
+        // Check if already tracking to avoid double-binding
+        if (this.eventHandlers.size > 0) {
+            console.log("[InteractionService] Already tracking. Skipping start.");
+            return;
+        }
         
         for (const sheet of worksheets.items) {
             const handlerResult = sheet.onChanged.add(this.handleWorksheetChanged.bind(this));
@@ -106,11 +119,7 @@ class ExcelInteractionService {
     });
   }
 
-  /**
-   * Stops tracking, sanitizes the data, and saves a combined JSON file.
-   */
   public async stopAndSaveChangeTracking(): Promise<void> {
-    // 1. Remove listeners
     await Excel.run(async (context) => {
         const worksheets = context.workbook.worksheets;
         worksheets.load("items/name");
@@ -122,17 +131,14 @@ class ExcelInteractionService {
         await context.sync();
     });
     
-    // 2. Flush buffer
     if (this.flushBufferTimer) {
         clearTimeout(this.flushBufferTimer);
         await this.flushBuffer(); 
     }
 
-    // 3. Sanitize
     const rawEvents = [...this.capturedChangeEvents];
     const sanitizedEvents = EventSanitizer.sanitize(rawEvents);
 
-    // 4. Build Payload
     const exportData = {
         metadata: {
             timestamp: new Date().toISOString(),
@@ -144,10 +150,11 @@ class ExcelInteractionService {
         raw: rawEvents
     };
 
-    // 5. Save
     debugService.saveRawEventLog('event_capture_full.json', exportData);
 
     this.eventHandlers.clear();
+    // NOTE: We probably don't want to clear capturedChangeEvents here if we want continuous history
+    // But 'stopAndSave' implies wrapping up a session. 
     this.capturedChangeEvents = [];
     console.log(`[InteractionService] Tracking saved. Raw: ${rawEvents.length}, Sanitized: ${sanitizedEvents.length}`);
   }
@@ -155,7 +162,10 @@ class ExcelInteractionService {
   private handleWorksheetChanged(eventArgs: Excel.WorksheetChangedEventArgs): Promise<void> {
     this.eventBuffer.push(eventArgs);
     if (this.flushBufferTimer) clearTimeout(this.flushBufferTimer);
-    this.flushBufferTimer = setTimeout(() => { this.flushBuffer(); }, 250);
+    
+    // Use Config value
+    this.flushBufferTimer = setTimeout(() => { this.flushBuffer(); }, AppConfig.eventTracking.flushDelayMs);
+    
     return Promise.resolve();
   }
 
@@ -175,7 +185,7 @@ class ExcelInteractionService {
                 const eventData = {
                     timestamp: new Date().toISOString(),
                     worksheetId: eventArgs.worksheetId,
-                    worksheetName: worksheet.name,
+                    worksheetName: worksheet.name, // Explicitly capturing name
                     address: eventArgs.address,
                     type: eventArgs.type, 
                     changeType: eventArgs.changeType, 
@@ -194,7 +204,8 @@ class ExcelInteractionService {
                 };
                 
                 this.capturedChangeEvents.push(eventData);
-                console.log(`[Event Log] ${eventData.changeType} at ${eventData.address}`, eventData);
+                // Optional: Log cleaner output for dev
+                console.log(`[Event] ${eventData.changeType} @ ${worksheet.name}!${eventData.address}`);
             } catch (error) {
                 console.error("[InteractionService] Error processing buffered event:", error);
             }

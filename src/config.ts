@@ -6,6 +6,19 @@
  * and for different build environments.
  */
 
+export const AppConfig = {
+  // ... existing config if any ...
+  
+  eventTracking: {
+    // How long to wait after the last event before saving the buffer to the "session history".
+    // 300ms is usually enough to catch a full "burst" of Excel events.
+    flushDelayMs: 300,
+    
+    // If two IDENTICAL events occur within this window, the second is considered an "Echo" and discarded.
+    echoThresholdMs: 100,
+  }
+};
+
 export const config = {
   /**
    * Acts as a global feature flag for all paywall-related UI.
@@ -31,3 +44,4 @@ export const diffViewerConfig = {
     endContextLength: 10,
   },
 };
+
