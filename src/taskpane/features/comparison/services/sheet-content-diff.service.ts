@@ -73,8 +73,7 @@ function buildRowAlignmentMap(
     sanitizedEvents.forEach((e, i) => {
       const isSheetMatch = e.sheetId === sheetId;
       const isWorksheetMatch = e.worksheetId === sheetId;
-      const isTypeMatch =
-        e.changeType === "RowInserted" || e.changeType === "RowDeleted";
+      const isTypeMatch = e.changeType === "RowInserted" || e.changeType === "RowDeleted";
 
       // Only log if it's a relevant type, to reduce noise
       if (isTypeMatch) {
@@ -94,18 +93,24 @@ function buildRowAlignmentMap(
   }
   // =====================================
 
-  // FIX: Filter events using the persistent sheetId (GUID) OR the session worksheetId.
+  // Filter events using the persistent sheetId (GUID) OR the session worksheetId.
   const events = sanitizedEvents.filter(
     (e) =>
       (e.sheetId === sheetId || e.worksheetId === sheetId) &&
       (e.changeType === "RowInserted" || e.changeType === "RowDeleted"),
   );
 
-  // === DEBUG: DIAGNOSE ROW ALIGNMENT INPUTS ===
-  console.group(`[RowAlignment Debug] Sheet: ${sheetId.substring(0, 6)}...`);
-  console.log(`Lengths -> Old: ${oldDataLength}, New: ${newDataLength}`);
-  console.log(`Relevant Structural Events Found: ${events.length}`, events);
-  // ===========================================
+  // === DEBUG LOGGING START ===
+  if (events.length > 0) {
+      console.group(`[RowAlignment] Processing ${events.length} Structural Events for ${sheetId}`);
+      events.forEach(e => console.log(`   -> ${e.changeType} at ${e.address}`));
+      console.groupEnd();
+  } else {
+      // Only log "No events" if we actually expected changes (optional, to reduce noise)
+      // console.log(`[RowAlignment] No structural events found for ${sheetId}`);
+  }
+  // === DEBUG LOGGING END ===
+
 
   let currentOldRow = 0;
   let currentNewRow = 0;

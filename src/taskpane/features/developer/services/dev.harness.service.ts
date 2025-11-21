@@ -1,4 +1,5 @@
-// src/taskpane/services/developer/dev.harness.service.ts
+// src/taskpane/features/developer/services/dev.harness.service.ts
+
 import { IRawEvent, IVersion } from "../../../types/types";
 import { debugService } from "../../../core/services/debug.service";
 import { testSteps } from "./test.cases";
@@ -7,11 +8,9 @@ import { excelInteractionService } from "../../../core/excel/excel.interaction.s
 import { useAppStore } from "../../../state/appStore";
 
 /**
-
-Defines the functions and data the harness needs from the main application
-
-to perform its operations.
-*/
+ * Defines the functions and data the harness needs from the main application
+ * to perform its operations.
+ */
 interface IHarnessCallbacks {
   getVersions: () => IVersion[];
   onSaveVersion: (comment: string) => Promise<void>;
@@ -22,53 +21,38 @@ interface IHarnessCallbacks {
 }
 
 /**
-
-Configuration options for running the test harness
-*/
+ * Configuration options for running the test harness
+ */
 interface ITestHarnessOptions {
-  /*
-
-The step number to run up to (1-indexed, inclusive).
-
-If not specified, all steps will be run.
-
-@example 5 will run steps 1 through 5
-  */
+  /**
+   * The step number to run up to (1-indexed, inclusive).
+   * If not specified, all steps will be run.
+   */
   upToStep?: number;
 
   /**
-
-The step number to start from (1-indexed, inclusive).
-
-Defaults to 1.
-
-@example startFromStep: 3, upToStep: 7 will run steps 3 through 7
-  */
+   * The step number to start from (1-indexed, inclusive).
+   * Defaults to 1.
+   */
   startFromStep?: number;
 
   /**
-
-Delay in milliseconds between test steps.
-
-Defaults to 500ms.
-  */
+   * Delay in milliseconds between test steps.
+   * Defaults to 500ms.
+   */
   stepDelay?: number;
 
   /**
-
-Delay in milliseconds after each action.
-
-Defaults to 200ms.
-  */
+   * Delay in milliseconds after each action.
+   * Defaults to 200ms.
+   */
   actionDelay?: number;
 }
 
 /**
-
-Defines a test case specifically for validating the Hybrid Diff engine
-
-by controlling the live event stream between two snapshots.
-*/
+ * Defines a test case specifically for validating the Hybrid Diff engine
+ * by controlling the live event stream between two snapshots.
+ */
 export interface IHybridDiffTest {
   name: string;
   description: string;
@@ -95,9 +79,8 @@ class DevHarnessService {
     new Promise((resolve) => setTimeout(resolve, ms));
 
   /**
-
-Clears localStorage to reset all persisted state.
-  */
+   * Clears localStorage to reset all persisted state.
+   */
   private clearLocalStorage(): void {
     try {
       localStorage.clear();
@@ -108,9 +91,8 @@ Clears localStorage to reset all persisted state.
   }
 
   /**
-
-Extracts all unique sheet names referenced in the test steps.
-  */
+   * Extracts all unique sheet names referenced in the test steps.
+   */
   private getTestSheetNames(): string[] {
     const sheetNames = new Set<string>();
 
@@ -124,9 +106,8 @@ Extracts all unique sheet names referenced in the test steps.
   }
 
   /**
-
-Deletes test sheets if they exist to ensure a clean test environment.
-  */
+   * Deletes test sheets if they exist to ensure a clean test environment.
+   */
   private async cleanupTestSheets(): Promise<void> {
     const testSheetNames = this.getTestSheetNames();
 
@@ -197,6 +178,11 @@ Deletes test sheets if they exist to ensure a clean test environment.
       onClearHistory();
       await this.delay(stepDelay);
 
+      // === CRITICAL FIX: Start Event Capture before running actions ===
+      onStatusUpdate("Starting Event Capture for Test Run...");
+      await excelInteractionService.startChangeTracking();
+      // ===============================================================
+
       for (let i = 0; i < stepsToRun.length; i++) {
         const step = stepsToRun[i];
         const stepNumber = startIndex + i + 1;
@@ -208,9 +194,14 @@ Deletes test sheets if they exist to ensure a clean test environment.
 
         await step.action();
         await this.delay(actionDelay);
+        // The onSaveVersion call (via AppStore) will pop the events captured since the last save
         await onSaveVersion(step.comment);
         await this.delay(stepDelay);
       }
+
+      // === CRITICAL FIX: Stop Capture after loop ===
+      await excelInteractionService.stopAndSaveChangeTracking();
+      // =============================================
 
       // Get the definitive state AFTER the creation loop to avoid race conditions.
       const finalVersions = getVersions();
@@ -264,6 +255,10 @@ Deletes test sheets if they exist to ensure a clean test environment.
       console.error("Test harness failed:", error);
       debugService.addLogEntry("Test Harness Failed", { error: errorMessage });
       onStatusUpdate(`Test FAILED: ${errorMessage}. Check console.`);
+      
+      // Ensure we stop tracking if an error occurs
+      try { await excelInteractionService.stopAndSaveChangeTracking(); } catch(e) {}
+
       throw new Error(`Test harness failed. Check console for details.`);
     } finally {
       debugService.saveLogSession("timeline_resolver_debug_log.json");
@@ -337,6 +332,8 @@ Deletes test sheets if they exist to ensure a clean test environment.
         "Phase 2/4: Executing live actions (State update & Mock Event injection)...",
       );
 
+      // Note: Accessing testCase.mockRawEvents (the getter) here generates fresh timestamps 
+      // relative to Date.now(), ensuring they are not filtered out by the workflow service.
       const patchedMockEvents = testCase.mockRawEvents.map((event) => ({
         ...event,
         // Overwrite the placeholder ID with the actual live GUID
@@ -416,17 +413,15 @@ Deletes test sheets if they exist to ensure a clean test environment.
   }
 
   /**
-
-Returns the total number of available test steps.
-  */
+   * Returns the total number of available test steps.
+   */
   public getTotalSteps(): number {
     return testSteps.length;
   }
 
   /**
-
-Returns information about a specific test step.
-  */
+   * Returns information about a specific test step.
+   */
   public getStepInfo(
     stepNumber: number,
   ): { description: string; comment: string } | null {
@@ -441,9 +436,8 @@ Returns information about a specific test step.
   }
 
   /**
-
-Returns information about all test steps.
-  */
+   * Returns information about all test steps.
+   */
   public getAllStepsInfo(): Array<
     { stepNumber: number; description: string; comment: string }
   > {

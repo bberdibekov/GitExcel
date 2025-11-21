@@ -13,6 +13,10 @@ let selectionChangedHandler: any = null;
 class ExcelInteractionService {
   private capturedChangeEvents: IRawEvent[] = [];
   private eventHandlers = new Map<string, any>();
+  
+  // Store the global listener for new sheets
+  private worksheetAddedHandler: any = null; 
+
   private eventBuffer: Excel.WorksheetChangedEventArgs[] = [];
   private flushBufferTimer: NodeJS.Timeout | null = null;
   private isMockingEvents: boolean = false;
@@ -274,6 +278,12 @@ class ExcelInteractionService {
       const worksheets = context.workbook.worksheets;
       // Load basic info plus CustomProperties to build the ID map
       worksheets.load("items/name, items/id");
+      
+      // === ATTACH GLOBAL LISTENER FOR NEW SHEETS ===
+      if (!this.worksheetAddedHandler) {
+          this.worksheetAddedHandler = worksheets.onAdded.add(this.handleWorksheetAdded.bind(this));
+      }
+
       await context.sync();
 
       // Clear map to ensure freshness on restart
@@ -316,20 +326,28 @@ class ExcelInteractionService {
       }
 
       console.log(
-        `[InteractionService] Started tracking ${worksheets.items.length} sheets. Mapped ${mappedCount} persistent IDs.`,
+        `[InteractionService] Started tracking ${worksheets.items.length} sheets. Mapped ${mappedCount} persistent IDs. Global 'onAdded' listener active.`,
       );
     });
   }
 
   public async stopAndSaveChangeTracking(): Promise<void> {
     await Excel.run(async (context) => {
-      const worksheets = context.workbook.worksheets;
-      worksheets.load("items/name");
-      await context.sync();
-      for (const sheet of worksheets.items) {
-        const handlerResult = this.eventHandlers.get(sheet.name);
-        if (handlerResult) handlerResult.remove();
+        
+      // 1. Remove the Global 'onAdded' listener
+      if (this.worksheetAddedHandler) {
+          this.worksheetAddedHandler.remove();
+          this.worksheetAddedHandler = null;
       }
+
+      // 2. Remove all Sheet-level 'onChanged' listeners
+      // We iterate the map values directly to ensure we catch everything, 
+      // even if a sheet was deleted during the session.
+      this.eventHandlers.forEach((handler) => {
+          handler.remove();
+      });
+      this.eventHandlers.clear();
+      
       await context.sync();
     });
 
@@ -357,13 +375,33 @@ class ExcelInteractionService {
 
     debugService.saveRawEventLog("event_capture_full.json", exportData);
 
-    this.eventHandlers.clear();
     this.capturedChangeEvents = [];
-    // We can optionally clear the ID map here, or keep it for cache hits if restarted immediately.
-    // this.sessionIdToGuidMap.clear(); 
     console.log(
       `[InteractionService] Tracking saved. Raw: ${rawEvents.length}, Sanitized: ${sanitizedEvents.length}`,
     );
+  }
+
+  // === NEW HANDLER FOR DYNAMIC SHEETS ===
+  private handleWorksheetAdded(eventArgs: Excel.WorksheetAddedEventArgs): Promise<void> {
+      return Excel.run(async (context) => {
+          const sheet = context.workbook.worksheets.getItem(eventArgs.worksheetId);
+          sheet.load("name, id");
+          
+          // 1. Attach Change Listener
+          const handlerResult = sheet.onChanged.add(this.handleWorksheetChanged.bind(this));
+          
+          // 2. Generate & Attach Persistent ID immediately
+          // We do this here so the sheet is "ready" for tracking before user edits it
+          const newGuid = this.generateSimpleId();
+          sheet.customProperties.add(SHEET_ID_KEY, newGuid);
+          
+          await context.sync();
+
+          console.log(`[InteractionService] New sheet detected via listener: "${sheet.name}". Attached tracker & ID.`);
+          
+          this.eventHandlers.set(sheet.name, handlerResult);
+          this.sessionIdToGuidMap.set(sheet.id, newGuid);
+      });
   }
 
   private handleWorksheetChanged(
@@ -392,12 +430,6 @@ class ExcelInteractionService {
           // Check if we already have the GUID in our cache
           let persistentId = this.sessionIdToGuidMap.get(eventArgs.worksheetId);
           
-          // NOTE: We removed the aggressive JIT fetching here to speed up the event loop.
-          // We rely on 'popCapturedEvents' (reconcileMissingIds) to catch any stragglers 
-          // before saving. This keeps the typing/editing experience fast.
-          
-          // -------------------------
-
           const insertDirection = (
             ("changeDirectionState" in eventArgs &&
                 eventArgs.changeDirectionState?.insertShiftDirection)

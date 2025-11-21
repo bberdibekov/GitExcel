@@ -1,12 +1,11 @@
-// src/taskpane/services/developer/test.cases.ts
+// src/taskpane/features/developer/services/test.cases.ts
 
 import { IHybridDiffTest } from "./dev.harness.service";
 import { IRawEvent } from "../../../types/types";
 
 /**
-
-Defines the structure for a single step in our automated test harness.
-*/
+ * Defines the structure for a single step in our automated test harness.
+ */
 export interface ITestStep {
   description: string;
   comment: string;
@@ -19,21 +18,25 @@ const HYBRID_TEST_SHEET_ID = "HYBRID_TEST_SHEET_01";
 const HYBRID_TEST_SHEET_NAME = "HybridTestSheet";
 
 // Helper function to create a raw event with sequential timing
-let mockTime = 1000;
-const createMockEvent = (changeType: string, address: string): IRawEvent => {
-  mockTime += Math.floor(Math.random() * 50) + 10; // Increment time by 10-60ms
+// We accept a baseTime so we can chain events relative to a specific start point
+const createMockEvent = (
+  changeType: string,
+  address: string,
+  baseTime: number,
+  offsetMs: number
+): IRawEvent => {
+  const eventTime = baseTime + offsetMs;
+  
   // Note: We use 'as any' here because we don't need to define all properties of IRawEvent for the mock
   return {
     changeType: changeType,
     address: address,
     worksheetId: HYBRID_TEST_SHEET_ID,
     worksheetName: HYBRID_TEST_SHEET_NAME,
-    timestamp: new Date(mockTime).toISOString(),
+    timestamp: new Date(eventTime).toISOString(),
   } as any;
 };
 
-// Reset mock time for deterministic runs
-mockTime = 1000;
 export const HybridRowInsertRecalcTest: IHybridDiffTest = {
   name: "Row Insert & Recalc Filter Test",
   description:
@@ -67,21 +70,27 @@ export const HybridRowInsertRecalcTest: IHybridDiffTest = {
     await context.sync();
   },
 
-  // Mock Events: Simulating the raw burst captured by the listener
-  mockRawEvents: [
-    // T=1010ms: Structural event (User Intent)
-    createMockEvent("RowInserted", "5:5"),
+  // Mock Events: Simulating the raw burst captured by the listener.
+  // We use a GETTER so that the timestamps are generated at runtime (when the test runs),
+  // ensuring they are strictly AFTER 'setupAction' but BEFORE the comparison.
+  get mockRawEvents(): IRawEvent[] {
+    const startTime = Date.now(); 
+    
+    return [
+      // T+10ms: Structural event (User Intent)
+      createMockEvent("RowInserted", "5:5", startTime, 10),
 
-    // T=1050ms: User Edit on the intentional change (Crucial for Negative Proof)
-    createMockEvent("RangeEdited", "A1"),
+      // T+50ms: User Edit on the intentional change (Crucial for Negative Proof)
+      createMockEvent("RangeEdited", "A1", startTime, 50),
 
-    // T=1100ms: Echoes of the intentional edit (Sanitizer should drop these)
-    createMockEvent("RangeEdited", "A1"),
-    createMockEvent("RangeEdited", "A1"),
+      // T+100ms: Echoes of the intentional edit (Sanitizer should drop these)
+      createMockEvent("RangeEdited", "A1", startTime, 100),
+      createMockEvent("RangeEdited", "A1", startTime, 120),
 
-    // T=1400ms: A different noise event on an unrelated cell (Ensures noise is handled)
-    createMockEvent("RangeEdited", "C20"),
-  ],
+      // T+400ms: A different noise event on an unrelated cell (Ensures noise is handled)
+      createMockEvent("RangeEdited", "C20", startTime, 400),
+    ];
+  },
 
   // Expected Output (after Hybrid Diff filters):
   // 1. Modified Cells: 1 (A1 - Intentional Edit)
@@ -91,9 +100,8 @@ export const HybridRowInsertRecalcTest: IHybridDiffTest = {
 };
 
 /**
-
-A centralized, static definition of the comprehensive test case.
-*/
+ * A centralized, static definition of the comprehensive test case.
+ */
 export const testSteps: ITestStep[] = [
   {
     description: "Setting up v1: Empty Sheet",

@@ -9,36 +9,62 @@ import { IRawEvent, IVersion } from "../../../types/types";
 import { excelInteractionService } from "../../../core/excel/excel.interaction.service";
 import { EventSanitizer } from "../../../core/services/event.sanitizer";
 
-/**
-    A stateless service to orchestrate the complex "Run Comparison" workflow.
-    It intelligently handles two modes:
-        "Audit Trail" (Historical vs. Historical)
-        "Safety Check" (Live vs. Historical)
-*/
 class ComparisonWorkflowService {
-  /*
-    Runs a comparison based on the current selections in the appStore.
-    This is now the primary entry point for all comparisons.
-    */
+
+  /**
+   * Helper to filter the event stream to strictly the window between start and end versions.
+   */
+  private filterEventsByTimeWindow(events: IRawEvent[], startVersion: IVersion, endVersion: IVersion): IRawEvent[] {
+    if (!events || events.length === 0) return [];
+
+    const startTime = typeof startVersion.id === 'number' ? startVersion.id : new Date(startVersion.timestamp).getTime();
+    const endTime = typeof endVersion.id === 'number' ? endVersion.id : new Date(endVersion.timestamp).getTime();
+
+    console.group(`[ComparisonWorkflow] 🔍 Event Filtering Analysis`);
+    console.log(`Start Bound (v${startVersion.comment}): ${startTime} (${new Date(startTime).toLocaleTimeString()})`);
+    console.log(`End Bound   (v${endVersion.comment}): ${endTime} (${new Date(endTime).toLocaleTimeString()})`);
+    console.log(`Total Candidate Events: ${events.length}`);
+
+    const filtered = events.filter((e, i) => {
+      const eventTime = new Date(e.timestamp).getTime();
+      
+      // LOGIC: Event must be AFTER Start and ON-OR-BEFORE End
+      const isAfterStart = eventTime > startTime;
+      const isBeforeEnd = eventTime <= endTime;
+      const isKept = isAfterStart && isBeforeEnd;
+
+      // Log the first few and any pertinent structural ones to avoid flooding console
+      const isStructural = e.changeType.includes("Row") || e.changeType.includes("Column");
+      if (isStructural || i < 5) {
+         let status = "✅ KEPT";
+         if (!isAfterStart) status = "❌ REJECTED (Too Early)";
+         if (!isBeforeEnd) status = "❌ REJECTED (Too Late)";
+         
+         console.log(`   [${i}] ${e.changeType} @ ${e.address} | Time: ${eventTime} | ${status}`);
+      }
+
+      return isKept;
+    });
+
+    console.log(`Result: ${filtered.length} events passed filter.`);
+    console.groupEnd();
+
+    return filtered;
+  }
+
   public async runComparison(): Promise<void> {
-    const { versions, selectedVersions, license, activeFilters } = useAppStore
-      .getState();
+    const { versions, selectedVersions, license, activeFilters } = useAppStore.getState();
 
-    if (selectedVersions.length !== 2 || !license) {
-      return;
-    }
+    if (selectedVersions.length !== 2 || !license) return;
 
-    // Correctly determine the start and end versions regardless of selection order.
     const [selection1, selection2] = selectedVersions;
     let startSelectionId: number | string;
     let endSelectionId: number | string;
 
     if (selection1 === "current" || selection2 === "current") {
-      // "Safety Check" mode: 'current' is always the end version.
       endSelectionId = "current";
       startSelectionId = (selection1 === "current") ? selection2 : selection1;
     } else {
-      // "Audit Trail" mode: Compare the numeric IDs (timestamps) to find the true start and end.
       if (selection1 > selection2) {
         endSelectionId = selection1;
         startSelectionId = selection2;
@@ -50,81 +76,57 @@ class ComparisonWorkflowService {
 
     let startVersion: IVersion | undefined;
     let endVersion: IVersion | undefined;
-    let sanitizedEvents: IRawEvent[] = []; // Initialize empty event array
+    let rawCandidateEvents: IRawEvent[] = []; 
 
-    // --- Part 1: Resolve the Start Version (must be historical) ---
     startVersion = versions.find((v) => v.id === startSelectionId);
     if (!startVersion) {
       console.error("Comparison failed: Could not resolve start version.");
       return;
     }
 
-    // --- Part 2: Resolve the End Version & Event Data ---
     if (endSelectionId === "current") {
-      // --- "SAFETY CHECK" MODE ---
-      console.log(
-        "[ComparisonWorkflow] Running in 'Safety Check' mode (Live vs. Historical)",
-      );
-
-      // === HYBRID DIFF INTEGRATION: Fetching Live Events ===
+      console.log("[ComparisonWorkflow] Mode: Safety Check (Live)");
       const rawEvents = excelInteractionService.getRawEvents();
-      sanitizedEvents = EventSanitizer.sanitize(rawEvents);
-      console.log(
-        `[ComparisonWorkflow] Events fetched. Raw: ${rawEvents.length}, Sanitized: ${sanitizedEvents.length}`,
-      );
-      // ======================================================
+      rawCandidateEvents = EventSanitizer.sanitize(rawEvents);
 
       try {
         const liveSnapshot = await Excel.run(async (context) => {
           return await excelSnapshotService.createWorkbookSnapshot(context);
         });
-        // Create a temporary, in-memory IVersion object for the live workbook
         endVersion = {
-          id: Date.now(),
+          id: Date.now(), 
           comment: "Current Workbook",
-          timestamp: new Date().toLocaleString(),
+          timestamp: new Date().toISOString(), 
           snapshot: liveSnapshot,
         };
       } catch (error) {
-        console.error("Failed to create snapshot of current workbook:", error);
-        return; // Exit if we can't snapshot the live sheet
+        console.error("Failed to snapshot live workbook:", error);
+        return;
       }
     } else {
-      // --- "AUDIT TRAIL" MODE ---
       endVersion = versions.find((v) => v.id === endSelectionId);
-      
       if (endVersion) {
-        // === PERSISTED LOG INTEGRATION ===
         if (endVersion.eventLog && endVersion.eventLog.length > 0) {
-            console.log(
-                `[ComparisonWorkflow] 'Audit Trail' mode. Found ${endVersion.eventLog.length} persisted events in version "${endVersion.comment}".`
-            );
-            // We trust the persisted log (it was sanitized on save)
-            sanitizedEvents = endVersion.eventLog; 
+            console.log(`[ComparisonWorkflow] Mode: Audit Trail. Using persisted log from target version.`);
+            rawCandidateEvents = endVersion.eventLog; 
         } else {
-             console.warn(
-                `[ComparisonWorkflow] 'Audit Trail' mode. No event log found for version "${endVersion.comment}". Fallback to heuristic diff.`
-            );
-            // sanitizedEvents remains []
+            console.warn(`[ComparisonWorkflow] Mode: Audit Trail. No event log found.`);
         }
       }
     }
 
-    if (!endVersion) {
-      console.error("Comparison failed: Could not resolve end version.");
-      return;
-    }
+    if (!endVersion) return;
 
-    // --- Part 3: Execute the comparison (dynamically resolved versions) ---
-    // NOTE: If endVersion is historical, events is either [] (old versions) or populated from storage (new versions).
-    // If live, events contains the fresh intent log.
+    // === CRITICAL FILTERING STEP ===
+    const filteredEvents = this.filterEventsByTimeWindow(rawCandidateEvents, startVersion, endVersion);
+
     const result = synthesizeChangesets(
       startVersion,
       endVersion,
       versions,
       license,
       activeFilters,
-      sanitizedEvents, // PASSING HYBRID DIFF DATA UPSTREAM
+      filteredEvents, 
     );
     debugService.addLogEntry(
       `Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`,
@@ -141,25 +143,18 @@ class ComparisonWorkflowService {
     };
 
     await useDialogStore.getState().openDiffViewer(payloadForDialog);
-
-    const comparisonPayload = {
+    useAppStore.getState()._setComparisonResult({
       result: result,
       startSnapshot: startVersion.snapshot,
       endSnapshot: endVersion.snapshot,
-    };
-
-    useAppStore.getState()._setComparisonResult(comparisonPayload);
+    });
   }
 
-  /**
-    A helper method to compare a version with its immediate predecessor.
-    */
   public async compareWithPrevious(versionId: number): Promise<void> {
     const versions = useAppStore.getState().versions;
     const currentIndex = versions.findIndex((v) => v.id === versionId);
     if (currentIndex > 0) {
       const previousVersionId = versions[currentIndex - 1].id;
-      // Manually set the selection and run the main comparison logic
       useAppStore.getState().selectVersion(previousVersionId);
       useAppStore.getState().selectVersion(versionId);
       await this.runComparison();
