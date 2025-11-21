@@ -31,7 +31,7 @@ interface IColumnChangeCandidate {
 
 interface IRowAlignmentItem {
   type: "match" | "inserted" | "deleted";
-  oldIndex: number; // -1 for inserted rows (index in oldData)
+  oldIndex: number; // -1 for inserted rows (index in oldData) or if matching against empty tail
   newIndex: number; // -1 for deleted rows (index in newData)
 }
 
@@ -48,10 +48,10 @@ function safeGetRow(address: string): number {
   if (match) {
     return parseInt(match[1], 10);
   }
-  
+
   // Last resort check if it's just a number
   if (!isNaN(Number(address))) {
-      return Number(address);
+    return Number(address);
   }
 
   console.warn(`[DiffService] safeGetRow failed to parse: ${address}`);
@@ -66,14 +66,19 @@ function buildRowAlignmentMap(
   startRowOffset: number,
 ): IRowAlignmentItem[] {
   const map: IRowAlignmentItem[] = [];
-  
+
   // FIX: Filter events using the persistent sheetId (GUID), not the session worksheetId.
-  // We also keep the old check as a fallback just in case.
   const events = sanitizedEvents.filter(
     (e) =>
       (e.sheetId === sheetId || e.worksheetId === sheetId) &&
       (e.changeType === "RowInserted" || e.changeType === "RowDeleted"),
   );
+
+  // === DEBUG: DIAGNOSE ROW ALIGNMENT INPUTS ===
+  console.group(`[RowAlignment Debug] Sheet: ${sheetId.substring(0, 6)}...`);
+  console.log(`Lengths -> Old: ${oldDataLength}, New: ${newDataLength}`);
+  console.log(`Relevant Structural Events Found: ${events.length}`, events);
+  // ===========================================
 
   let currentOldRow = 0;
   let currentNewRow = 0;
@@ -137,13 +142,31 @@ function buildRowAlignmentMap(
     }
   }
 
+  // === DEBUG: BEFORE TAIL FILLING ===
+  console.log(
+    `Status before tail filling -> CurrentOld: ${currentOldRow}, OldLen: ${oldDataLength}, CurrentNew: ${currentNewRow}, NewLen: ${newDataLength}`
+  );
+  // ==================================
+
   while (currentOldRow < oldDataLength) {
     map.push({ type: "deleted", oldIndex: currentOldRow++, newIndex: -1 });
   }
+
+  // === FIX APPLIED HERE ===
+  // Previously, this assumed any extra rows at the end were "Structural Insertions".
+  // We now treat them as "Matches against empty space" (Range Extension).
   while (currentNewRow < newDataLength) {
-    map.push({ type: "inserted", oldIndex: -1, newIndex: currentNewRow++ });
+    console.log(
+      `[RowAlignment] Implicit Match (Range Extension) at newIndex: ${currentNewRow}`
+    );
+    map.push({ 
+        type: "match", 
+        oldIndex: -1, // Signal that we matched against nothing (virtual empty row)
+        newIndex: currentNewRow++ 
+    });
   }
 
+  console.groupEnd(); 
   return map;
 }
 
@@ -155,35 +178,10 @@ function getRangeEditedLookup(
   sanitizedEvents: IRawEvent[],
 ): Set<string> {
   const lookup = new Set<string>();
-
-  // === DEBUGGING START ===
-  console.group(`[HybridDiff Debug] Lookup for Sheet GUID: ${sheetId}`);
-  console.log(`Total Events Passed: ${sanitizedEvents.length}`);
-
-  if (sanitizedEvents.length > 0) {
-    // We use JSON.stringify to ensure we see the object structure in the logs
-    console.log("First Event Sample:", JSON.stringify(sanitizedEvents[0]));
-  }
-
-  // CHECK: How many match using the NEW (Correct) Logic?
-  const matchNewLogic = sanitizedEvents.filter(
-    (e) => e.sheetId === sheetId && e.changeType === "RangeEdited"
-  );
-  console.log(`Matches using NEW Logic (e.sheetId === sheetId): ${matchNewLogic.length}`);
-  console.groupEnd();
-  // === DEBUGGING END ===
-
-  // === THE FIX IS APPLIED HERE ===
-  const rangeEditedEvents = sanitizedEvents.filter(
-    (e) => {
-        // Primary check: Match persistent GUID (Robust)
-        if (e.sheetId === sheetId) return e.changeType === "RangeEdited";
-        
-        // Fallback check: Match Session ID (Legacy/Fragile)
-        // This handles cases where sheetId might not have been captured yet.
-        return e.worksheetId === sheetId && e.changeType === "RangeEdited";
-    }
-  );
+  const rangeEditedEvents = sanitizedEvents.filter((e) => {
+    if (e.sheetId === sheetId) return e.changeType === "RangeEdited";
+    return e.worksheetId === sheetId && e.changeType === "RangeEdited";
+  });
 
   for (const event of rangeEditedEvents) {
     const normalizedAddress = event.address.toUpperCase();
@@ -195,6 +193,7 @@ function getRangeEditedLookup(
 
 // === END: HYBRID DIFF HELPERS ===
 
+// ... [Keep existing analyzeColumnChanges, isRealFormula, applyFilters, normalizeSheetData, normalizeFormula, coalesceRowChanges] ...
 const COLUMN_CHANGE_CONFIDENCE_THRESHOLD = 0.7;
 
 function analyzeColumnChanges(
@@ -210,7 +209,7 @@ function analyzeColumnChanges(
   let maxVotes = 0;
 
   candidates.forEach((rowCandidates) => {
-    if (rowCandidates.length === 1) { 
+    if (rowCandidates.length === 1) {
       const candidate = rowCandidates[0];
       const key = `${candidate.type}:${candidate.index}:${candidate.count}`;
       const newCount = (voteCounter.get(key) || 0) + 1;
@@ -230,12 +229,14 @@ function analyzeColumnChanges(
     const index = parseInt(indexStr, 10);
     const count = parseInt(countStr, 10);
 
-    return [{
-      type: type === "add" ? "column_insertion" : "column_deletion",
-      sheet: "" as SheetId, 
-      index: index,
-      count: count,
-    }];
+    return [
+      {
+        type: type === "add" ? "column_insertion" : "column_deletion",
+        sheet: "" as SheetId,
+        index: index,
+        count: count,
+      },
+    ];
   }
 
   return [];
@@ -251,8 +252,9 @@ function applyFilters(
   activeFilterIds: Set<string>,
   filterRegistry: IComparisonFilter[],
 ): boolean {
-  return filterRegistry.some((filter) =>
-    activeFilterIds.has(filter.id) && filter.apply(oldValue, newValue)
+  return filterRegistry.some(
+    (filter) =>
+      activeFilterIds.has(filter.id) && filter.apply(oldValue, newValue),
   );
 }
 
@@ -274,7 +276,10 @@ function normalizeFormula(formula: string, renames: ISheetRename[]): string {
   let normalizedFormula = formula;
   for (const rename of renames) {
     const searchForQuoted = new RegExp(`'${rename.oldName}'!`, "g");
-    const searchForUnquoted = new RegExp(`(?<!')\\b${rename.oldName}\\b!`, "g");
+    const searchForUnquoted = new RegExp(
+      `(?<!')\\b${rename.oldName}\\b!`,
+      "g",
+    );
     const replaceWith = "${rename.newName}"!;
 
     normalizedFormula = normalizedFormula.replace(searchForQuoted, replaceWith);
@@ -320,6 +325,7 @@ function coalesceRowChanges(
   return structuralChanges;
 }
 
+
 function compareCellsHybrid(
   sheetId: SheetId,
   oldRow: IRowData,
@@ -330,7 +336,7 @@ function compareCellsHybrid(
     (IStructuralChange & { type: "sheet_deletion"; sheetId: SheetId })[],
   fromVersionComment: string,
   toVersionComment: string,
-  rangeEditedLookup: Set<string>, 
+  rangeEditedLookup: Set<string>,
 ): IChange[] {
   const modifiedCells: IChange[] = [];
   const maxCols = Math.max(oldRow.cells.length, newRow.cells.length);
@@ -389,11 +395,12 @@ function compareCellsHybrid(
         _newCell.formula,
         activeFilterIds,
         formulaFilters,
-      ) && (normalizedOldFormula !== String(_newCell.formula));
+      ) &&
+      normalizedOldFormula !== String(_newCell.formula);
 
     if (valueChanged || formulaChanged) {
       const isUserEdit = rangeEditedLookup.has(lookupKey);
-      
+
       // --- HYBRID DIFF: NEGATIVE PROOF FILTER ---
       if (!isUserEdit && (valueChanged || formulaChanged)) {
         // Case 2: System Recalc (Old != New BUT Log is Empty)
@@ -401,7 +408,9 @@ function compareCellsHybrid(
           sheet: sheetId,
           address: canonicalAddress,
           changeType: formulaChanged
-            ? (valueChanged ? "both" : "formula")
+            ? valueChanged
+              ? "both"
+              : "formula"
             : "value",
           oldValue: _oldCell.value,
           newValue: _newCell.value,
@@ -419,7 +428,9 @@ function compareCellsHybrid(
         sheet: sheetId,
         address: canonicalAddress,
         changeType: formulaChanged
-          ? (valueChanged ? "both" : "formula")
+          ? valueChanged
+            ? "both"
+            : "formula"
           : "value",
         oldValue: _oldCell.value,
         newValue: _newCell.value,
@@ -482,7 +493,8 @@ export function diffSheetContent(
       });
 
       addedRowData.cells.forEach((cell) => {
-        const hasContent = (cell.value !== "" && cell.value != null) ||
+        const hasContent =
+          (cell.value !== "" && cell.value != null) ||
           isRealFormula(cell.formula);
         if (hasContent) {
           result.modifiedCells.push({
@@ -505,7 +517,14 @@ export function diffSheetContent(
         rowData: oldData[item.oldIndex],
       });
     } else if (item.type === "match") {
-      const oldRow = oldData[item.oldIndex];
+      
+      // === FIX APPLIED HERE ===
+      // Handle "Implicit Match" where we extended past the old range.
+      // If oldIndex is -1 (or out of bounds), create a virtual empty row.
+      const oldRow = (item.oldIndex !== -1 && oldData[item.oldIndex]) 
+        ? oldData[item.oldIndex] 
+        : { hash: "", cells: [] }; // Virtual Empty Row
+        
       const newRow = newData[item.newIndex];
 
       if (oldRow.hash !== newRow.hash) {
