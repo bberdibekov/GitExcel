@@ -61,6 +61,7 @@ class ComparisonWorkflowService {
     let startSelectionId: number | string;
     let endSelectionId: number | string;
 
+    // Determine Start/End IDs
     if (selection1 === "current" || selection2 === "current") {
       endSelectionId = "current";
       startSelectionId = (selection1 === "current") ? selection2 : selection1;
@@ -74,25 +75,26 @@ class ComparisonWorkflowService {
       }
     }
 
-    let startVersion: IVersion | undefined;
-    let endVersion: IVersion | undefined;
-    let rawCandidateEvents: IRawEvent[] = []; 
-
-    startVersion = versions.find((v) => v.id === startSelectionId);
+    // Resolve Start Version
+    const startVersion = versions.find((v) => v.id === startSelectionId);
     if (!startVersion) {
       console.error("Comparison failed: Could not resolve start version.");
       return;
     }
 
+    let endVersion: IVersion | undefined;
+    let rawCandidateEvents: IRawEvent[] = []; 
+
+    // Resolve End Version & Aggregate Events
     if (endSelectionId === "current") {
       console.log("[ComparisonWorkflow] Mode: Safety Check (Live)");
-      const rawEvents = excelInteractionService.getRawEvents();
-      rawCandidateEvents = EventSanitizer.sanitize(rawEvents);
-
+      
       try {
+        // 1. Snapshot Live State
         const liveSnapshot = await Excel.run(async (context) => {
           return await excelSnapshotService.createWorkbookSnapshot(context);
         });
+        
         endVersion = {
           id: Date.now(), 
           comment: "Current Workbook",
@@ -105,19 +107,50 @@ class ComparisonWorkflowService {
       }
     } else {
       endVersion = versions.find((v) => v.id === endSelectionId);
-      if (endVersion) {
-        if (endVersion.eventLog && endVersion.eventLog.length > 0) {
-            console.log(`[ComparisonWorkflow] Mode: Audit Trail. Using persisted log from target version.`);
-            rawCandidateEvents = endVersion.eventLog; 
-        } else {
-            console.warn(`[ComparisonWorkflow] Mode: Audit Trail. No event log found.`);
-        }
-      }
     }
 
     if (!endVersion) return;
 
+    // === AGGREGATION STEP: Collect all events between Start and End ===
+    console.group("[ComparisonWorkflow] Aggregating Event Logs");
+    
+    // 1. Collect Historical Events (V_next ... V_end)
+    // We need every version strictly AFTER startVersion and ON OR BEFORE endVersion
+    const intermediateVersions = versions.filter(v => {
+      const isAfterStart = v.id > startVersion.id;
+      // If endSelection is "current", endVersion.id is Date.now(), so stored versions (past) are < endVersion.id
+      // If endSelection is a saved version, we include it.
+      const isBeforeOrAtEnd = v.id <= endVersion!.id; 
+      return isAfterStart && isBeforeOrAtEnd;
+    });
+
+    intermediateVersions.forEach(v => {
+        if (v.eventLog && v.eventLog.length > 0) {
+            console.log(`Merging ${v.eventLog.length} events from v${v.comment} (ID: ${v.id})`);
+            rawCandidateEvents.push(...v.eventLog);
+        } else {
+            console.log(`Version v${v.comment} has no event log.`);
+        }
+    });
+
+    // 2. Append Live Events if applicable
+    if (endSelectionId === "current") {
+        console.log("Appending live event buffer for Current target.");
+        const rawEvents = excelInteractionService.getRawEvents();
+        const sanitizedLiveEvents = EventSanitizer.sanitize(rawEvents);
+        rawCandidateEvents.push(...sanitizedLiveEvents);
+    }
+
+    // 3. Sort Chronologically (Critical for multi-step filtering in Synthesizer)
+    rawCandidateEvents.sort((a, b) => {
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
+
+    console.log(`Total Aggregated Events: ${rawCandidateEvents.length}`);
+    console.groupEnd();
+
     // === CRITICAL FILTERING STEP ===
+    // Ensure we chop off anything outside the absolute start/end bounds
     const filteredEvents = this.filterEventsByTimeWindow(rawCandidateEvents, startVersion, endVersion);
 
     const result = synthesizeChangesets(
@@ -128,6 +161,7 @@ class ComparisonWorkflowService {
       activeFilters,
       filteredEvents, 
     );
+    
     debugService.addLogEntry(
       `Comparison Ran: "${startVersion.comment}" vs "${endVersion.comment}"`,
       result,

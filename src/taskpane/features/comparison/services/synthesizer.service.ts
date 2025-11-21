@@ -6,7 +6,7 @@ import {
   IVersion,
   SheetId,
   SheetName,
-} from "../../../types/types"; // NEW IMPORT
+} from "../../../types/types";
 import { debugService } from "../../../core/services/debug.service";
 import { resolveTimeline } from "./timeline.resolver.service";
 import { consolidateReport } from "./report.consolidator.service";
@@ -23,9 +23,8 @@ export function synthesizeChangesets(
   allVersions: IVersion[],
   license: ILicense,
   activeFilterIds: Set<string>,
-  // === NEW ARGUMENT ===
+  // This is now the Aggregated Master Log containing all events from start -> end
   sanitizedEvents: IRawEvent[] = [],
-  // ====================
 ): IDiffResult {
   const relevantVersions = allVersions.filter((v) =>
     v.id >= startVersion.id && v.id <= endVersion.id
@@ -76,6 +75,7 @@ export function synthesizeChangesets(
     endVersion: endVersion.comment,
     relevantVersionCount: sequenceToDiff.length,
     activeFilterIds: Array.from(activeFilterIds),
+    totalEventsAvailable: sanitizedEvents.length
   });
 
   const changesetSequence: IChangeset[] = [];
@@ -84,12 +84,16 @@ export function synthesizeChangesets(
     const fromVersion = sequenceToDiff[i];
     const toVersion = sequenceToDiff[i + 1];
 
-    
-    // Always pass the provided event log to the FINAL comparison step.
-    // In "Safety Check" mode, this passes the live events to the Live Snapshot comparison.
-    // In "Audit Trail" mode, this passes the persisted V2 events to the V1->V2 comparison.
-    const isFinalStep = i === sequenceToDiff.length - 2;
-    const eventsForDiff = isFinalStep ? sanitizedEvents : [];
+    // === NEW LOGIC: Time-Window Event Slicing ===
+    // We filter the master log to find events relevant ONLY to this specific hop (From -> To).
+    const startTime = typeof fromVersion.id === 'number' ? fromVersion.id : new Date(fromVersion.timestamp).getTime();
+    const endTime = typeof toVersion.id === 'number' ? toVersion.id : new Date(toVersion.timestamp).getTime();
+
+    const eventsForDiff = sanitizedEvents.filter(e => {
+        const eventTime = new Date(e.timestamp).getTime();
+        // Event must be AFTER the start version and BEFORE or AT the end version
+        return eventTime > startTime && eventTime <= endTime;
+    });
 
     const changeset = diffSnapshots(
       fromVersion.snapshot,
@@ -98,13 +102,15 @@ export function synthesizeChangesets(
       activeFilterIds,
       fromVersion.comment,
       toVersion.comment,
-      eventsForDiff,
+      eventsForDiff, // <--- Passed specific slice
     );
+    
     debugService.addLogEntry(
       `[Synthesizer] Generated Changeset ${i + 1}/${
         sequenceToDiff.length - 1
       } (${fromVersion.comment} -> ${toVersion.comment})`,
       {
+        eventsApplied: eventsForDiff.length,
         summary: {
           modifiedCells: changeset.modifiedCells.length,
           addedRows: changeset.addedRows.length,
