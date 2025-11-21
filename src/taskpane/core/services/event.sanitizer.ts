@@ -32,6 +32,26 @@ export class EventSanitizer {
     return sanitized;
   }
 
+  public static compress(events: IRawEvent[]): IRawEvent[] {
+    return events.map(e => ({
+      // REQUIRED for Diffing
+      sheetId: e.sheetId,
+      worksheetId: e.worksheetId, // Kept for session alignment if needed
+      address: e.address,
+      changeType: e.changeType,
+      timestamp: e.timestamp,
+      
+      // OPTIONAL / DEBUG (Minimally retained)
+      // We reconstruct changeDirectionState because it's small and helpful for debug
+      changeDirectionState: e.changeDirectionState ? {
+        insertShiftDirection: e.changeDirectionState.insertShiftDirection,
+        deleteShiftDirection: e.changeDirectionState.deleteShiftDirection
+      } : undefined,
+
+      // EXCLUDED: source, triggerSource, details (values before/after)
+    }));
+  }
+
   private static shouldKeepEvent(current: IRawEvent, last: IRawEvent | null): boolean {
     // Always keep the first event
     if (!last) return true;

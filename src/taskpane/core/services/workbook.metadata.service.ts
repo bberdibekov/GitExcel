@@ -1,3 +1,5 @@
+// src/taskpane/core/services/workbook.metadata.service.ts
+
 import { v4 as uuidv4 } from 'uuid';
 
 const WORKBOOK_ID_KEY = 'VersionControl.WorkbookId';

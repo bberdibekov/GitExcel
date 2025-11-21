@@ -10,12 +10,11 @@ import { excelInteractionService } from "../../../core/excel/excel.interaction.s
 import { EventSanitizer } from "../../../core/services/event.sanitizer";
 
 /**
-
     A stateless service to orchestrate the complex "Run Comparison" workflow.
     It intelligently handles two modes:
         "Audit Trail" (Historical vs. Historical)
         "Safety Check" (Live vs. Historical)
-        */
+*/
 class ComparisonWorkflowService {
   /*
     Runs a comparison based on the current selections in the appStore.
@@ -60,7 +59,7 @@ class ComparisonWorkflowService {
       return;
     }
 
-    // --- Part 2: Resolve the End Version (could be historical or live) ---
+    // --- Part 2: Resolve the End Version & Event Data ---
     if (endSelectionId === "current") {
       // --- "SAFETY CHECK" MODE ---
       console.log(
@@ -92,10 +91,23 @@ class ComparisonWorkflowService {
       }
     } else {
       // --- "AUDIT TRAIL" MODE ---
-      console.log(
-        "[ComparisonWorkflow] Running in 'Audit Trail' mode (Historical vs. Historical). Events are ignored.",
-      );
       endVersion = versions.find((v) => v.id === endSelectionId);
+      
+      if (endVersion) {
+        // === PERSISTED LOG INTEGRATION ===
+        if (endVersion.eventLog && endVersion.eventLog.length > 0) {
+            console.log(
+                `[ComparisonWorkflow] 'Audit Trail' mode. Found ${endVersion.eventLog.length} persisted events in version "${endVersion.comment}".`
+            );
+            // We trust the persisted log (it was sanitized on save)
+            sanitizedEvents = endVersion.eventLog; 
+        } else {
+             console.warn(
+                `[ComparisonWorkflow] 'Audit Trail' mode. No event log found for version "${endVersion.comment}". Fallback to heuristic diff.`
+            );
+            // sanitizedEvents remains []
+        }
+      }
     }
 
     if (!endVersion) {
@@ -104,7 +116,8 @@ class ComparisonWorkflowService {
     }
 
     // --- Part 3: Execute the comparison (dynamically resolved versions) ---
-    // NOTE: If endVersion is historical, events is []. If live, events contains the intent log.
+    // NOTE: If endVersion is historical, events is either [] (old versions) or populated from storage (new versions).
+    // If live, events contains the fresh intent log.
     const result = synthesizeChangesets(
       startVersion,
       endVersion,
@@ -139,7 +152,6 @@ class ComparisonWorkflowService {
   }
 
   /**
-
     A helper method to compare a version with its immediate predecessor.
     */
   public async compareWithPrevious(versionId: number): Promise<void> {

@@ -6,7 +6,7 @@ import { EventSanitizer } from "../services/event.sanitizer";
 import { AppConfig } from "../../../config";
 
 // The key used in custom properties to store the persistent sheet ID.
-const SHEET_ID_KEY = "h_sheet_id";
+const SHEET_ID_KEY = "VersionControl.PersistentSheetId";
 
 let selectionChangedHandler: any = null;
 
@@ -26,7 +26,6 @@ class ExcelInteractionService {
 
   // === NEW DEBUG/TEST METHODS ===
 
-  /** Clears the event history buffer. Essential for running clean test cases. */
   public clearCapturedEvents(): void {
     this.capturedChangeEvents = [];
     if (this.flushBufferTimer) {
@@ -34,17 +33,11 @@ class ExcelInteractionService {
       this.flushBufferTimer = null;
       this.eventBuffer = [];
     }
-    // We do NOT clear the sessionIdToGuidMap here, as IDs are stable for the session.
     console.log("[InteractionService] Captured event history cleared.");
   }
 
-  /**
-   * Temporarily replaces the live event stream with a defined array of mock events.
-   * @param mockEvents The array of mock IRawEvent objects to use for the next comparison.
-   * @returns A function to call to restore normal operation.
-   */
   public injectMockEvents(mockEvents: IRawEvent[]): () => void {
-    this.clearCapturedEvents(); // Ensure a clean slate
+    this.clearCapturedEvents();
     this.isMockingEvents = true;
 
     const originalHandler = this.handleWorksheetChanged;
@@ -70,6 +63,133 @@ class ExcelInteractionService {
     };
 
     return restoreFn;
+  }
+
+  /**
+   * ATOMIC OPERATION:
+   * 1. Forces any buffered (pending) events to be processed immediately.
+   * 2. RECONCILIATION: Checks for missing IDs and fetches them from Excel.
+   * 3. Returns all captured events.
+   * 4. Clears the internal storage.
+   */
+  public async popCapturedEvents(): Promise<IRawEvent[]> {
+    // 1. Force flush of any pending events in the buffer
+    if (this.flushBufferTimer) {
+      clearTimeout(this.flushBufferTimer);
+      this.flushBufferTimer = null;
+    }
+    
+    if (this.eventBuffer.length > 0) {
+      console.log("[InteractionService] Popping events: Flushing pending buffer first...");
+      await this.flushBuffer(); 
+    }
+
+    // 2. RECONCILIATION: Fix "N/A" IDs
+    // If we captured events before the sheet properties loaded, we must fix them now.
+    const eventsMissingId = this.capturedChangeEvents.filter(e => !e.sheetId || e.sheetId === "N/A");
+    
+    if (eventsMissingId.length > 0) {
+      console.log(`[InteractionService] Found ${eventsMissingId.length} events with 'N/A' Sheet IDs. Attempting reconciliation...`);
+      await this.reconcileMissingIds(eventsMissingId);
+    }
+
+    // 3. Retrieve
+    const events = [...this.capturedChangeEvents];
+
+    // 4. Clear
+    this.capturedChangeEvents = [];
+    console.log(`[InteractionService] Popped ${events.length} events for version storage.`);
+
+    return events;
+  }
+
+  /**
+   * Helper to batch-fetch Persistent GUIDs for any events that missed the cache hit.
+   * SELF-HEALING: If a sheet lacks an ID, we generate and assign one immediately.
+   */
+  private async reconcileMissingIds(events: IRawEvent[]) {
+    const sessionIds = Array.from(new Set(events.map(e => e.worksheetId)));
+    console.log(`[InteractionService] Reconciling IDs for ${sessionIds.length} sheets.`);
+
+    await Excel.run(async (context) => {
+      const sheetsToProcess: { 
+        sessionId: string; 
+        sheetObj: Excel.Worksheet; 
+        prop: Excel.WorksheetCustomProperty 
+      }[] = [];
+
+      // 1. Load properties
+      for (const sessionId of sessionIds) {
+        try {
+          const sheet = context.workbook.worksheets.getItem(sessionId);
+          // We need to load the custom property object to check if it exists
+          const prop = sheet.customProperties.getItemOrNullObject(SHEET_ID_KEY);
+          prop.load("value, isNullObject");
+          sheetsToProcess.push({ sessionId, sheetObj: sheet, prop });
+        } catch (error) {
+          console.warn(`[InteractionService] Failed to load sheet ${sessionId} for reconciliation.`);
+        }
+      }
+      
+      await context.sync();
+
+      // 2. Check & Fix
+      let updatesMade = false;
+
+      for (const item of sheetsToProcess) {
+        if (item.prop.isNullObject) {
+          // CASE A: Property doesn't exist -> Create it (Self-Healing)
+          const newGuid = this.generateSimpleId();
+          console.log(`[InteractionService] Self-Healing: Assigning new ID ${newGuid} to sheet ${item.sessionId}`);
+          
+          item.sheetObj.customProperties.add(SHEET_ID_KEY, newGuid);
+          this.sessionIdToGuidMap.set(item.sessionId, newGuid);
+          updatesMade = true;
+        } 
+        else if (!item.prop.value) {
+           // CASE B: Property exists but value is empty -> Update it
+           const newGuid = this.generateSimpleId();
+           console.log(`[InteractionService] Self-Healing: Fixing empty ID for sheet ${item.sessionId} -> ${newGuid}`);
+           
+           item.prop.set({ value: newGuid });
+           this.sessionIdToGuidMap.set(item.sessionId, newGuid);
+           updatesMade = true;
+        }
+        else {
+          // CASE C: All good -> Just cache it
+          this.sessionIdToGuidMap.set(item.sessionId, item.prop.value);
+        }
+      }
+
+      // 3. Save changes if we performed any self-healing
+      if (updatesMade) {
+        await context.sync();
+        console.log("[InteractionService] Self-Healing complete. IDs persisted to Excel.");
+      }
+    });
+
+    // 4. Backfill the events in memory
+    let fixedEvents = 0;
+    for (const event of this.capturedChangeEvents) {
+      if (!event.sheetId || event.sheetId === "N/A") {
+        const foundGuid = this.sessionIdToGuidMap.get(event.worksheetId);
+        if (foundGuid) {
+          event.sheetId = foundGuid;
+          fixedEvents++;
+        }
+      }
+    }
+    console.log(`[InteractionService] Reconciliation complete. Fixed ${fixedEvents} events.`);
+  }
+
+  /**
+   * Simple UUID v4-like generator for fallback ID creation.
+   */
+  private generateSimpleId(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
   }
 
   public async navigateToCell(sheetName: string, address: string) {
@@ -164,10 +284,9 @@ class ExcelInteractionService {
       }
 
       // Step 1: Attach handlers & Load Custom Properties
-      // We need to load custom properties for each sheet to extract the Persistent GUID
       const sheetPropsToLoad: {
         sheetId: string;
-        prop: Excel.WorksheetCustomProperty; // <--- FIXED TYPE
+        prop: Excel.WorksheetCustomProperty;
       }[] = [];
 
       for (const sheet of worksheets.items) {
@@ -266,35 +385,17 @@ class ExcelInteractionService {
     this.eventBuffer = [];
     this.flushBufferTimer = null;
 
-    await Excel.run(async (context) => {
+    await Excel.run(async (_context) => {
       for (const eventArgs of eventsToProcess) {
         try {
-          const worksheet = context.workbook.worksheets.getItem(
-            eventArgs.worksheetId,
-          );
-          
-          // Load name for display
-          worksheet.load("name");
-          
           // --- JIT ID Resolution ---
           // Check if we already have the GUID in our cache
           let persistentId = this.sessionIdToGuidMap.get(eventArgs.worksheetId);
-          let propItem: Excel.WorksheetCustomProperty | null = null; // <--- FIXED TYPE
-
-          // If not found (e.g. new sheet added during session), try to load it now
-          if (!persistentId) {
-            propItem = worksheet.customProperties.getItemOrNullObject(SHEET_ID_KEY);
-            propItem.load("value, isNullObject");
-          }
-
-          await context.sync();
-
-          // If we had to fetch it, update the cache now
-          if (!persistentId && propItem && !propItem.isNullObject) {
-            persistentId = propItem.value;
-            this.sessionIdToGuidMap.set(eventArgs.worksheetId, persistentId);
-            console.log(`[InteractionService] JIT mapped ${eventArgs.worksheetId} to ${persistentId}`);
-          }
+          
+          // NOTE: We removed the aggressive JIT fetching here to speed up the event loop.
+          // We rely on 'popCapturedEvents' (reconcileMissingIds) to catch any stragglers 
+          // before saving. This keeps the typing/editing experience fast.
+          
           // -------------------------
 
           const insertDirection = (
@@ -314,8 +415,8 @@ class ExcelInteractionService {
           const eventData: IRawEvent = {
             timestamp: new Date().toISOString(),
             worksheetId: eventArgs.worksheetId, // Keep Session ID
-            sheetId: persistentId,              // <--- Attach Persistent GUID
-            worksheetName: worksheet.name,
+            sheetId: persistentId ?? "N/A",     // Mark as N/A if not found yet
+            worksheetName: "Loading...",        // Optimization: Don't fetch name on every keystroke
             address: eventArgs.address,
             type: ("type" in eventArgs && typeof eventArgs.type === "number")
               ? String(eventArgs.type)
@@ -339,7 +440,7 @@ class ExcelInteractionService {
 
           this.capturedChangeEvents.push(eventData);
           console.log(
-            `[Event] ${eventData.changeType} @ ${worksheet.name}!${eventData.address} [ID: ${persistentId?.substring(0,6) ?? 'N/A'}]`,
+            `[Event] ${eventData.changeType} @ ${eventData.address} [ID: ${persistentId?.substring(0,6) ?? 'N/A'}]`,
           );
         } catch (error) {
           console.error(

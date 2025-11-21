@@ -31,7 +31,7 @@ interface IColumnChangeCandidate {
 
 interface IRowAlignmentItem {
   type: "match" | "inserted" | "deleted";
-  oldIndex: number; // -1 for inserted rows (index in oldData) or if matching against empty tail
+  oldIndex: number; // -1 for inserted rows (index in oldData)
   newIndex: number; // -1 for deleted rows (index in newData)
 }
 
@@ -67,7 +67,34 @@ function buildRowAlignmentMap(
 ): IRowAlignmentItem[] {
   const map: IRowAlignmentItem[] = [];
 
-  // FIX: Filter events using the persistent sheetId (GUID), not the session worksheetId.
+  // === DEBUG: INSPECT EVENT MATCHING ===
+  if (sanitizedEvents.length > 0) {
+    console.group(`[RowAlignment Debug] Filtering events for Target Sheet: "${sheetId}"`);
+    sanitizedEvents.forEach((e, i) => {
+      const isSheetMatch = e.sheetId === sheetId;
+      const isWorksheetMatch = e.worksheetId === sheetId;
+      const isTypeMatch =
+        e.changeType === "RowInserted" || e.changeType === "RowDeleted";
+
+      // Only log if it's a relevant type, to reduce noise
+      if (isTypeMatch) {
+        console.log(`Event[${i}] (${e.changeType}):`);
+        console.log(
+          `  - Event SheetID: "${e.sheetId}" (Len: ${e.sheetId?.length})`
+        );
+        console.log(
+          `  - Target SheetID: "${sheetId}" (Len: ${sheetId?.length})`
+        );
+        console.log(
+          `  - Match Result: SheetID=${isSheetMatch}, WorksheetID=${isWorksheetMatch}`
+        );
+      }
+    });
+    console.groupEnd();
+  }
+  // =====================================
+
+  // FIX: Filter events using the persistent sheetId (GUID) OR the session worksheetId.
   const events = sanitizedEvents.filter(
     (e) =>
       (e.sheetId === sheetId || e.worksheetId === sheetId) &&
@@ -90,7 +117,6 @@ function buildRowAlignmentMap(
     return aRow - bRow;
   });
 
-  // Extract indices using safe helper
   const insertionLogicalIndices = events
     .filter((e) => e.changeType === "RowInserted")
     .map((e) => safeGetRow(e.address));
@@ -99,6 +125,8 @@ function buildRowAlignmentMap(
     .filter((e) => e.changeType === "RowDeleted")
     .map((e) => safeGetRow(e.address));
 
+  // Calculate boundaries.
+  // Note: Logical Rows are 1-based Excel Indices.
   const maxLogicalRow = Math.max(
     oldDataLength + startRowOffset,
     newDataLength + startRowOffset,
@@ -107,20 +135,29 @@ function buildRowAlignmentMap(
   );
 
   for (
-    let logicalRowIndex = 1; logicalRowIndex <= maxLogicalRow; logicalRowIndex++
+    let logicalRowIndex = 1;
+    logicalRowIndex <= maxLogicalRow;
+    logicalRowIndex++
   ) {
+    // FIX: ROW OFFSET CHECK
+    // Ensure we don't touch the data arrays until we reach the actual used range start.
+    // Example: If UsedRange starts at Row 3 (offset 2), logical rows 1 and 2 should be skipped/ignored by the pointer.
+    const isPastStart = logicalRowIndex > startRowOffset;
+
     const isInsertionPoint = insertionLogicalIndices.includes(logicalRowIndex);
     const isDeletionPoint = deletionLogicalIndices.includes(logicalRowIndex);
 
     if (isDeletionPoint) {
-      if (currentOldRow < oldDataLength) {
+      // Only consume from Old Data if we are effectively inside the data range
+      if (isPastStart && currentOldRow < oldDataLength) {
         map.push({ type: "deleted", oldIndex: currentOldRow, newIndex: -1 });
         currentOldRow++;
       }
     }
 
     if (isInsertionPoint) {
-      if (currentNewRow < newDataLength) {
+      // Only consume from New Data if we are effectively inside the data range
+      if (isPastStart && currentNewRow < newDataLength) {
         map.push({ type: "inserted", oldIndex: -1, newIndex: currentNewRow });
         currentNewRow++;
       }
@@ -129,44 +166,58 @@ function buildRowAlignmentMap(
     const oldExists = currentOldRow < oldDataLength;
     const newExists = currentNewRow < newDataLength;
 
-    if (oldExists && newExists) {
-      if (!isInsertionPoint && !isDeletionPoint) {
-        map.push({
-          type: "match",
-          oldIndex: currentOldRow,
-          newIndex: currentNewRow,
-        });
-        currentOldRow++;
-        currentNewRow++;
+    if (!isInsertionPoint && !isDeletionPoint) {
+      // If we haven't reached the start of data yet, do nothing.
+      // (Unless we want to support matching header rows outside used range? Unlikely for snapshot data).
+      if (isPastStart) {
+        if (oldExists && newExists) {
+          map.push({
+            type: "match",
+            oldIndex: currentOldRow,
+            newIndex: currentNewRow,
+          });
+          currentOldRow++;
+          currentNewRow++;
+        } else if (oldExists) {
+          // Implicit Deletion / Truncation
+          // Old data continues, but new data ran out (and no event triggered)
+          map.push({ type: "deleted", oldIndex: currentOldRow, newIndex: -1 });
+          currentOldRow++;
+        } else if (newExists) {
+          // Implicit Insertion / Extension
+          // New data continues, but old data ran out
+           map.push({
+            type: "match",
+            oldIndex: -1, // Virtual Empty Row
+            newIndex: currentNewRow,
+          });
+          currentNewRow++;
+        }
       }
     }
   }
 
   // === DEBUG: BEFORE TAIL FILLING ===
   console.log(
-    `Status before tail filling -> CurrentOld: ${currentOldRow}, OldLen: ${oldDataLength}, CurrentNew: ${currentNewRow}, NewLen: ${newDataLength}`
+    `Status before tail filling -> CurrentOld: ${currentOldRow}, OldLen: ${oldDataLength}, CurrentNew: ${currentNewRow}, NewLen: ${newDataLength}`,
   );
   // ==================================
 
+  // Handle any remaining rows (Tail Filling)
   while (currentOldRow < oldDataLength) {
     map.push({ type: "deleted", oldIndex: currentOldRow++, newIndex: -1 });
   }
 
-  // === FIX APPLIED HERE ===
-  // Previously, this assumed any extra rows at the end were "Structural Insertions".
-  // We now treat them as "Matches against empty space" (Range Extension).
   while (currentNewRow < newDataLength) {
-    console.log(
-      `[RowAlignment] Implicit Match (Range Extension) at newIndex: ${currentNewRow}`
-    );
-    map.push({ 
-        type: "match", 
-        oldIndex: -1, // Signal that we matched against nothing (virtual empty row)
-        newIndex: currentNewRow++ 
+    // Treat extra new rows as matching against empty space (Range Extension)
+    map.push({
+      type: "match",
+      oldIndex: -1,
+      newIndex: currentNewRow++,
     });
   }
 
-  console.groupEnd(); 
+  console.groupEnd();
   return map;
 }
 
@@ -325,7 +376,6 @@ function coalesceRowChanges(
   return structuralChanges;
 }
 
-
 function compareCellsHybrid(
   sheetId: SheetId,
   oldRow: IRowData,
@@ -462,9 +512,7 @@ export function diffSheetContent(
     deletedRows: [],
     structuralChanges: [],
   };
-  const oldCoords = oldSheet.address ? fromA1(oldSheet.address) : null;
   const startRowOffset = oldSheet.startRow;
-  const startColOffset = oldSheet.startCol;
   const oldData = normalizeSheetData(oldSheet.data);
   const newData = normalizeSheetData(newSheet.data);
 
@@ -517,14 +565,13 @@ export function diffSheetContent(
         rowData: oldData[item.oldIndex],
       });
     } else if (item.type === "match") {
-      
-      // === FIX APPLIED HERE ===
       // Handle "Implicit Match" where we extended past the old range.
       // If oldIndex is -1 (or out of bounds), create a virtual empty row.
-      const oldRow = (item.oldIndex !== -1 && oldData[item.oldIndex]) 
-        ? oldData[item.oldIndex] 
-        : { hash: "", cells: [] }; // Virtual Empty Row
-        
+      const oldRow =
+        item.oldIndex !== -1 && oldData[item.oldIndex]
+          ? oldData[item.oldIndex]
+          : { hash: "", cells: [] }; // Virtual Empty Row
+
       const newRow = newData[item.newIndex];
 
       if (oldRow.hash !== newRow.hash) {

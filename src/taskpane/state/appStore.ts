@@ -6,8 +6,9 @@ import { INotification } from '../shared/ui/NotificationDialog';
 import { ILicense, authService } from '../core/services/AuthService';
 import { excelWriterService, IRestoreOptions } from '../core/excel/excel.writer.service';
 import { excelSnapshotService } from "../core/excel/excel.snapshot.service";
-// --- STEP 2.1: Import the new workbook metadata service ---
 import { workbookMetadataService } from '../core/services/workbook.metadata.service';
+import { excelInteractionService } from "../core/excel/excel.interaction.service";
+import { EventSanitizer } from "../core/services/event.sanitizer";
 
 /**
  * Interface defining the shape of our application's core data state.
@@ -124,19 +125,35 @@ export const useAppStore = create<IAppState & IAppActions>((set, get) => ({
     }
     if (!comment) return;
     try {
+      // 1. ATOMIC POP: Retrieve and clear the event buffer *before* snapshotting.
+      // This ensures we capture the "road to this version" without race conditions.
+      const rawEvents = await excelInteractionService.popCapturedEvents();
+      
+      // 2. COMPRESS: Strip heavy values (e.g., 'valueBefore', 'valueAfter') to save storage space.
+      // We only need structural info (Sheet, Row Index, ChangeType) for the Diff Engine.
+      const compressedEvents = EventSanitizer.compress(rawEvents);
+      
+      console.log(`[AppStore] Persisting version with ${compressedEvents.length} structural events.`);
+
+      // 3. SNAPSHOT: Capture the static state
       const newSnapshot = await Excel.run(async (context) => {
         return await excelSnapshotService.createWorkbookSnapshot(context);
       });
+
+      // 4. CONSTRUCT & SAVE
       const newVersion: IVersion = {
         id: Date.now(),
         timestamp: new Date().toLocaleString(),
         comment: comment,
         snapshot: newSnapshot,
+        eventLog: compressedEvents, // <--- ATTACH EVENTS HERE
       };
+
       const updatedVersions = [...get().versions, newVersion];
-      const storageKey = `versions_${workbookId}`; // Use the ID
+      const storageKey = `versions_${workbookId}`;
       localStorage.setItem(storageKey, JSON.stringify(updatedVersions));
       set({ versions: updatedVersions });
+
     } catch (error) {
       console.error(`Failed to save version "${comment}":`, error);
       set({ notification: { severity: 'error', title: 'Save Failed', message: `Could not create a snapshot. ${error.message}` } });

@@ -161,6 +161,7 @@ export interface IVersion {
   comment: string;
   snapshot: IWorkbookSnapshot;
   changeset?: IChangeset;
+  eventLog?: IRawEvent[]; 
 }
 
 export interface IVersionViewModel extends IVersion {

@@ -168,12 +168,6 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
       marginTop: '8px'
     }}>
       <h4 style={{ margin: '0 0 6px 0', fontSize: '13px' }}>Developer Tools</h4>
-
-      code
-      Code
-      download
-      content_copy
-      expand_less
       <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
         Tier: <strong>{isLicenseLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
       </div>

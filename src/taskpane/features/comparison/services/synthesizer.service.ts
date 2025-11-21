@@ -84,10 +84,12 @@ export function synthesizeChangesets(
     const fromVersion = sequenceToDiff[i];
     const toVersion = sequenceToDiff[i + 1];
 
-    // Pass events only on the FINAL step of a live comparison sequence
-    const eventsForDiff = (isLiveComparison && i === sequenceToDiff.length - 2)
-      ? sanitizedEvents
-      : [];
+    
+    // Always pass the provided event log to the FINAL comparison step.
+    // In "Safety Check" mode, this passes the live events to the Live Snapshot comparison.
+    // In "Audit Trail" mode, this passes the persisted V2 events to the V1->V2 comparison.
+    const isFinalStep = i === sequenceToDiff.length - 2;
+    const eventsForDiff = isFinalStep ? sanitizedEvents : [];
 
     const changeset = diffSnapshots(
       fromVersion.snapshot,
