@@ -1,13 +1,14 @@
 // src/taskpane/features/developer/components/DeveloperTools.tsx
 
+
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import { Button, Divider, Textarea, Subtitle2 } from "@fluentui/react-components";
 import { debugService } from "../../../core/services/debug.service";
 import { useSharedStyles } from "../../../shared/styles/sharedStyles";
 import { authService } from "../../../core/services/AuthService";
-import { devHarnessService } from "../../../features/developer/services/dev.harness.service";
-import { testSteps } from "../../../features/developer/services/test.cases";
+import { devHarnessService, IHybridDiffTest } from "../../../features/developer/services/dev.harness.service"; // Import IHybridDiffTest
+import { testSteps, HybridRowInsertRecalcTest } from "../../../features/developer/services/test.cases"; // Import Hybrid Test Case
 import { useAppStore } from "../../../state/appStore";
 import { comparisonWorkflowService } from "../../comparison/services/comparison.workflow.service";
 import { excelInteractionService } from "../../../core/excel/excel.interaction.service";
@@ -21,6 +22,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
     isLicenseLoading,
     addVersion,
     clearVersions,
+    selectedVersions // Added for comparison logic integrity
   } = useAppStore();
 
   const styles = useSharedStyles();
@@ -37,27 +39,75 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
     versionsRef.current = versions;
   }, [versions]);
 
-  const handleRunTest = async () => {
+  // Helper function to provide callbacks for the harness methods
+  const getHarnessCallbacks = (setComparisonStatus: (msg: string) => void) => {
+    return {
+      getVersions: () => versionsRef.current,
+      onSaveVersion: addVersion,
+      onClearHistory: clearVersions,
+      // The onCompare callback for the harness needs to initiate the complex workflow
+      onCompare: (startIdx: number, endIdx: number | 'current') => {
+        const currentVersions = useAppStore.getState().versions;
+
+        // Translate harness index (0-based) or 'current' flag to AppStore selection
+        const startId = currentVersions[startIdx]?.id;
+        const endId = endIdx === 'current' ? 'current' : currentVersions[endIdx as number]?.id;
+
+        if (startId) useAppStore.getState().selectVersion(startId);
+        if (endId) useAppStore.getState().selectVersion(endId);
+
+        // Run the comparison. comparisonWorkflowService relies on the AppStore selection being updated.
+        comparisonWorkflowService.runComparison();
+      },
+      onStatusUpdate: setComparisonStatus,
+    };
+
+  };
+
+  const handleRunComprehensiveTest = async () => {
     setIsRunning(true);
-    setStatus("Initiating test run...");
+    setStatus("Initiating Comprehensive test run...");
 
     try {
-      await devHarnessService.runComprehensiveTest({
-        getVersions: () => versionsRef.current,
-        onSaveVersion: addVersion,
-        onClearHistory: clearVersions,
-        onCompare: comparisonWorkflowService.runComparison,
-        onStatusUpdate: setStatus,
-      }, {
-        upToStep: 18,
-      });
-      setStatus("Test run completed successfully!");
+      await devHarnessService.runComprehensiveTest(
+        getHarnessCallbacks(setStatus),
+        { upToStep: testSteps.length }
+      );
+      setStatus("Comprehensive test run completed successfully!");
     } catch (error) {
-      setStatus(`Error during test: ${error.message}`);
+      setStatus(`Error during comprehensive test: ${error.message}`);
     } finally {
       setIsRunning(false);
     }
+
   };
+
+  // === NEW HYBRID TEST HANDLER ===
+  const handleRunHybridTest = async () => {
+    setIsRunning(true);
+    setStatus("Initiating Hybrid Diff Test...");
+
+    try {
+      await Excel.run(async (context) => {
+        // Ensure the target sheet exists before the harness tries to clean or use it
+        context.workbook.worksheets.add(HybridRowInsertRecalcTest.sheetName);
+        await context.sync();
+      });
+
+      await devHarnessService.runHybridDiffTest(
+        getHarnessCallbacks(setStatus),
+        HybridRowInsertRecalcTest
+      );
+      setStatus("Hybrid Diff Test PASSED. Noise successfully filtered!");
+
+    } catch (error) {
+      setStatus(`Error during Hybrid Diff test: ${error.message}`);
+    } finally {
+      setIsRunning(false);
+    }
+
+  };
+  // ===============================
 
   const handleSaveLog = () => {
     setStatus("Manually saving debug session...");
@@ -94,13 +144,14 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         setIsCapturingEvents(true);
       }
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        setStatus(`Event capture failed: ${errorMessage}`);
-        setIsCapturingEvents(false);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setStatus(`Event capture failed: ${errorMessage}`);
+      setIsCapturingEvents(false);
     }
+
   };
 
-  // NEW: Reads the in-memory buffer from the background service
+  // Reads the in-memory buffer from the background service
   const handleRefreshLiveLog = () => {
     const events = excelInteractionService.getRawEvents();
     setLiveEventCount(events.length);
@@ -117,7 +168,12 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
       marginTop: '8px'
     }}>
       <h4 style={{ margin: '0 0 6px 0', fontSize: '13px' }}>Developer Tools</h4>
-      
+
+      code
+      Code
+      download
+      content_copy
+      expand_less
       <div style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>
         Tier: <strong>{isLicenseLoading ? 'Loading...' : license?.tier?.toUpperCase() ?? 'FREE'}</strong>
       </div>
@@ -144,17 +200,31 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
 
       <Divider style={{ margin: "6px 0" }} />
 
+      {/* Test Runner Buttons */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
         <Button
           appearance="primary"
           size="small"
-          onClick={handleRunTest}
+          onClick={handleRunComprehensiveTest}
           disabled={isRunning || isCapturingEvents}
           style={{ flex: 1 }}
+          title={`Runs comprehensive test v1-${testSteps.length}`}
         >
           {isRunning ? "Running..." : `Test v1-${testSteps.length}`}
         </Button>
+        <Button
+          appearance="secondary"
+          size="small"
+          onClick={handleRunHybridTest}
+          disabled={isRunning || isCapturingEvents}
+          style={{ flex: 1 }}
+          title={HybridRowInsertRecalcTest.description}
+        >
+          Run Hybrid Diff Test
+        </Button>
+      </div>
 
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
         <Button
           appearance="secondary"
           size="small"
@@ -164,32 +234,32 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         >
           Save Log
         </Button>
+
+        <Button
+          size="small"
+          onClick={handleToggleEventCapture}
+          disabled={isRunning}
+          appearance={isCapturingEvents ? "primary" : "secondary"}
+          style={{ flex: 1 }}
+        >
+          {isCapturingEvents ? "Stop & Save Events" : "Restart Capture"}
+        </Button>
       </div>
 
       <Divider style={{ margin: "6px 0" }} />
 
-      <Button
-        size="small"
-        onClick={handleToggleEventCapture}
-        disabled={isRunning}
-        appearance={isCapturingEvents ? "primary" : "secondary"}
-        style={{ width: '100%', marginBottom: '8px' }}
-      >
-        {isCapturingEvents ? "Stop & Save to File" : "Restart Capture"}
-      </Button>
-
-      {/* NEW: Live Monitor Section */}
+      {/* Live Monitor Section */}
       <div style={{ backgroundColor: 'white', padding: '5px', borderRadius: '3px', border: '1px solid #e0e0e0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-            <Subtitle2>Live Buffer ({liveEventCount})</Subtitle2>
-            <Button size="small" onClick={handleRefreshLiveLog}>Refresh</Button>
+          <Subtitle2>Live Buffer ({liveEventCount})</Subtitle2>
+          <Button size="small" onClick={handleRefreshLiveLog}>Refresh</Button>
         </div>
-        <Textarea 
-            value={liveLogText}
-            readOnly
-            rows={6}
-            style={{ width: '100%', fontFamily: 'monospace', fontSize: '10px', whiteSpace: 'pre' }}
-            placeholder="Events captured while pane was closed will appear here..."
+        <Textarea
+          value={liveLogText}
+          readOnly
+          rows={6}
+          style={{ width: '100%', fontFamily: 'monospace', fontSize: '10px', whiteSpace: 'pre' }}
+          placeholder="Events captured while pane was closed will appear here..."
         />
       </div>
 
@@ -197,6 +267,7 @@ const DeveloperTools: React.FC<DevToolsProps> = () => {
         {status}
       </div>
     </div>
+
   );
 };
 

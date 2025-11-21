@@ -210,6 +210,7 @@ export interface IReportStructuralChange
 }
 
 export interface IRawEvent {
+  sheetId?: string;
   changeType: string;
   address: string;
   worksheetId: string;
